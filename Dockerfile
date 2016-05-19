@@ -3,7 +3,8 @@ FROM gliderlabs/alpine:2.7
 
 MAINTAINER Andrius Kairiukstis <andrius@kairiukstis.com>
 
-RUN apk add --update less asterisk asterisk-sample-config \
+RUN apk add --update less curl ngrep \
+  asterisk asterisk-curl asterisk-speex asterisk-sample-config \
 &&  rm -rf /var/cache/apk/*
 
 ADD docker-entrypoint.sh /docker-entrypoint.sh
