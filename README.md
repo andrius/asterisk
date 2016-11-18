@@ -1,16 +1,14 @@
-Asterisk PBX 11.17.1 Docker image
-=================================
+Asterisk PBX Docker image
+=========================
 
-The smallest Docker image with Asterisk PBX 11.17.1 (~17MB) https://hub.docker.com/r/andrius/alpine-asterisk/
+The smallest Docker image with Asterisk PBX https://hub.docker.com/r/andrius/alpine-asterisk/
 
-This image is based on Alpine Linux (2.7) image, which is only a 5MB image, and contains
-[Asterisk PBX 11.17.1](http://www.asterisk.org/get-started/features).
-
-*[Due of bug](https://bugs.alpinelinux.org/issues/3503), this image based on latest Alpine Linux version (2.7), where everything works: SIP stack, calls, AGI, AMI. Author uing this image for ongoing VoIP systems development with Adhearsion.*
+This image is based on Alpine Linux image, which is only a 5MB image, and contains
+[Asterisk PBX](http://www.asterisk.org/get-started/features).
 
 Total size of this image is only:
 
-[![](https://badge.imagelayers.io/andrius/alpine-asterisk:latest.svg)](https://imagelayers.io/?images=andrius/alpine-asterisk:latest 'Get your own badge on imagelayers.io')
+[![](https://images.microbadger.com/badges/image/andrius/alpine-asterisk.svg)](https://microbadger.com/images/andrius/alpine-asterisk "Get your own image badge on microbadger.com")
 
 What's missing
 ---------------
