@@ -6,8 +6,6 @@ MAINTAINER Andrius Kairiukstis <andrius@kairiukstis.com>
 RUN apk add --update \
       asterisk \
       asterisk-sample-config \
-      asterisk-curl \
-      asterisk-srtp \
 && asterisk -U asterisk \
 && sleep 5 \
 && pkill -9 asterisk \
