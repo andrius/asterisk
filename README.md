@@ -6,11 +6,12 @@ The smallest Docker image with Asterisk PBX https://hub.docker.com/r/andrius/ast
 This image is based on Alpine Linux image, which is only a 5MB image, and contains
 [Asterisk PBX](http://www.asterisk.org/get-started/features).
 
-Total size of this image for `latest` tag (Alpine-based) is:
+Total size of this image for `latest` tag (based on Alpine linux) is:
 
 [![](https://images.microbadger.com/badges/image/andrius/asterisk.svg)](https://microbadger.com/images/andrius/asterisk "Get your own image badge on microbadger.com")
 
-And for `debian-15-current` [![](https://images.microbadger.com/badges/image/andrius/asterisk:debian-15-current.svg)](https://microbadger.com/images/andrius/asterisk:debian-15-current "Get your own image badge on microbadger.com").
+And for `debian-stretch-slim-15-current`
+[![](https://images.microbadger.com/badges/image/andrius/asterisk:debian-stretch-slim-15-current.svg)](https://microbadger.com/images/andrius/asterisk:debian-stretch-slim-15-current "Get your own image badge on microbadger.com").
 
 # Custom UID/GID
 
