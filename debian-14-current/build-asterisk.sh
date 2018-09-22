@@ -17,6 +17,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-i
     build-essential \
     ca-certificates \
     curl \
+    file \
     libcurl4-openssl-dev \
     libedit-dev \
     libgsm1-dev \
@@ -111,7 +112,19 @@ rm -rf /usr/src/asterisk \
 
 # remove *-dev packages
 devpackages=`dpkg -l|grep '\-dev'|awk '{print $2}'|xargs`
-DEBIAN_FRONTEND=noninteractive apt-get --yes purge ${devpackages} autoconf build-essential
+DEBIAN_FRONTEND=noninteractive apt-get --yes purge \
+  autoconf \
+  build-essential \
+  bzip2 \
+  cpp \
+  m4 \
+  make \
+  patch \
+  perl \
+  perl-modules \
+  pkg-config \
+  xz-utils \
+  ${devpackages}
 rm -rf /var/lib/apt/lists/*
 
 exec rm -f /build-asterisk.sh
