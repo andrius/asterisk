@@ -14,12 +14,11 @@ if [ "${ASTERISK_UID}" != "" ] && [ "${ASTERISK_GID}" != "" ]; then
   # if they've sent as env variables (i.e. to macth with host user to fix permissions for mounted folders
 
   deluser asterisk && \
-  adduser --gecos "" --no-create-home --uid ${ASTERISK_UID} --disabled-password ${ASTERISK_USER} \
-  || exit
+  adduser --gecos "" --no-create-home --uid ${ASTERISK_UID} --disabled-password ${ASTERISK_USER} || exit
+
+  chown -R ${ASTERISK_UID}:${ASTERISK_UID} /etc/asterisk \
+                                           /var/*/asterisk \
+                                           /usr/*/asterisk
 fi
 
-chown -R ${ASTERISK_USER}: /var/log/asterisk \
-                           /var/lib/asterisk \
-                           /var/run/asterisk \
-                           /var/spool/asterisk; \
 exec ${COMMAND}

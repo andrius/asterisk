@@ -3,7 +3,7 @@ FROM debian:stretch-slim
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 
-ENV ASTERISK_VERSION 16.0.0-rc3
+ENV ASTERISK_VERSION 16-current
 ENV OPUS_CODEC       asterisk-16.0/x86-64/codec_opus-16.0_current-x86_64
 
 COPY build-asterisk.sh /

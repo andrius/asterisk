@@ -33,6 +33,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-i
     libvorbis-dev \
     libxml2-dev \
     libxslt1-dev \
+    procps \
     portaudio19-dev \
     unixodbc \
     unixodbc-bin \
