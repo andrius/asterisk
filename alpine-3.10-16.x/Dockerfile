@@ -1,11 +1,12 @@
 # vim:set ft=dockerfile:
-FROM alpine:3.8
+FROM alpine:3.10
 
 MAINTAINER Andrius Kairiukstis <andrius@kairiukstis.com>
 
 RUN apk add --update \
       asterisk \
       asterisk-sample-config \
+&& rm -rf /usr/lib/asterisk/modules/*pjsip* \
 && asterisk -U asterisk \
 && sleep 5 \
 && pkill -9 asterisk \
