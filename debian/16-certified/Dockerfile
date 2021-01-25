@@ -4,7 +4,7 @@ FROM debian:buster-slim
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 
 ENV ASTERISK_VERSION asterisk-certified-16.3-current
-ENV OPUS_CODEC       asterisk-16.0/x86-64/codec_opus-13.0_current-x86_64
+ENV OPUS_CODEC       asterisk-16.0/x86-64/codec_opus-16.0_current-x86_64
 
 COPY build-asterisk.sh /
 RUN /build-asterisk.sh
