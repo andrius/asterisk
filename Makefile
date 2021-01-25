@@ -255,7 +255,7 @@ endif
 
 test: deps.bats
 	DOCKERFILE=$(DOCKERFILE) IMAGE=$(IMAGE_NAME):$(VERSION) \
-		./test/bats/bats test/asterisk.bats
+		./test/bats/bin/bats --pretty ./test/asterisk.bats
 
 
 
@@ -264,18 +264,18 @@ test: deps.bats
 # Usage:
 #	make deps.bats [BATS_VER=]
 
-BATS_VER ?= 0.4.0
+BATS_VER ?= 1.2.1
 
 deps.bats:
 ifeq ($(wildcard $(PWD)/test/bats),)
-	mkdir -p $(PWD)/test/bats/vendor
-	wget https://github.com/sstephenson/bats/archive/v$(BATS_VER).tar.gz \
-		-O $(PWD)/test/bats/vendor/bats.tar.gz
-	tar -xzf $(PWD)/test/bats/vendor/bats.tar.gz \
-		-C $(PWD)/test/bats/vendor
-	rm -f $(PWD)/test/bats/vendor/bats.tar.gz
-	ln -s $(PWD)/test/bats/vendor/bats-$(BATS_VER)/libexec/* \
-		$(PWD)/test/bats/
+	mkdir -p $(PWD)/test/bats
+	wget https://github.com/bats-core/bats-core/archive/v$(BATS_VER).tar.gz \
+		-O $(PWD)/test/bats/bats.tar.gz
+	tar -xzf $(PWD)/test/bats/bats.tar.gz -C $(PWD)/test/bats
+	$(PWD)/test/bats/bats-core-$(BATS_VER)/install.sh $(PWD)/test/bats
+	rm -rf  $(PWD)/test/bats/bats.tar.gz \
+		$(PWD)/test/bats/bats-core-$(BATS_VER) \
+		$(PWD)/test/bats/share
 endif
 
 
