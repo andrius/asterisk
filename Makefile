@@ -20,22 +20,6 @@ X86_IMAGES := \
 	alpine/3.1:3.1-13.3.2 \
 	alpine/2.7:2.7-11.25.1,11.x \
 	alpine/2.6:2.6-11.6.1 \
-	debian/17-current:17-current \
-	debian/16-current:16-current \
-	debian/16-certified:16-certified,16.3-cert \
-	debian/13-current:13-current \
-	debian/13-certified:13-certified,13.21-cert \
-	debian/15.7.4:15.7.4 \
-	debian/14.7.8:14.7.8 \
-	debian/12.8.2:12.8.2 \
-	debian/11.25.3:11.25.3 \
-	debian/10.12.4:10.12.4 \
-	debian/1.8.32.3:1.8.32.3 \
-	debian/1.6.2.24:1.6.2.24 \
-	debian/1.4.44:1.4.44 \
-	centos/1.6.2.24:1.6.2.24 \
-	centos/1.4.44:1.4.44 \
-	centos/1.2.40:1.2.40
 
 ALL_IMAGES := $(X86_IMAGES)
 
