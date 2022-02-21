@@ -1,5 +1,5 @@
 # vim:set ft=dockerfile:
-FROM alpine:3.6
+FROM alpine:3.14
 
 MAINTAINER Andrius Kairiukstis <andrius@kairiukstis.com>
 

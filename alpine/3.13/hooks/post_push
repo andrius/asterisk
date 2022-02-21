@@ -9,7 +9,7 @@ tagStart=$(expr index "$IMAGE_NAME" :)
 repoName=${IMAGE_NAME:0:tagStart-1}
 
 # Tag and push image for each additional tag
-for tag in {glibc_latest,alpine_glibc-18.x,glibc-18.x,alpine_glibc-18.2.2,glibc-18.2.2}; do
+for tag in {3.13-18.2.1}; do
   docker tag $IMAGE_NAME ${repoName}:${tag}
   docker push ${repoName}:${tag}
 done

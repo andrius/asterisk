@@ -6,8 +6,12 @@ IMAGE_NAME := andrius/asterisk
 X86_IMAGES := \
 	alpine/edge:edge \
 	alpine/latest:latest \
-	alpine/glibc:glibc_latest,alpine_glibc-16.x,glibc-16.x,alpine_glibc-16.3.0,glibc-16.3.0 \
-	alpine/3.11:3.11-16.6.2,16.x \
+	alpine/glibc:glibc_latest,alpine_glibc-18.x,glibc-18.x,alpine_glibc-18.2.2,glibc-18.2.2 \
+        alpine/3.15:3.15-18.2.2,18.x \
+        alpine/3.14:3.14-18.2.2 \
+	alpine/3.13:3.13-18.2.1 \
+	alpine/3.12:3.12-16.16.1,16.x \
+	alpine/3.11:3.11-16.6.2 \
 	alpine/3.10:3.10-16.3.0 \
 	alpine/3.9:3.9-15.7.4,15.x \
         alpine/3.8:3.8-15.6.2 \
@@ -18,11 +22,10 @@ X86_IMAGES := \
 	alpine/3.3:3.3-13.17.2 \
 	alpine/3.2:3.2-13.3.2 \
 	alpine/3.1:3.1-13.3.2 \
-	alpine/2.7:2.7-11.25.1,11.x \
-	alpine/2.6:2.6-11.6.1 \
-	debian/17-current:17-current \
+	debian/18-current:18-current \
+	debian/17.9.4:17.9.4 \
 	debian/16-current:16-current \
-	debian/16-certified:16-certified,16.3-cert \
+	debian/16-certified:16-certified,16.8-cert \
 	debian/13-current:13-current \
 	debian/13-certified:13-certified,13.21-cert \
 	debian/15.7.4:15.7.4 \
@@ -255,7 +258,7 @@ endif
 
 test: deps.bats
 	DOCKERFILE=$(DOCKERFILE) IMAGE=$(IMAGE_NAME):$(VERSION) \
-		./test/bats/bin/bats --pretty ./test/asterisk.bats
+		./tests/bats/bin/bats -t ./tests/asterisk.bats
 
 
 
@@ -264,18 +267,18 @@ test: deps.bats
 # Usage:
 #	make deps.bats [BATS_VER=]
 
-BATS_VER ?= 1.2.1
+BATS_VER ?= 1.5.0
 
 deps.bats:
-ifeq ($(wildcard $(PWD)/test/bats),)
-	mkdir -p $(PWD)/test/bats
+ifeq ($(wildcard $(PWD)/tests/bats),)
+	mkdir -p $(PWD)/tests/bats
 	wget https://github.com/bats-core/bats-core/archive/v$(BATS_VER).tar.gz \
-		-O $(PWD)/test/bats/bats.tar.gz
-	tar -xzf $(PWD)/test/bats/bats.tar.gz -C $(PWD)/test/bats
-	$(PWD)/test/bats/bats-core-$(BATS_VER)/install.sh $(PWD)/test/bats
-	rm -rf  $(PWD)/test/bats/bats.tar.gz \
-		$(PWD)/test/bats/bats-core-$(BATS_VER) \
-		$(PWD)/test/bats/share
+		-O $(PWD)/tests/bats/bats.tar.gz
+	tar -xzf $(PWD)/tests/bats/bats.tar.gz -C $(PWD)/tests/bats
+	$(PWD)/tests/bats/bats-core-$(BATS_VER)/install.sh $(PWD)/tests/bats
+	rm -rf  $(PWD)/tests/bats/bats.tar.gz \
+		$(PWD)/tests/bats/bats-core-$(BATS_VER) \
+		$(PWD)/tests/bats/share
 endif
 
 
