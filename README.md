@@ -1,6 +1,8 @@
 Asterisk PBX Docker image
 =========================
 
+> REFACTOR! I started massive refactor, considering comments received in the issues and private emails. Thank you all for the feedback! Once ready, This readme will be updated, right away please look to the existing docker tags on hub
+
 The smallest Docker image with Asterisk PBX https://hub.docker.com/r/andrius/asterisk/
 
 This image is based on Alpine Linux image, which is only a 5MB image, and contains
