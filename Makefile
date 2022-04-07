@@ -26,7 +26,7 @@ X86_IMAGES := \
 	debian/17.9.4:17.9.4 \
 	debian/16-current:16-current \
 	debian/16-certified:16-certified,16.8-cert \
-	debian/13-current:13-current \
+	debian/13.38.3:13.38.3 \
 	debian/13-certified:13-certified,13.21-cert \
 	debian/15.7.4:15.7.4 \
 	debian/14.7.8:14.7.8 \
