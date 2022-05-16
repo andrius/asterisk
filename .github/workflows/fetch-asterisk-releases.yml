@@ -90,6 +90,6 @@ jobs:
           git commit \
             --all \
             --allow-empty \
-            --message "Automatic update of asterisk releases file(s) on $(date '+%Y-%m-%d %H:%M:%S')"
+            --message "[$(date '+%Y-%m-%d %H:%M')] automatic update of asterisk release lists"
 
           git push
