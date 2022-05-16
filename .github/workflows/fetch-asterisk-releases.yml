@@ -26,6 +26,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_GITHUB_TOKEN }}
 
       - name: Fetch asterisk releases
         shell: bash
