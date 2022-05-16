@@ -32,7 +32,7 @@ jobs:
       - name: Fetch asterisk releases
         shell: bash
         run: |
-          set -ueox pipefail
+          set -ueo pipefail
 
           URLS=( \
             http://downloads.asterisk.org/pub/telephony/asterisk/releases/ \
@@ -80,16 +80,20 @@ jobs:
       - name: Commit and push updates
         shell: bash
         run: |
-          set -ueox pipefail
+          set -ueo pipefail
 
-          git config user.email "github-actions@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
+          if [ "$(git status -s)" == "" ]; then
+            git config user.email "github-actions@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
 
-          git add ./asterisk-releases.txt
-          git add ./asterisk-certified-releases.txt
-          git commit \
-            --all \
-            --allow-empty \
-            --message "[$(date '+%Y-%m-%d %H:%M')] automatic update of asterisk release lists"
+            git add ./asterisk-releases.txt
+            git add ./asterisk-certified-releases.txt
+            git commit \
+              --all \
+              --allow-empty \
+              --message "[$(date '+%Y-%m-%d %H:%M')] automatic update of asterisk release lists"
 
-          git push
+            git push
+          else
+            echo "Nothing to push, no updates"
+          fi
