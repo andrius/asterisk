@@ -1,5 +1,6 @@
 # vim:set ft=dockerfile:
 FROM debian:buster-slim
+# FROM debian:bullseye-slim
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 

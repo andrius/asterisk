@@ -1,0 +1,156 @@
+name: Create alpine-based asterisk images
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_ref:
+        description: "github ref"
+        required: false
+        default: "master"
+
+  push:
+    paths:
+      - .github/workflows/generate-alpine-images.yml
+      - "alpine/*"
+
+  schedule:
+    #         ┌───────────── minute (0 - 59)
+    #         │ ┌───────────── hour (0 - 23)
+    #         │ │  ┌───────────── day of the month (1 - 31)
+    #         │ │  │         ┌───────────── month (1 - 12 or JAN-DEC)
+    #         │ │  │         │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
+    #         │ │  │         │ │
+    #         │ │  │         │ │
+    #         │ │  │         │ │
+    #         * *  *         * *
+    - cron:  '0 19 1-7,15-21 * 3' # first and third wednesdays of the month
+
+jobs:
+  generate-alpine-images:
+    timeout-minutes: 60
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: ACT dependencies
+        if: ${{ env.ACT }}
+        shell: bash
+        run: |
+          set -ueo pipefail
+
+          apt-get -yqq update &>/dev/null
+          apt-get install -yqq --no-install-recommends \
+            ruby \
+          &>/dev/null
+          apt-get -yqq clean &>/dev/null
+
+          ruby --version
+
+      - name: Create docker buildx instance
+        id: buildx_env
+        shell: bash
+        run: |
+          set -ueox pipefail
+
+          echo "::set-output name=value::$(docker buildx create)"
+
+      - name: Login to the docker registry
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine github_ref to checkout
+        id: github_ref
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            GITHUB_REF="${{ github.event.inputs.github_ref }}"
+            [ "${GITHUB_REF}" == "" ] && GITHUB_REF="master"
+          else
+            GITHUB_REF="${{ github.ref }}"
+          fi
+          GITHUB_REF="$( echo -n "${GITHUB_REF}" | awk '{ gsub(/^refs\/heads\//, ""); print }' )"
+          echo "::set-output name=value::${GITHUB_REF}"
+
+      # don't use ref: with act (it will checkout repo and will ignore local changes)
+      - name: Checkout this repository (using ACT environment)
+        if: ${{ env.ACT }}
+        uses: actions/checkout@v3
+
+      - name: Checkout this repository
+        if: ${{ ! env.ACT }}
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.github_ref.outputs.value }}
+
+      - name: Build docker images
+        shell: bash
+        run: |
+          set -ueox pipefail
+
+          ALPINE_RELEASES=( \
+            alpine:3.1 \
+            alpine:3.2 \
+            alpine:3.3 \
+            alpine:3.4 \
+            alpine:3.5 \
+            alpine:3.6 \
+            alpine:3.7 \
+            alpine:3.8 \
+            alpine:3.9 \
+            alpine:3.10 \
+            alpine:3.11 \
+            alpine:3.12 \
+            alpine:3.13 \
+            alpine:3.14 \
+            alpine:3.15 \
+            alpine:edge \
+            alpine:latest \
+          )
+
+          BUILDER_INSTANCE="${{ steps.buildx_env.outputs.value }}"
+
+          cd alpine
+
+          for RELEASE in "${ALPINE_RELEASES[@]}"; do
+            RELEASE_VERSION="$(echo -n "${RELEASE}" | awk -F ':' '{print $NF}')"
+            IMAGE="andrius/asterisk:${RELEASE_VERSION}"
+
+            # docker run --rm -i -v "${WORKDIR}/Dockerfile.erb":/Dockerfile.erb:ro ruby:alpine \
+            #   erb -U docker_baseimage="${RELEASE}" /Dockerfile.erb > "${WORKDIR}/Dockerfile-${RELEASE_VERSION}"
+            erb -U docker_baseimage="${RELEASE}" ./Dockerfile.erb > "./Dockerfile-${RELEASE_VERSION}"
+
+            BUILDX_PLATFORMS="$(docker buildx imagetools inspect "${RELEASE}" | grep 'Platform:' | awk '{print $NF}' | grep 'amd64\|arm\|386' | xargs)"
+            BUILDX_PLATFORMS="$(echo -n "${BUILDX_PLATFORMS}" | sed -e "s/ /,/g")"
+
+            if docker build --quiet --pull --tag "${IMAGE}" --file "Dockerfile-${RELEASE_VERSION}" . ; then
+              CONTAINER_NAME="$(date +%s | sha256sum | base64 | head -c 32 ; echo)"
+              # ASTERISK_VERSION="$(docker run -i --rm --name "${CONTAINER_NAME}" "${IMAGE}" asterisk -V 2>&1)"
+              docker run --detach --name "${CONTAINER_NAME}" "${IMAGE}"
+              sleep 2s
+              ASTERISK_VERSION="$(docker exec -i "${CONTAINER_NAME}" asterisk -V 2>&1 | awk '{print $NF}')"
+              docker rm --force --volumes "${CONTAINER_NAME}"
+              docker rmi --force "${IMAGE}"
+
+              TAGS="--tag andrius/asterisk:${ASTERISK_VERSION}-alpine"
+              TAGS="${TAGS} --tag andrius/asterisk:${ASTERISK_VERSION}-alpine_${RELEASE_VERSION}"
+              TAGS="${TAGS} --tag andrius/asterisk:${RELEASE_VERSION}-${ASTERISK_VERSION}"
+              if [[ "${RELEASE_VERSION}" = "latest" || "${RELEASE_VERSION}" = "edge" ]] ; then
+                TAGS="${TAGS} --tag andrius/asterisk:${RELEASE_VERSION}"
+              fi
+
+              docker buildx use "${BUILDER_INSTANCE}"
+              docker buildx build --platform "${BUILDX_PLATFORMS}" --quiet --push --pull ${TAGS} --file "Dockerfile-${RELEASE_VERSION}" .
+              docker buildx prune --all --force
+            fi
+
+            docker rmi --force "${RELEASE}"
+            rm "Dockerfile-${RELEASE_VERSION}"
+          done
+
+      - name: Remove docker buildx instance
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          BUILDER_INSTANCE="${{ steps.buildx_env.outputs.value }}"
+          [ "${BUILDER_INSTANCE}" != "" ] && docker buildx rm "${BUILDER_INSTANCE}"

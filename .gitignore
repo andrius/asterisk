@@ -1,3 +1,6 @@
 /tests/bats
 /temp
 /tmp
+
+/.act
+/.actrc

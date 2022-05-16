@@ -1,63 +1,81 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 PROGNAME=$(basename $0)
 
 if test -z ${ASTERISK_VERSION}; then
-    echo "${PROGNAME}: ASTERISK_VERSION required" >&2
-    exit 1
+  echo "${PROGNAME}: ASTERISK_VERSION required" >&2
+  exit 1
 fi
 
-set -ex
+OPUS_CODEC="${OPUS_CODEC:-}"
+
+set -ueo pipefail
+
 
 useradd --system asterisk
 
+DEBIAN_FRONTEND=noninteractive \
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-install-suggests \
-    autoconf \
-    binutils-dev \
-    build-essential \
-    ca-certificates \
-    curl \
-    file \
-    libcurl4-openssl-dev \
-    libedit-dev \
-    libgsm1-dev \
-    libjansson4 \
-    libjansson-dev \
-    libogg-dev \
-    libpopt-dev \
-    libresample1-dev \
-    libspandsp-dev \
-    libspeex-dev \
-    libspeexdsp-dev \
-    libsqlite3-dev \
-    libsrtp2-dev \
-    libssl-dev \
-    libvorbis-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    procps \
-    portaudio19-dev \
-    unixodbc \
-    unixodbc-bin \
-    unixodbc-dev \
-    odbcinst \
-    uuid \
-    uuid-dev \
-    xmlstarlet
 
-apt-get purge -y --auto-remove
+DEBIAN_FRONTEND=noninteractive \
+apt-get install --yes -qq --no-install-recommends --no-install-suggests \
+  autoconf \
+  binutils-dev \
+  build-essential \
+  ca-certificates \
+  curl \
+  file \
+  libcurl4-openssl-dev \
+  libedit-dev \
+  libgsm1-dev \
+  libjansson-dev \
+  libogg-dev \
+  libpopt-dev \
+  libresample1-dev \
+  libspandsp-dev \
+  libspeex-dev \
+  libspeexdsp-dev \
+  libsqlite3-dev \
+  libssl-dev \
+  libvorbis-dev \
+  libxml2-dev \
+  libxslt1-dev \
+  odbcinst \
+  portaudio19-dev \
+  procps \
+  unixodbc \
+  unixodbc-dev \
+  uuid \
+  uuid-dev \
+  xmlstarlet \
+> /dev/null
+
+DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends --no-install-suggests libsrtp2-dev || \
+DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends --no-install-suggests libsrtp0-dev
+
+DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends --no-install-suggests unixodbc-bin || :
+
+DEBIAN_FRONTEND=noninteractive \
+apt-get purge --yes -qq --auto-remove > /dev/null
 rm -rf /var/lib/apt/lists/*
 
 mkdir -p /usr/src/asterisk
 cd /usr/src/asterisk
 
-curl -vsL http://downloads.asterisk.org/pub/telephony/certified-asterisk/${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
-curl -vsL http://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz
+( \
+  curl -sL http://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
+  curl -sL http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
+  curl -sL http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
+  curl -sL http://downloads.asterisk.org/pub/telephony/certified-asterisk/${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
+  curl -sL http://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz
+) &>/dev/null
 
 # 1.5 jobs per core works out okay
 : ${JOBS:=$(( $(nproc) + $(nproc) / 2 ))}
 
-./configure  --with-resample --with-pjproject-bundled
+./configure --with-resample \
+            --with-pjproject-bundled \
+            --with-jansson-bundled > /dev/null
 make menuselect/menuselect menuselect-tree menuselect.makeopts
 
 # disable BUILD_NATIVE to avoid platform issues
@@ -66,38 +84,42 @@ menuselect/menuselect --disable BUILD_NATIVE menuselect.makeopts
 # enable good things
 menuselect/menuselect --enable BETTER_BACKTRACES menuselect.makeopts
 
+# enable ooh323
+menuselect/menuselect --enable chan_ooh323 menuselect.makeopts
+
 # codecs
 # menuselect/menuselect --enable codec_opus menuselect.makeopts
 # menuselect/menuselect --enable codec_silk menuselect.makeopts
 
 # # download more sounds
 # for i in CORE-SOUNDS-EN MOH-OPSOUND EXTRA-SOUNDS-EN; do
-#     for j in ULAW ALAW G722 GSM SLN16; do
-#         menuselect/menuselect --enable $i-$j menuselect.makeopts
-#     done
+#   for j in ULAW ALAW G722 GSM SLN16; do
+#     menuselect/menuselect --enable $i-$j menuselect.makeopts
+#   done
 # done
 
 # we don't need any sounds in docker, they will be mounted as volume
-menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS
-menuselect/menuselect --disable-category MENUSELECT_MOH
-menuselect/menuselect --disable-category MENUSELECT_EXTRA_SOUNDS
+menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS menuselect.makeopts
+menuselect/menuselect --disable-category MENUSELECT_MOH menuselect.makeopts
+menuselect/menuselect --disable-category MENUSELECT_EXTRA_SOUNDS menuselect.makeopts
 
-make -j ${JOBS} all
-make install
+make -j ${JOBS} all > /dev/null || make -j ${JOBS} all
+make install > /dev/null
 
 # copy default configs
 # cp /usr/src/asterisk/configs/basic-pbx/*.conf /etc/asterisk/
-make samples
+make samples > /dev/null
 
 # set runuser and rungroup
 sed -i -E 's/^;(run)(user|group)/\1\2/' /etc/asterisk/asterisk.conf
 
-# Install opus, for some reason menuselect option above does not working
-mkdir -p /usr/src/codecs/opus \
-  && cd /usr/src/codecs/opus \
-  && curl -vsL http://downloads.digium.com/pub/telephony/codec_opus/${OPUS_CODEC}.tar.gz | tar --strip-components 1 -xz \
-  && cp *.so /usr/lib/asterisk/modules/ \
-  && cp codec_opus_config-en_US.xml /var/lib/asterisk/documentation/
+if [ "${OPUS_CODEC}" != "" ]; then
+  mkdir -p /usr/src/codecs/opus
+  cd /usr/src/codecs/opus
+  curl -sL http://downloads.digium.com/pub/telephony/codec_opus/${OPUS_CODEC}.tar.gz | tar --strip-components 1 -xz
+  cp *.so /usr/lib/asterisk/modules/
+  cp codec_opus_config-en_US.xml /var/lib/asterisk/documentation/
+fi
 
 mkdir -p /etc/asterisk/ \
          /var/spool/asterisk/fax
@@ -111,9 +133,8 @@ cd /
 rm -rf /usr/src/asterisk \
        /usr/src/codecs
 
-# remove *-dev packages
-devpackages=`dpkg -l|grep '\-dev'|awk '{print $2}'|xargs`
-DEBIAN_FRONTEND=noninteractive apt-get --yes purge \
+DEVPKGS="$(dpkg -l | grep '\-dev' | awk '{print $2}' | xargs)"
+DEBIAN_FRONTEND=noninteractive apt-get --yes -qq purge \
   autoconf \
   build-essential \
   bzip2 \
@@ -125,7 +146,9 @@ DEBIAN_FRONTEND=noninteractive apt-get --yes purge \
   perl-modules \
   pkg-config \
   xz-utils \
-  ${devpackages}
+  ${DEVPKGS} \
+> /dev/null
+
 rm -rf /var/lib/apt/lists/*
 
 exec rm -f /build-asterisk.sh

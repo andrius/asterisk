@@ -4,29 +4,12 @@ IMAGE_NAME := andrius/asterisk
 # OR
 #	<Dockerfile>:<version>,<tag1>,<tag2>,...
 X86_IMAGES := \
-	alpine/edge:edge \
-	alpine/latest:latest \
-	alpine/glibc:glibc_latest,alpine_glibc-18.x,glibc-18.x,alpine_glibc-18.2.2,glibc-18.2.2 \
-        alpine/3.15:3.15-18.2.2,18.x \
-        alpine/3.14:3.14-18.2.2 \
-	alpine/3.13:3.13-18.2.1 \
-	alpine/3.12:3.12-16.16.1,16.x \
-	alpine/3.11:3.11-16.6.2 \
-	alpine/3.10:3.10-16.3.0 \
-	alpine/3.9:3.9-15.7.4,15.x \
-        alpine/3.8:3.8-15.6.2 \
-	alpine/3.7:3.7-15.6.2 \
-	alpine/3.6:3.6-14.7.8,14.x \
-        alpine/3.5:3.5-14.7.8 \
-        alpine/3.4:3.4-13.18.5,13.x \
-	alpine/3.3:3.3-13.17.2 \
-	alpine/3.2:3.2-13.3.2 \
-	alpine/3.1:3.1-13.3.2 \
+	alpine-glibc:glibc_latest,alpine_glibc-18.x,glibc-18.x,alpine_glibc-18.2.2,glibc-18.2.2 \
 	debian/18-current:18-current \
 	debian/17.9.4:17.9.4 \
 	debian/16-current:16-current \
 	debian/16-certified:16-certified,16.8-cert \
-	debian/13-current:13-current \
+	debian/13.38.3:13.38.3 \
 	debian/13-certified:13-certified,13.21-cert \
 	debian/15.7.4:15.7.4 \
 	debian/14.7.8:14.7.8 \
@@ -35,10 +18,10 @@ X86_IMAGES := \
 	debian/10.12.4:10.12.4 \
 	debian/1.8.32.3:1.8.32.3 \
 	debian/1.6.2.24:1.6.2.24 \
-	debian/1.4.44:1.4.44 \
+	debian/1.4.44:1.4.44,1.4,1.4.44-debian,1.4-debian \
 	centos/1.6.2.24:1.6.2.24 \
 	centos/1.4.44:1.4.44 \
-	centos/1.2.40:1.2.40
+	centos/1.2.40:1.2.40,1.2,1.2.40-centos,1.2-centos
 
 ALL_IMAGES := $(X86_IMAGES)
 

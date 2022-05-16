@@ -11,7 +11,7 @@ set -ex
 useradd --system asterisk
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-install-suggests \
+DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends --no-install-suggests \
     autoconf \
     binutils-dev \
     build-essential \
@@ -34,11 +34,11 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-i
     libvorbis-dev \
     libxml2-dev \
     libxslt1-dev \
+    odbcinst \
     portaudio19-dev \
     unixodbc \
     unixodbc-bin \
     unixodbc-dev \
-    odbcinst \
     uuid \
     uuid-dev \
     xmlstarlet

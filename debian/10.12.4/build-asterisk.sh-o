@@ -11,7 +11,7 @@ set -ex
 useradd --system asterisk
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-install-suggests \
+DEBIAN_FRONTEND=noninteractive apt-get install -yqq --no-install-recommends --no-install-suggests \
     autoconf \
     binutils-dev \
     build-essential \
@@ -34,11 +34,11 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-i
     libvorbis-dev \
     libxml2-dev \
     libxslt1-dev \
+    odbcinst \
     portaudio19-dev \
     unixodbc \
     unixodbc-bin \
     unixodbc-dev \
-    odbcinst \
     uuid \
     uuid-dev \
     xmlstarlet
@@ -53,9 +53,6 @@ curl -vsL http://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk
 curl -vsL http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz || \
 curl -vsL http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-${ASTERISK_VERSION}.tar.gz | tar --strip-components 1 -xz
 
-# 1.5 jobs per core works out okay
-: ${JOBS:=$(( $(nproc) + $(nproc) / 2 ))}
-
 ./configure  --with-resample --with-pjproject-bundled
 make menuselect/menuselect menuselect-tree menuselect.makeopts
 
@@ -64,10 +61,6 @@ menuselect/menuselect --disable BUILD_NATIVE menuselect.makeopts
 
 # enable good things
 menuselect/menuselect --enable BETTER_BACKTRACES menuselect.makeopts
-
-# codecs
-# menuselect/menuselect --enable codec_opus menuselect.makeopts
-# menuselect/menuselect --enable codec_silk menuselect.makeopts
 
 # # download more sounds
 # for i in CORE-SOUNDS-EN MOH-OPSOUND EXTRA-SOUNDS-EN; do
@@ -81,7 +74,7 @@ menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS
 menuselect/menuselect --disable-category MENUSELECT_MOH
 menuselect/menuselect --disable-category MENUSELECT_EXTRA_SOUNDS
 
-make -j ${JOBS} all
+make all
 make install
 
 # copy default configs
@@ -90,13 +83,6 @@ make samples
 
 # set runuser and rungroup
 sed -i -E 's/^;(run)(user|group)/\1\2/' /etc/asterisk/asterisk.conf
-
-# Install opus, for some reason menuselect option above does not working
-mkdir -p /usr/src/codecs/opus \
-  && cd /usr/src/codecs/opus \
-  && curl -vsL http://downloads.digium.com/pub/telephony/codec_opus/${OPUS_CODEC}.tar.gz | tar --strip-components 1 -xz \
-  && cp *.so /usr/lib/asterisk/modules/ \
-  && cp codec_opus_config-en_US.xml /var/lib/asterisk/documentation/
 
 mkdir -p /etc/asterisk/ \
          /var/spool/asterisk/fax

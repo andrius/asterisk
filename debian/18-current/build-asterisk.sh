@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 PROGNAME=$(basename $0)
 
 if test -z ${ASTERISK_VERSION}; then
