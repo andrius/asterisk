@@ -1,0 +1,93 @@
+name: Fetch asterisk releases
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - .github/workflows/fetch-asterisk-releases.yml
+
+  schedule:
+    #         ┌───────────── minute (0 - 59)
+    #         │ ┌───────────── hour (0 - 23)
+    #         │ │  ┌───────────── day of the month (1 - 31)
+    #         │ │  │ ┌───────────── month (1 - 12 or JAN-DEC)
+    #         │ │  │ │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
+    #         │ │  │ │ │
+    #         │ │  │ │ │
+    #         │ │  │ │ │
+    #         * *  * * *
+    - cron:  '0 20 * * *' # Daily at 8 PM
+
+jobs:
+  fetch-asterisk-releases:
+    timeout-minutes: 10
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Fetch asterisk releases
+        shell: bash
+        run: |
+          set -ueox pipefail
+
+          URLS=( \
+            http://downloads.asterisk.org/pub/telephony/asterisk/releases/ \
+            http://downloads.asterisk.org/pub/telephony/asterisk/ \
+            http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/ \
+          )
+
+          RELEASES=""
+
+          for URL in "${URLS[@]}"; do
+            _RELEASES="$( \
+              curl -sL "${URL}" \
+              | grep '<a href="asterisk.*.tar.gz">' \
+              | grep -v '\-patch\|\-addons\|\-sounds' \
+              | awk -F '</td><td>|">asterisk' '{print $2}' \
+              | awk -F '"' '{print $NF}' \
+              | awk -F '.tar.gz' '{print $1}' \
+            )"
+            RELEASES="$(echo -e "\n${RELEASES}\n${_RELEASES}")"
+          done
+
+          echo -e "${RELEASES}" | sort -u > ./asterisk-releases.txt
+
+          URLS=( \
+            http://downloads.asterisk.org/pub/telephony/certified-asterisk/ \
+            http://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/ \
+          )
+
+          RELEASES=""
+
+          for URL in "${URLS[@]}"; do
+            _RELEASES="$( \
+              curl -sL "${URL}" \
+              | grep '<a href="asterisk.*.tar.gz">' \
+              | grep -v '\-patch' \
+              | awk -F '</td><td>|">asterisk' '{print $2}' \
+              | awk -F '"' '{print $NF}' \
+              | awk -F '.tar.gz' '{print $1}' \
+            )"
+            RELEASES="$(echo -e "\n${RELEASES}\n${_RELEASES}")"
+          done
+
+          echo -e "${RELEASES}" | sort -u > ./asterisk-certified-releases.txt
+
+      - name: Commit and push updates
+        shell: bash
+        run: |
+          set -ueox pipefail
+
+          git config user.email "github-actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          git add ./asterisk-releases.txt
+          git add ./asterisk-certified-releases.txt
+          git commit \
+            --all \
+            --allow-empty \
+            --message "Automatic update of asterisk releases file(s) on $(date '+%Y-%m-%d %H:%M:%S')"
+
+          git push
