@@ -1,102 +1,217 @@
-Asterisk PBX Docker image
-=========================
+# Asterisk Docker Images - Revitalized Repository
 
-> REFACTOR! I started massive refactor, considering comments received in the issues and private emails. Thank you all for the feedback! Once ready, This readme will be updated, right away please look to the existing docker tags on hub
+Modern Docker images for Asterisk PBX with automated builds and optimized configurations.
 
-The smallest Docker image with Asterisk PBX https://hub.docker.com/r/andrius/asterisk/
+> **📝 Legacy Code**: Original code preserved in the [legacy](https://github.com/andrius/asterisk/tree/legacy) branch.
 
-This image is based on Alpine Linux image, which is only a 5MB image, and contains
-[Asterisk PBX](http://www.asterisk.org/get-started/features).
+## 📦 Currently Supported Optimized Versions
 
-Total size of this image for `latest` tag (based on Alpine linux) is:
+As defined in [`asterisk/supported-asterisk-builds.yml`](asterisk/supported-asterisk-builds.yml):
 
-[![](https://images.microbadger.com/badges/image/andrius/asterisk.svg)](https://microbadger.com/images/andrius/asterisk "Get your own image badge on microbadger.com")
+### **Asterisk 22.5.2** (Latest Stable)
 
-And for `debian-stretch-slim-15-current`
-[![](https://images.microbadger.com/badges/image/andrius/asterisk:debian-stretch-slim-15-current.svg)](https://microbadger.com/images/andrius/asterisk:debian-stretch-slim-15-current "Get your own image badge on microbadger.com").
+- **Debian Trixie** (AMD64)
+- **Debian Bookworm** (AMD64)
 
-# Custom UID/GID
+### **Asterisk 23.0.0-rc2** (Release Candidate)
 
-By default, Asterisk will run as default user (asterisk) with UID and GID assigned by alpine linux, but it's possible to specify then through environment variables:
+- **Debian Trixie** (AMD64)
 
-- `ASTERISK_UID`
-- `ASTERISK_GID` (note, GID is not supported in debian releases)
+**More versions and distributions coming soon!**
 
-Default asterisk user will be re-created with new UID and GID
+## 🌟 Key Improvements
 
-In given example, ID's of current host user will be used to start, that will fix permissions issues on logs volume:
+- **🔄 Automated Release Discovery**: Daily discovery of new Asterisk releases
+- **📋 YAML-Driven Configuration**: Template-based build system
+- **🏗️ Multi-Stage Builds**: Optimized production-ready images
+- **🗄️ Database Integration**: Full PostgreSQL and MySQL support
+- **🌐 Modern Features**: WebSocket, ARI, WebRTC, and comprehensive telephony features
+- **📦 Multi-Platform Ready**: ARM64 and AMD64 architecture support
+- **🔧 Template System**: Jinja2-based Dockerfile generation
+- **🧪 Automated Testing**: Health checks and functionality validation
 
-```bash
-docker run -ti --rm \
-  -e ASTERISK_UID=`id -u` \
-  -e ASTERISK_GID=`id -g` \
-  -v ${PWD}/logs:/var/log/asterisk \
-  andrius/asterisk
-```
+## 📋 Examples
 
-# Alternative user
+Complete setup examples are available in the [`examples/`](examples/) directory:
 
-It is possible to specifty other than asterisk user to start through environment variable `ASTERISK_USER`:
+### Basic Setup ([`examples/basic/`](examples/basic/))
 
-```bash
-docker run -ti --rm -e ASTERISK_USER=root andrius/asterisk
-```
+A ready-to-use Docker Compose configuration with:
 
-# Versions
-
-## Based on Alpine linux:
-
-- `docker pull andrius/asterisk:11.6.1` for Asterisk 11.x (stable release), Alpine 2.6
-- `docker pull andrius/asterisk:11` for Asterisk 11.x (stable release), Alpine 2.7
-- `docker pull andrius/asterisk:14` for Asterisk 14.x, Alpine 3.6
-- `docker pull andrius/asterisk:15.2.2` for Asterisk 15.2.2, Alpine 3.7
-- `docker pull andrius/asterisk:15` for Asterisk 15.x, Alpine 3.8
-- `docker pull andrius/asterisk:latest` for Asterisk 15.x, Alpine latest
-- `docker pull andrius/asterisk:edge` for latest Asterisk 15.x, based on Alpine edge
-
-### What's missing
-
-Only base Asterisk packages installed. If you want to add sounds, it's recommended to mount them as volume or data container, however you may install additional packages with `apk` command:
-
-- asterisk-alsa - ALSA channel;
-- asterisk-cdr-mysql - MySQL CDR;
-- asterisk-chan-dongle - chan\_dongle, to manage calls and SMS through Huawei USB dongle;
-- asterisk-curl - curl integration with Asterisk;
-- asterisk-dahdi - DAHDI channel (ISDN BRI/PRI, FXO and FXS cards integration);
-- asterisk-fax - support faxing
-- asterisk-mobile - Use Bluetooth mobile phones as FXO devices;
-- asterisk-odbc - ODBC support;
-- asterisk-pgsql - PostgreSQL support;
-- asterisk-sounds-en - sounds
-- asterisk-sounds-moh - music on hold;
-- asterisk-speex - Speex codec;
-- asterisk-srtp - SRTP encryption;
-- asterisk-tds - MS SQL support.
-
-### Database support
-
-By default, Asterisk PBX store CDR's to the CSV file, but also support databases. Refer Asterisk PBX documentation for ODBC support.
-
-For Postgre SQL include following lines to your Dockerfile:
+- **Production-ready Asterisk container** with SIP/RTP port configuration
+- **Custom configuration templates** including PJSIP setup
+- **Development overrides** for local testing and debugging
+- **Volume management** for logs and configuration persistence
 
 ```bash
-RUN apk add --update less psqlodbc asterisk-odbc asterisk-pgsql \
-&&  rm -rf /var/cache/apk/*
+cd examples/basic/
+cp docker-compose.override.yml.template docker-compose.override.yml
+docker compose up -d
 ```
 
-And For MySQL:
+The basic example demonstrates proper containerization patterns and provides a starting point for production deployments.
 
-For MySQL, `mysql-connector-odbc` should be downloaded from the official site and compiled
+## 🏗️ Architecture Overview
 
-## Based on Debian linux:
+### New Build System
 
-Debian Jessie:
+- **Template-Based**: All builds generated from YAML templates
+- **Version Discovery**: Automatic detection of new Asterisk releases
+- **Multi-Stage Optimization**: Separate builder and runtime environments
+- **Package Management**: Distribution-specific dependency resolution
+- **Health Monitoring**: Comprehensive container health checks
 
-- `docker pull andrius/asterisk:debian-11.25.3`
-- `docker pull andrius/asterisk:debian-12.8.2`
+### Directory Structure
 
-Debian Stretch:
+```
+.
+├── asterisk/                    # Build artifacts (auto-generated)
+├── configs/                     # YAML configurations
+├── templates/                   # Build templates
+│   ├── debian-trixie.yml.template
+│   ├── debian-bookworm.yml.template
+│   └── dockerfile/              # Jinja2 templates
+├── scripts/                     # Build automation
+│   ├── build-asterisk.sh       # Main build interface
+│   ├── discover-latest-versions.sh
+│   └── generate-dockerfile.py
+├── lib/                         # Python libraries
+└── schema/                      # Validation schemas
+```
 
-- `docker pull andrius/asterisk:debian-13-current`
-- `docker pull andrius/asterisk:debian-14-current`
-- `docker pull andrius/asterisk:debian-15-current`
+## 🔄 Automation Features
+
+### Daily Release Discovery
+
+The system automatically:
+
+- 🔍 Scans for new Asterisk releases
+- 📝 Updates build matrices
+- ⚙️ Generates configurations for new versions
+- 🚀 Triggers builds via GitHub Actions
+
+### GitHub Actions Workflows
+
+- **`discover-releases.yml`**: Daily release discovery (20:00 UTC)
+- **`build-images.yml`**: Automated multi-platform builds
+
+## 📚 Legacy Support
+
+While focus is on modern optimized versions, the repository maintains compatibility with all the Asterisk versions starting from 1.2, incluging LTS and Certified releases.
+
+## 🛠️ Development
+
+### Template-Based Development
+
+All modifications must be made through templates:
+
+```bash
+# Edit template (ONLY way to make changes)
+vim templates/debian-trixie.yml.template
+
+# Regenerate with --force-config
+./scripts/build-asterisk.sh 22.5.2 --force-config
+
+# Test build
+docker build -t test asterisk/22.5.2-trixie/
+```
+
+### Adding New Versions
+
+```bash
+# Discover new releases
+./scripts/discover-latest-versions.sh --output-yaml --updates-only
+
+# Build newly discovered versions
+./scripts/build-asterisk.sh NEW_VERSION
+```
+
+### Build an Optimized Image
+
+```bash
+# Build Asterisk 22.5.2 on Debian Trixie
+./scripts/build-asterisk.sh 22.5.2
+
+# Build specific OS variant
+./scripts/build-asterisk.sh 22.5.2 debian bookworm
+
+# Preview what would be built
+./scripts/build-asterisk.sh 23.0.0-rc1 --dry-run
+```
+
+### Run Container
+
+```bash
+# Run latest optimized build
+docker run --rm -p 5060:5060/udp asterisk:22.5.2_debian-trixie
+
+# Check Asterisk version
+docker run --rm asterisk:22.5.2_debian-trixie asterisk -V
+```
+
+## 🎯 Roadmap
+
+### Phase 1: Core Optimization (Current)
+
+- ✅ Modern Asterisk versions
+- ✅ Multi-stage build optimization
+- ✅ Automated release discovery
+
+### Phase 2: Expansion (Coming Soon)
+
+- 🔄 Alpine Linux support
+- 🔄 ARM64 architecture builds
+- 🔄 Additional LTS versions (18.x, 20.x)
+
+## 🤝 Contributing
+
+Contributions are welcome! The new system is designed for maintainability:
+
+1. **Template Changes**: Modify templates in `templates/` directory
+2. **New Features**: Extend YAML schema and build logic
+3. **Version Support**: Add new OS/distribution combinations
+4. **Testing**: Enhance validation and health checks
+
+### Development Commands
+
+```bash
+# Test template changes
+./scripts/build-asterisk.sh VERSION --force-config --verbose
+
+# Validate configurations
+python3 scripts/generate-dockerfile.py CONFIG.yml --validate
+
+# Test health checks
+docker run --rm IMAGE /usr/local/bin/healthcheck.sh --verbose
+```
+
+## 📄 Migration from Legacy
+
+If you were using the original andrius/asterisk images:
+
+### Image Tags
+
+- **Old**: `andrius/asterisk:latest`
+- **New**: `andrius/asterisk:22.5.2_debian-trixie`
+
+### Configuration
+
+- **Old**: Manual Dockerfile edits
+- **New**: YAML-based configuration system
+
+### Features
+
+- **Enhanced**: Modern Asterisk features (WebRTC, ARI, PJSIP)
+- **Optimized**: ~232MB production images vs ~6GB legacy
+- **Automated**: Continuous updates and security patches
+
+## 🆘 Support
+
+- **🐛 Issues**: Report bugs via GitHub Issues
+- **💬 Discussions**: Community support and questions
+- **📖 Documentation**: Detailed guides in the repository
+- **🏛️ Legacy**: Reference implementations in `legacy` branch
+
+---
+
+**Status**: 🚧 **Active Development** - Revitalizing abandoned repository with modern automation

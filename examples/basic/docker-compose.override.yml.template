@@ -1,0 +1,14 @@
+services:
+  # Development overrides
+  asterisk:
+      - "127.0.0.1:5038:5038/tcp" # asterisk manager (AMI)
+    volumes:
+      # Override logs for local access
+      - ./asterisk/logs:/var/log/asterisk
+    environment:
+      - LOG_LEVEL=verbose
+  
+  # Some development service 
+  # dev-service:
+  #   ...
+

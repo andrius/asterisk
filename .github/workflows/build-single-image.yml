@@ -1,0 +1,310 @@
+name: Build Single Asterisk Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architecture:
+        description: "Target architecture"
+        required: false
+        default: "amd64"
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "docker.io/andrius/asterisk"
+        type: string
+    outputs:
+      image_tags:
+        description: "Built image tags"
+        value: ${{ jobs.build-single.outputs.image_tags }}
+      image_size:
+        description: "Image size in human readable format"
+        value: ${{ jobs.build-single.outputs.image_size }}
+      build_result:
+        description: "Build result (success/failure)"
+        value: ${{ jobs.build-single.outputs.build_result }}
+      config_file:
+        description: "Configuration file used for build"
+        value: ${{ jobs.build-single.outputs.config_file }}
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architecture:
+        description: "Target architecture"
+        required: false
+        default: "amd64"
+        type: choice
+        options:
+          - amd64
+          - arm64
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "docker.io/andrius/asterisk"
+        type: string
+
+jobs:
+  build-single:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tags: ${{ steps.meta.outputs.tags }}
+      image_size: ${{ steps.size-report.outputs.size }}
+      build_result: ${{ steps.build-result.outputs.result }}
+      config_file: ${{ steps.validate-config.outputs.config_file }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          echo "🔍 Validating build inputs..."
+          echo "Version: ${{ inputs.version }}"
+          echo "Distribution: ${{ inputs.distribution }}"
+          echo "Architecture: ${{ inputs.architecture }}"
+          echo "Push: ${{ inputs.push }}"
+          echo "Registry: ${{ inputs.registry }}"
+
+      - name: Validate configuration file
+        id: validate-config
+        working-directory: asterisk/asterisk
+        run: |
+          # Determine OS type from distribution
+          DISTRIBUTION="${{ inputs.distribution }}"
+          if [[ "$DISTRIBUTION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            OS_TYPE="alpine"
+          else
+            OS_TYPE="debian"
+          fi
+
+          CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${DISTRIBUTION}.yml"
+
+          echo "Looking for config file: $CONFIG_FILE"
+
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "❌ Config file not found: $CONFIG_FILE"
+            echo "Available generated configs:"
+            ls -la configs/generated/ || echo "No generated configs found"
+            exit 1
+          fi
+
+          echo "✅ Config file found: $CONFIG_FILE"
+          echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml jinja2 jsonschema
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry, 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || secrets.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        working-directory: asterisk/asterisk
+        run: |
+          # Load config to extract tags and metadata
+          python3 -c "
+          import yaml
+          import json
+
+          with open('${{ steps.validate-config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          # Generate tags for this build
+          version = '${{ inputs.version }}'
+          distribution = '${{ inputs.distribution }}'
+          architecture = '${{ inputs.architecture }}'
+          registry = '${{ inputs.registry }}'
+
+          # Primary tag: registry:version_distribution
+          primary_tag = f'{registry}:{version}_{distribution}'
+
+          # Architecture-specific tag: registry:version_distribution-arch
+          arch_tag = f'{registry}:{version}_{distribution}-{architecture}'
+
+          tags = [primary_tag, arch_tag]
+
+          # Add additional tags from config if available
+          if 'docker' in config and 'tags' in config['docker']:
+              for tag in config['docker']['tags'][:3]:  # Limit additional tags
+                  if tag not in [f'{version}_{distribution}', f'{version}_{distribution}-{architecture}']:
+                      tags.append(f'{registry}:{tag}')
+
+          print(f'tags={','.join(tags)}')
+          print(f'version={version}')
+          print(f'description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}')
+          print(f'os_type={config['base']['os']}')
+          print(f'labels=org.opencontainers.image.title=Asterisk PBX')
+          print(f'labels=org.opencontainers.image.description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}')
+          print(f'labels=org.opencontainers.image.version={version}')
+          " | tee -a $GITHUB_OUTPUT
+
+      - name: Generate Dockerfile
+        working-directory: asterisk/asterisk
+        run: |
+          echo "🏗️ Generating Dockerfile from configuration..."
+
+          # Generate Dockerfile from YAML config
+          python3 scripts/generate-dockerfile.py \
+            "${{ steps.validate-config.outputs.config_file }}" \
+            --output "Dockerfile" \
+            --templates-dir "templates/dockerfile"
+
+          echo "✅ Generated Dockerfile (first 20 lines):"
+          head -20 Dockerfile
+
+      - name: Generate healthcheck script
+        working-directory: asterisk/asterisk
+        run: |
+          echo "🏥 Generating healthcheck script..."
+
+          # Generate healthcheck script from template
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+
+          # Load config
+          with open('${{ steps.validate-config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          # Setup Jinja2
+          env = Environment(loader=FileSystemLoader('templates/partials'))
+          template = env.get_template('healthcheck.sh.j2')
+
+          # Render healthcheck script
+          content = template.render(
+              config=config,
+              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
+          )
+
+          with open('healthcheck.sh', 'w') as f:
+              f.write(content)
+          "
+
+          chmod +x healthcheck.sh
+          echo "✅ Generated healthcheck script"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: asterisk/asterisk
+          platforms: linux/${{ inputs.architecture }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Asterisk PBX
+            org.opencontainers.image.description=${{ steps.meta.outputs.description }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha,scope=${{ inputs.version }}-${{ inputs.distribution }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.version }}-${{ inputs.distribution }}
+          build-args: |
+            ASTERISK_VERSION=${{ inputs.version }}
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Test image (amd64 only)
+        if: inputs.architecture == 'amd64'
+        run: |
+          echo "🧪 Running image tests..."
+
+          # Extract primary tag for testing
+          PRIMARY_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)
+          echo "Testing image: $PRIMARY_TAG"
+
+          # Basic smoke test - check Asterisk version
+          echo "Testing Asterisk version..."
+          docker run --rm "$PRIMARY_TAG" asterisk -V
+
+          # Test healthcheck script
+          echo "Testing healthcheck script..."
+          docker run --rm "$PRIMARY_TAG" timeout 10 /usr/local/bin/healthcheck.sh --verbose || echo "ℹ️ Healthcheck failed (expected in CI without full startup)"
+
+          echo "✅ Image tests completed"
+
+      - name: Image size report
+        id: size-report
+        if: inputs.architecture == 'amd64'
+        run: |
+          # Extract primary tag for size reporting
+          PRIMARY_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)
+
+          IMAGE_SIZE=$(docker image inspect "$PRIMARY_TAG" --format='{{.Size}}' | numfmt --to=iec)
+          echo "size=$IMAGE_SIZE" >> $GITHUB_OUTPUT
+
+          echo "📦 **Image size**: $IMAGE_SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "🏷️ **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "🏗️ **Config**: ${{ steps.validate-config.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Set build result
+        id: build-result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ Build completed successfully"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ Build failed"
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Single Image Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖥️ **Distribution**: ${{ inputs.distribution }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Architecture**: ${{ inputs.architecture }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Pushed**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ inputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.build-result.outputs.result }}" == "success" ]; then
+            echo "- ✅ **Status**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Status**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Build completed: $(date '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY
