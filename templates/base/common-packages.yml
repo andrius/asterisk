@@ -1,0 +1,118 @@
+# Common Package Definitions for Asterisk Docker Builds
+# This file contains packages that are shared across 70%+ of templates
+# Extracted from DRY analysis - reduces 754 lines of duplication
+
+# Common build packages (appear in 13/13 templates)
+common_build_packages:
+  - build-essential
+  - autoconf
+  - binutils-dev
+  - ca-certificates
+  - curl
+  - file
+  - libcurl4-openssl-dev
+  - libedit-dev
+  - libgsm1-dev
+  - libicu-dev
+  - libjansson-dev
+  - libncurses-dev
+  - libogg-dev
+  - libpopt-dev
+  - libpqxx-dev
+  - libresample1-dev
+  - libspandsp-dev
+  - libspeex-dev
+  - libspeexdsp-dev
+  - libsqlite3-dev
+  - libssl-dev
+  - libtool
+  - libvorbis-dev
+  - libxml2-dev
+  - libxslt1-dev
+  - make
+  - odbcinst
+  - patch
+  - pkg-config
+  - portaudio19-dev
+  - procps
+  - python3-dev
+  - unixodbc
+  - unixodbc-dev
+  - uuid
+  - uuid-dev
+  - xmlstarlet
+
+# Common runtime packages (appear in 13/13 templates)
+common_runtime_packages:
+  - binutils
+  - curl
+  - libedit2
+  - libgsm1
+  - libjansson4
+  - libogg0
+  - libpopt0
+  - libresample1
+  - libspandsp2
+  - libspeex1
+  - libspeexdsp1
+  - libsqlite3-0
+  - libvorbis0a
+  - libxml2
+  - libxslt1.1
+  - odbcinst
+  - portaudio19-dev
+  - procps
+  - python3
+  - unixodbc
+  - uuid
+
+# Distribution-specific variables that need to be resolved
+# These are the only packages that vary between distributions
+distribution_specific_build:
+  jessie:
+    - libsrtp0-dev
+  buster:
+    - libsrtp2-dev
+  bookworm:
+    - libsrtp2-dev
+  bullseye:
+    - libsrtp2-dev
+  trixie:
+    - libsrtp2-dev
+
+distribution_specific_runtime:
+  jessie:
+    - libcurl3      # vs libcurl4
+    - libssl1.0.0   # vs libssl3
+    - libsrtp0      # vs libsrtp2-1
+    - libncurses5   # vs libncurses6
+    - libpqxx-4.0   # vs libpqxx-6.4/7.10
+    - libicu52      # vs libicu72/76
+  buster:
+    - libcurl4
+    - libssl1.1
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-6.2
+    - libicu63
+  bookworm:
+    - libcurl4
+    - libssl3
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-6.4
+    - libicu72
+  bullseye:
+    - libcurl4
+    - libssl1.1
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-6.4
+    - libicu67
+  trixie:
+    - libcurl4
+    - libssl3
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-7.10
+    - libicu76

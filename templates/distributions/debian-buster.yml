@@ -1,0 +1,43 @@
+# Debian Buster (10) Distribution Configuration
+# EOL distribution requiring special archive setup
+
+distribution: buster
+eol: true
+
+base:
+  image: "debian/eol:buster"
+
+# EOL setup commands for archived repositories
+eol_setup:
+  - 'echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes'
+  - 'echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ buster main contrib non-free" > /etc/apt/sources.list'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ buster-backports main contrib non-free" >> /etc/apt/sources.list'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ buster/updates main contrib non-free" >> /etc/apt/sources.list'
+
+# Buster-specific package versions
+package_overrides:
+  build:
+    - libsrtp2-dev
+  runtime:
+    - libcurl4
+    - libssl1.1
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-6.2
+    - libicu63
+
+# Buster-specific Docker settings
+docker:
+  ports:
+    - "5060:5060/tcp"
+    - "5060:5060/udp"
+    - "10000-10200:10000-10200/udp"
+  volumes:
+    - "/etc/asterisk"
+    - "/var/lib/asterisk"
+    - "/var/log/asterisk"
+    - "/var/spool/asterisk"
+  environment:
+    ASTERISK_UID: '1000'
+    ASTERISK_GID: '1000'

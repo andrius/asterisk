@@ -1,0 +1,176 @@
+# Git-based Development Asterisk Template
+# For building Asterisk from latest git repository
+# Variables: git, trixie, ff80666
+
+extends: "asterisk-base"
+variant: "git-dev"
+
+version: "git-ff80666"
+
+base:
+  os: "debian"
+  distribution: "trixie"
+  image: "debian:trixie"
+
+# Package configuration for git builds (Debian Trixie packages)
+packages:
+  build:
+    - build-essential
+    - autoconf
+    - binutils-dev
+    - ca-certificates
+    - curl
+    - file
+    - git
+    - libcurl4-openssl-dev
+    - libedit-dev
+    - libgsm1-dev
+    - libicu-dev
+    - libjansson-dev
+    - libncurses-dev
+    - libogg-dev
+    - libpopt-dev
+    - libpqxx-dev
+    - libresample1-dev
+    - libspandsp-dev
+    - libspeex-dev
+    - libspeexdsp-dev
+    - libsqlite3-dev
+    - libssl-dev
+    - libsrtp2-dev
+    - libtool
+    - libvorbis-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - make
+    - odbcinst
+    - patch
+    - pkg-config
+    - portaudio19-dev
+    - procps
+    - python3-dev
+    - unixodbc
+    - unixodbc-dev
+    - uuid
+    - uuid-dev
+    - xmlstarlet
+
+  runtime:
+    - binutils
+    - curl
+    - libcurl4t64
+    - libedit2
+    - libgsm1
+    - libicu76
+    - libjansson4
+    - libncurses6
+    - libogg0
+    - libpopt0
+    - libpqxx-7.10
+    - libresample1
+    - libspandsp2t64
+    - libspeex1
+    - libspeexdsp1
+    - libsqlite3-0
+    - libssl3t64
+    - libsrtp2-1
+    - libvorbis0a
+    - libxml2
+    - libxslt1.1
+    - odbcinst
+    - procps
+    - python3
+    - unixodbc
+    - uuid
+
+asterisk:
+  # Git source configuration
+  source_type: "git"
+  git_repository: "https://github.com/asterisk/asterisk.git"
+  git_branch: "master"
+  git_depth: 1
+
+  # No separate addons for git builds
+  addons:
+    version: null
+
+  # Development-focused menuselect configuration
+  menuselect:
+    channels:
+      - chan_pjsip
+      - chan_iax2
+      - chan_local
+      - chan_bridge_media
+    apps:
+      - app_voicemail
+      - app_queue
+      - app_confbridge
+      - app_directory
+      - app_dial
+      - app_playback
+      - app_record
+      - app_echo
+      - app_mixmonitor
+    drivers:
+      - res_musiconhold
+      - res_pjsip
+      - res_pjsip_session
+      - res_pjsip_outbound_registration
+      - res_pjsip_registrar
+      - res_rtp_asterisk
+      - res_timing_timerfd
+      - res_crypto
+    exclude:
+      - chan_dahdi
+      - chan_misdn
+      - app_festival
+
+  # Development configure options with debugging support
+  configure_options:
+    - --with-pjproject-bundled
+    - --with-ssl=ssl
+    - --with-crypto
+    - --enable-dev-mode
+    - --enable-debug
+
+docker:
+  tags:
+    - "testing-ff80666"
+    - "testing"
+  registry: "docker.io"
+  repository: "asterisk"
+  expose_ports:
+    - "5060/udp"
+    - "5060/tcp"
+    - "10000-20000/udp"
+  volumes:
+    - "/var/lib/asterisk/sounds"
+    - "/var/lib/asterisk/keys"
+    - "/var/lib/asterisk/phoneprov"
+    - "/var/spool/asterisk"
+    - "/var/log/asterisk"
+    - "/etc/asterisk"
+
+# Development features
+features:
+  recordings: true
+  hep: false
+  pjsip: true
+  websockets: false
+  tls: true
+  debug: true
+
+build:
+  script: "build-asterisk.sh"
+  optimization:
+    parallel_jobs: 8
+    cache_mounts: true
+  stages:
+    builder:
+      packages: []  # Will use packages.build
+    runtime:
+      packages: []  # Will use packages.runtime
+  args:
+    DEBIAN_FRONTEND: "noninteractive"
+    ASTERISK_VERSION: "git-ff80666"
+    GIT_SHA: "ff80666"

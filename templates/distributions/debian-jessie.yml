@@ -1,0 +1,43 @@
+# Debian Jessie (8) Distribution Configuration
+# EOL distribution requiring special archive setup
+
+distribution: jessie
+eol: true
+
+base:
+  image: "debian/eol:jessie"
+
+# EOL setup commands for archived repositories
+eol_setup:
+  - 'echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes'
+  - 'echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main contrib non-free" > /etc/apt/sources.list'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports main contrib non-free" >> /etc/apt/sources.list'
+  - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates main contrib non-free" >> /etc/apt/sources.list'
+
+# Jessie-specific package versions
+package_overrides:
+  build:
+    - libsrtp0-dev
+  runtime:
+    - libcurl3
+    - libssl1.0.0
+    - libsrtp0
+    - libncurses5
+    - libpqxx-4.0
+    - libicu52
+
+# Jessie-specific Docker settings
+docker:
+  ports:
+    - "5060:5060/tcp"
+    - "5060:5060/udp"
+    - "10000-10200:10000-10200/udp"
+  volumes:
+    - "/etc/asterisk"
+    - "/var/lib/asterisk"
+    - "/var/log/asterisk"
+    - "/var/spool/asterisk"
+  environment:
+    ASTERISK_UID: '1000'
+    ASTERISK_GID: '1000'

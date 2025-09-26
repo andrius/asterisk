@@ -1,0 +1,38 @@
+# Legacy Addons Variant Template
+# For very old Asterisk versions (1.2, 1.4, 1.6) that require separate addons packages
+# Variables: {{VERSION}}, {{ADDONS_VERSION}}
+
+extends: "asterisk-base"
+variant: "legacy-addons"
+
+asterisk:
+  addons:
+    # Version-specific addons mapping (1.2->1.2.9, 1.4->1.4.9, 1.6->1.6.2.4)
+    version: "{{ADDONS_VERSION}}"
+    url_template: "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz"
+
+  # Simplified menuselect for very old versions
+  menuselect:
+    minimal: true
+    enable_apps: []
+    enable_channels: []
+    enable_resources: []
+    disable_sounds: []
+    disable_modules: []
+
+  # Legacy configure options (no pjproject bundling)
+  configure_options:
+    - --with-ssl=ssl
+    - --with-crypto
+
+  # Override source URL template for standard (non-certified) legacy versions
+  source:
+    url_template: "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
+
+# Legacy versions have simpler feature set
+features:
+  recordings: true
+  hep: false
+  pjsip: false
+  websockets: false
+  tls: true

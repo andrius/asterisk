@@ -1,0 +1,65 @@
+# Asterisk 11 Variant Template
+# For Asterisk 11.x versions with transitional features between legacy and modern
+# Variables: {{VERSION}}
+
+extends: "asterisk-base"
+variant: "asterisk-11"
+
+asterisk:
+  # No addons for these versions
+  addons:
+    version: null
+
+  # Enhanced menuselect for 11.x versions (more features than legacy)
+  menuselect:
+    minimal: true
+    enable_apps:
+      - app_voicemail
+      - app_directory
+      - app_confbridge
+      - app_queue
+      - app_dial
+      - app_playback
+      - app_echo
+      - app_record
+      - app_mixmonitor
+      - app_chanspy
+      - app_page
+      - app_meetme
+      - app_macro
+      - app_verbose
+      - app_system  # Available in 11.x
+      - app_authenticate
+    enable_channels:
+      - chan_sip
+      - chan_local
+      - chan_bridge_media
+      - chan_agent  # Available in 11.x
+    enable_resources:
+      - res_musiconhold
+      - res_agi
+      - res_clioriginate
+      - res_timing_timerfd
+      - res_timing_pthread
+      - res_crypto
+      - res_http_websocket  # Early websocket support in 11.x
+    disable_sounds: []
+    disable_modules: []
+
+  # Enhanced configure options for 11.x
+  configure_options:
+    - --with-ssl=ssl
+    - --with-crypto
+    - --enable-shared-sounds  # Available in 11.x
+
+  # Standard source URL for non-certified versions
+  source:
+    url_template: "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
+
+# Enhanced feature set for 11.x versions (transitional between legacy and modern)
+features:
+  recordings: true
+  hep: false
+  pjsip: false  # PJSIP not yet available in 11.x
+  websockets: true  # Early websocket support in 11.x
+  tls: true

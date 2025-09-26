@@ -1,0 +1,174 @@
+#!/bin/bash
+#
+# GitHub CLI Script: Discover Asterisk Releases
+# Triggers the discover-releases.yml workflow with proper run correlation and watch mode
+#
+
+set -euo pipefail
+
+# Source shared utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/libs/gh-workflow-utils.sh"
+
+# Script configuration
+readonly WORKFLOW_FILE="discover-releases.yml"
+
+usage() {
+    cat << EOF
+Usage: $0 [options]
+
+Discover new Asterisk releases and update release data files.
+This workflow automatically fetches the latest releases and creates PRs for new versions.
+
+Options:
+  --help                      Show this help message
+
+This script will:
+1. Trigger the GitHub Actions workflow for release discovery
+2. The workflow will automatically:
+   - Fetch latest Asterisk releases from downloads.asterisk.org
+   - Fetch latest certified releases
+   - Update asterisk/asterisk-releases.yml and related files
+   - Create individual PRs for each new version found
+   - Update asterisk/supported-asterisk-builds.yml with new versions
+3. Wait for the run to appear and correlate it with your trigger
+4. Watch the run progress in real-time
+5. Exit with the same status as the workflow run
+
+The discovery process will:
+- Fetch all Asterisk releases (standard and certified)
+- Convert data to YAML format with version organization
+- Create separate PRs for each new version discovered
+- Handle branch collision detection for concurrent discoveries
+- Preserve existing custom configurations in supported-asterisk-builds.yml
+
+Note: This workflow runs on a daily schedule (20:00 UTC) automatically.
+Manual triggers are useful for immediate release checks or testing.
+EOF
+}
+
+check_current_releases() {
+    log_with_timestamp "INFO" "Checking current release data..."
+
+    # Check if release files exist and show basic info
+    local release_files=(
+        "asterisk/asterisk-releases.txt"
+        "asterisk/asterisk-releases.yml"
+        "asterisk/asterisk-certified-releases.txt"
+        "asterisk/asterisk-certified-releases.yml"
+        "asterisk/supported-asterisk-builds.yml"
+    )
+
+    for file in "${release_files[@]}"; do
+        if [[ -f "$file" ]]; then
+            local mod_time
+            if command -v stat >/dev/null 2>&1; then
+                # Try Linux stat format first, then macOS format
+                mod_time=$(stat -c "%y" "$file" 2>/dev/null | cut -d' ' -f1-2 || \
+                          stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$file" 2>/dev/null || \
+                          echo "unknown")
+            else
+                mod_time="unknown"
+            fi
+            log_with_timestamp "INFO" "  $file (modified: $mod_time)"
+        else
+            log_with_timestamp "INFO" "  $file (missing)"
+        fi
+    done
+
+    # Show latest known releases if available
+    if [[ -f "asterisk/supported-asterisk-builds.yml" ]] && command -v yq >/dev/null 2>&1; then
+        local latest_versions
+        latest_versions=$(yq e '.latest_builds[].version' asterisk/supported-asterisk-builds.yml 2>/dev/null | head -3 | tr '\n' ' ' || echo "")
+
+        if [[ -n "$latest_versions" ]]; then
+            log_with_timestamp "INFO" "  Latest known versions: $latest_versions..."
+        fi
+    fi
+}
+
+check_pr_status() {
+    log_with_timestamp "INFO" "Checking for existing release discovery PRs..."
+
+    # Check for open PRs that might be related to release discovery
+    local discovery_prs
+    discovery_prs=$(gh pr list --search "author:app/github-actions[bot] in:title release" --limit 5 --json number,title,headRefName 2>/dev/null || echo "[]")
+
+    local pr_count
+    pr_count=$(echo "$discovery_prs" | jq length)
+
+    if [[ "$pr_count" -gt 0 ]]; then
+        log_with_timestamp "INFO" "Found $pr_count open release discovery PR(s):"
+        echo "$discovery_prs" | jq -r '.[] | "  - PR #\(.number): \(.title) (\(.headRefName))"' || true
+        log_with_timestamp "INFO" "New discoveries may create additional PRs or update existing ones"
+    else
+        log_with_timestamp "INFO" "No open release discovery PRs found"
+    fi
+}
+
+show_discovery_info() {
+    log_with_timestamp "INFO" "Release Discovery Information:"
+    log_with_timestamp "INFO" "  Source: downloads.asterisk.org"
+    log_with_timestamp "INFO" "  Includes: Standard releases, certified releases, and beta/RC versions"
+    log_with_timestamp "INFO" "  Process: Fetch → Parse → YAML conversion → PR creation"
+    log_with_timestamp "INFO" "  Output: Individual PRs for each new version found"
+
+    # Show schedule info
+    log_with_timestamp "INFO" "  Scheduled: Daily at 20:00 UTC (automatic)"
+    log_with_timestamp "INFO" "  Manual: Via this script or GitHub Actions UI"
+}
+
+main() {
+    log_with_timestamp "INFO" "GitHub CLI Release Discovery Script"
+
+    # Handle help
+    if [[ $# -gt 0 ]] && ([[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]); then
+        usage
+        exit 0
+    fi
+
+    # Parse any remaining arguments (currently none expected)
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage
+                exit 1
+                ;;
+        esac
+    done
+
+    # Show discovery information
+    show_discovery_info
+
+    # Check current state
+    check_current_releases
+    check_pr_status
+
+    # No workflow inputs needed for this workflow
+    declare -A workflow_inputs=()
+
+    # Trigger and watch workflow
+    local exit_code=0
+    trigger_and_watch_workflow "$WORKFLOW_FILE" workflow_inputs || exit_code=$?
+
+    # Post-run information
+    if [[ $exit_code -eq 0 ]]; then
+        log_with_timestamp "SUCCESS" "Release discovery completed successfully"
+        log_with_timestamp "INFO" "Check for new PRs with: gh pr list --author app/github-actions[bot]"
+        log_with_timestamp "INFO" "Review updated files in the repository"
+    else
+        log_with_timestamp "ERROR" "Release discovery failed"
+        log_with_timestamp "INFO" "Check workflow logs for details"
+    fi
+
+    log_with_timestamp "INFO" "Release discovery script completed with exit code: $exit_code"
+    exit $exit_code
+}
+
+# Run main function with all arguments
+main "$@"

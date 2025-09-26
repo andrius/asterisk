@@ -1,0 +1,21 @@
+# Debian Bookworm (12) Distribution Configuration
+# Current stable distribution
+
+distribution: bookworm
+
+base:
+  image: "debian:bookworm"
+
+# No EOL setup needed for current distributions
+
+# Bookworm-specific package versions
+package_overrides:
+  build:
+    - libsrtp2-dev
+  runtime:
+    - libcurl4
+    - libssl3
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-6.4
+    - libicu72

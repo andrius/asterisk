@@ -1,0 +1,59 @@
+# Modern Asterisk Variant Template
+# For Asterisk 12+ with full feature set including PJSIP
+# Variables: {{VERSION}}
+
+extends: "asterisk-base"
+variant: "modern"
+
+asterisk:
+  # No separate addons for modern versions
+  addons:
+    version: null
+
+  # Full feature menuselect for modern Asterisk
+  menuselect:
+    channels:
+      - chan_pjsip
+      - chan_iax2
+      - chan_local
+      - chan_bridge_media
+    apps:
+      - app_voicemail
+      - app_queue
+      - app_confbridge
+      - app_directory
+      - app_dial
+      - app_playback
+      - app_record
+      - app_echo
+      - app_mixmonitor
+    drivers:
+      - res_musiconhold
+      - res_pjsip
+      - res_pjsip_session
+      - res_pjsip_outbound_registration
+      - res_pjsip_registrar
+      - res_rtp_asterisk
+      - res_timing_timerfd
+      - res_crypto
+    exclude:
+      - chan_dahdi
+      - chan_misdn
+      - app_festival
+
+  # Modern configure options with PJSIP bundled
+  configure_options:
+    - --with-pjproject-bundled
+    - --with-ssl=ssl
+    - --with-crypto
+
+  # Source URL depends on certified vs standard
+  # Will be resolved by generator based on version pattern
+
+# Full feature set for modern versions
+features:
+  recordings: true
+  hep: false
+  pjsip: true
+  websockets: false
+  tls: true

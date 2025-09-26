@@ -1,0 +1,140 @@
+asterisk:
+  addons:
+    version: null
+  configure_options:
+  - --with-pjproject-bundled
+  - --with-ssl=ssl
+  - --with-crypto
+  menuselect:
+    apps:
+    - app_voicemail
+    - app_queue
+    - app_confbridge
+    - app_directory
+    - app_dial
+    - app_playback
+    - app_record
+    - app_echo
+    - app_mixmonitor
+    channels:
+    - chan_pjsip
+    - chan_iax2
+    - chan_local
+    - chan_bridge_media
+    drivers:
+    - res_musiconhold
+    - res_pjsip
+    - res_pjsip_session
+    - res_pjsip_outbound_registration
+    - res_pjsip_registrar
+    - res_rtp_asterisk
+    - res_timing_timerfd
+    - res_crypto
+    exclude:
+    - chan_dahdi
+    - chan_misdn
+    - app_festival
+  opus_codec: null
+  source:
+    url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
+base:
+  distribution: trixie
+  image: debian:trixie
+  os: debian
+build:
+  args:
+    ASTERISK_VERSION: 18.26.4
+    DEBIAN_FRONTEND: noninteractive
+  script: build-asterisk.sh
+docker:
+  expose_ports:
+  - 5060/udp
+  - 5060/tcp
+  - 10000-20000/udp
+  registry: docker.io
+  repository: asterisk
+  tags:
+  - 18.26.4_debian-trixie
+  - 18.26.4_debian-trixie-amd64
+  volumes:
+  - /var/lib/asterisk/sounds
+  - /var/lib/asterisk/keys
+  - /var/lib/asterisk/phoneprov
+  - /var/spool/asterisk
+  - /var/log/asterisk
+  - /etc/asterisk
+features:
+  hep: false
+  pjsip: true
+  recordings: true
+  tls: true
+  websockets: false
+packages:
+  build:
+  - build-essential
+  - autoconf
+  - binutils-dev
+  - ca-certificates
+  - curl
+  - file
+  - libcurl4-openssl-dev
+  - libedit-dev
+  - libgsm1-dev
+  - libicu-dev
+  - libjansson-dev
+  - libncurses-dev
+  - libogg-dev
+  - libpopt-dev
+  - libpqxx-dev
+  - libresample1-dev
+  - libspandsp-dev
+  - libspeex-dev
+  - libspeexdsp-dev
+  - libsqlite3-dev
+  - libssl-dev
+  - libtool
+  - libvorbis-dev
+  - libxml2-dev
+  - libxslt1-dev
+  - make
+  - odbcinst
+  - patch
+  - pkg-config
+  - portaudio19-dev
+  - procps
+  - python3-dev
+  - unixodbc
+  - unixodbc-dev
+  - uuid
+  - uuid-dev
+  - xmlstarlet
+  - libsrtp2-dev
+  runtime:
+  - binutils
+  - curl
+  - libedit2
+  - libgsm1
+  - libjansson4
+  - libogg0
+  - libpopt0
+  - libresample1
+  - libspandsp2
+  - libspeex1
+  - libspeexdsp1
+  - libsqlite3-0
+  - libvorbis0a
+  - libxml2
+  - libxslt1.1
+  - odbcinst
+  - portaudio19-dev
+  - procps
+  - python3
+  - unixodbc
+  - uuid
+  - libcurl4t64
+  - libssl3t64
+  - libsrtp2-1
+  - libncurses6
+  - libpqxx-7.10
+  - libicu76
+version: 18.26.4

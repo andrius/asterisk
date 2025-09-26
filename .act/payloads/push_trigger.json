@@ -1,0 +1,13 @@
+{
+  "ref": "refs/heads/main",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "1234567890123456789012345678901234567890",
+  "commits": [
+    {
+      "message": "Update scripts",
+      "added": ["scripts/discover-latest-versions.sh"],
+      "modified": [],
+      "removed": []
+    }
+  ]
+}

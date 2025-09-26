@@ -1,0 +1,81 @@
+# Base Asterisk Configuration Template
+# This template contains common Asterisk settings that are shared across most builds
+# Variables: {{VERSION}}, {{DISTRIBUTION}}, {{VARIANT}}
+
+version: "{{VERSION}}"
+
+base:
+  os: "debian"
+  distribution: "{{DISTRIBUTION}}"
+  # Image will be resolved based on distribution (EOL vs current)
+
+# Packages will be merged from:
+# 1. common-packages.yml (base packages)
+# 2. distribution-specific overrides
+# 3. variant-specific additions
+
+asterisk:
+  opus_codec: null
+
+  # Standard menuselect configuration for modern Asterisk (11+)
+  menuselect:
+    channels:
+      - chan_pjsip
+      - chan_iax2
+      - chan_local
+      - chan_bridge_media
+    apps:
+      - app_voicemail
+      - app_queue
+      - app_confbridge
+      - app_directory
+      - app_dial
+      - app_playback
+      - app_record
+      - app_echo
+      - app_mixmonitor
+    drivers:
+      - res_musiconhold
+      - res_pjsip
+      - res_pjsip_session
+      - res_pjsip_outbound_registration
+      - res_pjsip_registrar
+      - res_rtp_asterisk
+      - res_timing_timerfd
+      - res_crypto
+    exclude:
+      - chan_dahdi
+      - chan_misdn
+      - app_festival
+
+  # Standard configure options (no --enable-dev-mode for production)
+  configure_options:
+    - --with-pjproject-bundled
+    - --with-ssl=ssl
+    - --with-crypto
+
+  # Source URL will be resolved based on version type (standard vs certified)
+
+docker:
+  tags:
+    - "{{VERSION}}_debian-{{DISTRIBUTION}}"
+    - "{{VERSION}}_debian-{{DISTRIBUTION}}-amd64"
+  registry: "docker.io"
+  repository: "asterisk"
+  expose_ports:
+    - "5060/udp"
+    - "5060/tcp"
+    - "10000-20000/udp"
+  volumes:
+    - "/var/lib/asterisk/sounds"
+    - "/var/lib/asterisk/keys"
+    - "/var/lib/asterisk/phoneprov"
+    - "/var/spool/asterisk"
+    - "/var/log/asterisk"
+    - "/etc/asterisk"
+
+build:
+  script: "build-asterisk.sh"
+  args:
+    DEBIAN_FRONTEND: "noninteractive"
+    ASTERISK_VERSION: "{{VERSION}}"

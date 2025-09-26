@@ -1,0 +1,335 @@
+name: Build All Asterisk Docker Images (Matrix)
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Weekly on Monday at 01:00 UTC
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push images to registry"
+        required: false
+        default: true
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+      max_parallel:
+        description: "Maximum parallel builds"
+        required: false
+        default: "25"
+        type: choice
+        options:
+          - "1"
+          - "5"
+          - "25"
+          - "50"
+      filter_version:
+        description: "Build only specific version (optional)"
+        required: false
+        type: string
+      filter_distribution:
+        description: "Build only specific distribution (optional)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - "trixie"
+          - "bookworm"
+          - "bullseye"
+          - "buster"
+          - "jessie"
+          - "stretch"
+
+env:
+  REGISTRY: ${{ inputs.registry || 'andrius/asterisk' }}
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch
+        run: |
+          echo "Current branch/ref: ${{ github.ref }}"
+          echo "Repository: ${{ github.repository }}"
+
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "❌ ERROR: This workflow can only be run on the 'main' branch."
+            echo "Current ref: ${{ github.ref }}"
+            echo "Expected: refs/heads/main"
+            exit 1
+          fi
+
+          echo "✅ Branch validation passed - running on main branch"
+
+  prepare-matrix:
+    needs: validate-branch
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+      total_builds: ${{ steps.generate-matrix.outputs.total_builds }}
+      buildable_versions: ${{ steps.generate-matrix.outputs.buildable_versions }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml
+
+      - name: Generate build matrix from supported-asterisk-builds.yml
+        id: generate-matrix
+        working-directory: .
+        run: |
+          python3 -c "
+          import yaml
+          import json
+          import sys
+
+          try:
+              with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
+                  data = yaml.safe_load(f)
+
+              matrix = {'include': []}
+              buildable_versions = []
+              total_configs = 0
+              filter_version = '${{ inputs.filter_version }}'
+              filter_distribution = '${{ inputs.filter_distribution }}'
+
+              for build in data.get('latest_builds', []):
+                  version = build.get('version')
+                  if not version:
+                      continue
+
+                  if filter_version and version != filter_version:
+                      continue
+
+                  if 'os_matrix' not in build:
+                      print(f'⏭️  Skipping {version} (no os_matrix - disabled)', file=sys.stderr)
+                      continue
+
+                  buildable_versions.append(version)
+                  os_matrix = build['os_matrix']
+                  additional_tags = build.get('additional_tags', '')
+
+                  if isinstance(os_matrix, dict):
+                      os_matrix = [os_matrix]
+
+                  for matrix_entry in os_matrix:
+                      os_name = matrix_entry.get('os', 'debian')
+                      distribution = matrix_entry.get('distribution', 'trixie')
+                      architectures = matrix_entry.get('architectures', ['amd64'])
+
+                      if filter_distribution and distribution != filter_distribution:
+                          continue
+
+                      architectures_str = ','.join(architectures)
+                      matrix_item = {
+                          'version': version,
+                          'distribution': distribution,
+                          'architectures': architectures_str,
+                          'os': os_name
+                      }
+
+                      # Add additional_tags if present
+                      if additional_tags:
+                          matrix_item['additional_tags'] = additional_tags
+
+                      matrix['include'].append(matrix_item)
+                      total_configs += 1
+
+                      tags_info = f' +tags: {additional_tags}' if additional_tags else ''
+                      print(f'✅ Added: {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
+
+              if total_configs == 0:
+                  print('❌ No buildable configurations found!', file=sys.stderr)
+                  if filter_version:
+                      print(f'Version filter: {filter_version}', file=sys.stderr)
+                      print('Available buildable versions:', file=sys.stderr)
+                      for build in data.get('latest_builds', []):
+                          if 'os_matrix' in build:
+                              print(f'  - {build['version']}', file=sys.stderr)
+                  sys.exit(1)
+
+              print(f'📊 Generated {total_configs} build configurations', file=sys.stderr)
+              print(f'🎯 Buildable versions: {', '.join(buildable_versions)}', file=sys.stderr)
+              print('matrix=' + json.dumps(matrix))
+              print('total_builds=' + str(total_configs))
+              print('buildable_versions=' + ', '.join(buildable_versions))
+
+          except Exception as e:
+              print(f'❌ ERROR: Failed to parse YAML: {e}', file=sys.stderr)
+              sys.exit(1)
+          " | tee -a $GITHUB_OUTPUT
+
+      - name: Display build matrix
+        run: |
+          echo "## Build Matrix Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total builds**: ${{ steps.generate-matrix.outputs.total_builds }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Buildable versions**: ${{ steps.generate-matrix.outputs.buildable_versions }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Matrix configurations**:" >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.generate-matrix.outputs.matrix }}' | jq -r '.include[] | "- \(.version) \(.os)/\(.distribution) [\(.architectures)]"' >> $GITHUB_STEP_SUMMARY || echo "Matrix preview not available" >> $GITHUB_STEP_SUMMARY
+
+  build-matrix:
+    needs: [validate-branch, prepare-matrix]
+    if: needs.prepare-matrix.outputs.total_builds > 0
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: ${{ fromJson(inputs.max_parallel || '25') }}
+
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      version: ${{ matrix.version }}
+      distribution: ${{ matrix.distribution }}
+      architectures: ${{ matrix.architectures }}
+      additional_tags: ${{ matrix.additional_tags || '' }}
+      push: ${{ inputs.push }}
+      registry: ${{ inputs.registry || 'andrius/asterisk' }}
+    secrets: inherit
+
+  collect-results:
+    needs: [prepare-matrix, build-matrix]
+    runs-on: ubuntu-latest
+    if: always() && needs.prepare-matrix.outputs.total_builds > 0
+
+    steps:
+      - name: Collect build results
+        run: |
+          echo "📊 Collecting build results..."
+
+          MATRIX_RESULT="${{ needs.build-matrix.result }}"
+          TOTAL_BUILDS="${{ needs.prepare-matrix.outputs.total_builds }}"
+
+          echo "Matrix job result: $MATRIX_RESULT"
+          echo "Total configurations: $TOTAL_BUILDS"
+          if [ "$MATRIX_RESULT" == "success" ]; then
+            SUCCESSFUL_BUILDS="$TOTAL_BUILDS"
+            FAILED_BUILDS="0"
+          elif [ "$MATRIX_RESULT" == "failure" ]; then
+            SUCCESSFUL_BUILDS="0"
+            FAILED_BUILDS="$TOTAL_BUILDS"
+          else
+            SUCCESSFUL_BUILDS="Unknown"
+            FAILED_BUILDS="Unknown"
+          fi
+
+          echo "successful_builds=$SUCCESSFUL_BUILDS" >> $GITHUB_ENV
+          echo "failed_builds=$FAILED_BUILDS" >> $GITHUB_ENV
+
+  build-report:
+    needs: [validate-branch, prepare-matrix, build-matrix, collect-results]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Generate build report
+        run: |
+          echo "## 🚀 Asterisk Docker Images Build Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Build metadata
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- 📅 **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Push Enabled**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Max Parallel**: ${{ inputs.max_parallel || '5' }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ inputs.filter_version }}" ]; then
+            echo "- 🎯 **Version Filter**: ${{ inputs.filter_version }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Branch validation results
+          echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.validate-branch.result }}" == "success" ]; then
+            echo "- ✅ **Branch Validation**: Passed (main branch)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Branch Validation**: Failed (not main branch)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**❌ BUILD ABORTED**: This workflow only runs on the main branch." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Matrix generation results
+          if [ "${{ needs.prepare-matrix.result }}" == "success" ]; then
+            echo "- ✅ **Matrix Generation**: Success" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎯 **Total Configurations**: ${{ needs.prepare-matrix.outputs.total_builds }}" >> $GITHUB_STEP_SUMMARY
+            echo "- 📦 **Buildable Versions**: ${{ needs.prepare-matrix.outputs.buildable_versions }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Matrix Generation**: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**❌ BUILD ABORTED**: Failed to generate build matrix." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Build results
+          echo "### Build Results" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.build-matrix.result }}" == "success" ]; then
+            echo "- ✅ **Overall Status**: All builds successful" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎉 **Successful Builds**: ${{ needs.prepare-matrix.outputs.total_builds }}/${{ needs.prepare-matrix.outputs.total_builds }}" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **Failed Builds**: 0" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build-matrix.result }}" == "failure" ]; then
+            echo "- ❌ **Overall Status**: Some builds failed" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎉 **Successful Builds**: Unknown (check individual jobs)" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **Failed Builds**: Unknown (check individual jobs)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ **Overall Status**: Build cancelled or partial" >> $GITHUB_STEP_SUMMARY
+            echo "- 📊 **Result**: ${{ needs.build-matrix.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Action items
+          echo "### Action Items" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.push }}" == "true" ]; then
+            if [ "${{ needs.build-matrix.result }}" == "success" ]; then
+              echo "- ✅ Images have been pushed to **${{ env.REGISTRY }}**" >> $GITHUB_STEP_SUMMARY
+              echo "- 🔍 Check [Docker Hub](https://hub.docker.com/r/andrius/asterisk/tags) for published images" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⚠️ Some images may not have been pushed due to build failures" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ℹ️ Images built locally only (push disabled)" >> $GITHUB_STEP_SUMMARY
+            echo "- 🚀 Re-run with **push: true** to publish images" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.build-matrix.result }}" == "failure" ]; then
+            echo "- 🔍 Review individual job logs for failure details" >> $GITHUB_STEP_SUMMARY
+            echo "- 🛠️ Check configuration files in \`configs/generated/\`" >> $GITHUB_STEP_SUMMARY
+            echo "- 📋 Verify \`asterisk/supported-asterisk-builds.yml\` entries" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "_Report generated at $(date '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY
+
+      - name: Set workflow status
+        run: |
+          if [ "${{ needs.validate-branch.result }}" != "success" ]; then
+            echo "❌ Workflow failed: Branch validation"
+            exit 1
+          elif [ "${{ needs.prepare-matrix.result }}" != "success" ]; then
+            echo "❌ Workflow failed: Matrix generation"
+            exit 1
+          elif [ "${{ needs.build-matrix.result }}" == "failure" ]; then
+            echo "❌ Workflow failed: Some builds failed"
+            exit 1
+          else
+            echo "✅ Workflow completed successfully"
+          fi

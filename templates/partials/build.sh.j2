@@ -1,0 +1,140 @@
+#!/bin/bash
+# Asterisk build script
+# Generated from template for {{ config.version }}
+# Contains menuselect configuration and build commands
+
+set -euo pipefail
+
+# Color output for better readability
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+log() {
+    echo -e "${GREEN}[BUILD]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log "Starting Asterisk {{ config.version }} build process..."
+
+# Set build parallelization (use Docker ARG or default)
+NPROC=$(nproc)
+JOBS=${JOBS:-8}
+log "Using $JOBS parallel jobs for compilation (detected $NPROC CPUs)"
+
+# Configure Asterisk
+log "Configuring Asterisk with options..."
+{% if configure_options -%}
+./configure {{ configure_options | join(' ') }}
+{% else -%}
+./configure --with-pjproject-bundled --with-ssl=ssl --with-crypto
+{% endif %}
+
+# Build menuselect tool
+log "Building menuselect tool..."
+make menuselect
+
+# Configure Asterisk modules using menuselect
+log "Configuring Asterisk modules..."
+
+{% if menuselect_commands -%}
+# Disable BUILD_NATIVE optimization for container builds
+menuselect/menuselect --disable BUILD_NATIVE menuselect.makeopts
+
+# Enable better backtraces for debugging
+menuselect/menuselect --enable BETTER_BACKTRACES menuselect.makeopts
+
+# Disable sound packages to reduce image size
+menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS menuselect.makeopts
+menuselect/menuselect --disable-category MENUSELECT_MOH menuselect.makeopts
+menuselect/menuselect --disable-category MENUSELECT_EXTRA_SOUNDS menuselect.makeopts
+
+# Enable core applications
+{% for cmd in menuselect_commands -%}
+{% if 'app_' in cmd and '--enable' in cmd -%}
+{{ cmd }} || warn "Module not found: $(echo '{{ cmd }}' | grep -o '[a-z_]*' | tail -1)"
+{% endif -%}
+{% endfor %}
+
+# Enable CDR and CEL modules
+{% for cmd in menuselect_commands -%}
+{% if ('cdr_' in cmd or 'cel_' in cmd) and '--enable' in cmd -%}
+{{ cmd }} || warn "Module not found: $(echo '{{ cmd }}' | grep -o '[a-z_]*' | tail -1)"
+{% endif -%}
+{% endfor %}
+
+# Enable channel drivers
+{% for cmd in menuselect_commands -%}
+{% if 'chan_' in cmd and '--enable' in cmd -%}
+{{ cmd }} || warn "Module not found: $(echo '{{ cmd }}' | grep -o '[a-z_]*' | tail -1)"
+{% endif -%}
+{% endfor %}
+
+# Enable resource modules
+{% for cmd in menuselect_commands -%}
+{% if 'res_' in cmd and '--enable' in cmd -%}
+{{ cmd }} || warn "Module not found: $(echo '{{ cmd }}' | grep -o '[a-z_]*' | tail -1)"
+{% endif -%}
+{% endfor %}
+
+# Disable unwanted modules
+{% for cmd in menuselect_commands -%}
+{% if '--disable' in cmd and not 'BUILD_NATIVE' in cmd and not 'MENUSELECT_' in cmd -%}
+{{ cmd }} || warn "Module not found: $(echo '{{ cmd }}' | grep -o '[a-z_]*' | tail -1)"
+{% endif -%}
+{% endfor %}
+
+{% endif %}
+
+log "Module configuration completed"
+
+{% if config.asterisk.addons.version -%}
+# Build addons first (for legacy versions)
+log "Building Asterisk addons..."
+cd addons
+{% if build_opt.cache_mounts | default(true) -%}
+TMPDIR=${TMPDIR} make -j ${JOBS} && TMPDIR=${TMPDIR} make install
+{% else -%}
+make -j ${JOBS} && make install
+{% endif %}
+cd ..
+{% endif %}
+
+# Build Asterisk
+log "Building Asterisk core (this may take several minutes)..."
+{% if build_opt.cache_mounts | default(true) -%}
+TMPDIR=${TMPDIR} make -j $JOBS all
+log "Installing Asterisk..."
+TMPDIR=${TMPDIR} make install
+log "Installing sample configurations..."
+TMPDIR=${TMPDIR} make samples
+{% else -%}
+make -j $JOBS all
+log "Installing Asterisk..."
+make install
+log "Installing sample configurations..."
+make samples
+{% endif %}
+
+{% if config.features.hep | default(true) and not is_legacy -%}
+# Configure HEP modules (enable by default)
+log "Configuring HEP modules..."
+sed -i 's/noload = res_hep/load=res_hep/g' /etc/asterisk/modules.conf
+{% endif %}
+
+{% if build_opt.strip_binaries | default(true) -%}
+# Strip binaries to reduce size
+log "Stripping binaries to reduce image size..."
+find /usr/sbin /usr/lib/asterisk -type f -executable \
+    -exec strip --strip-unneeded {} + 2>/dev/null || true
+{% endif %}
+
+log "Asterisk {{ config.version }} build completed successfully!"

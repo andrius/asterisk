@@ -1,0 +1,429 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Enhanced Asterisk Docker Build Configuration",
+  "description": "Comprehensive schema for Asterisk Docker builds with multi-stage support, database integration, and optimization features",
+  "type": "object",
+  "required": ["version", "base", "build", "docker"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Asterisk version to build",
+      "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?(-(alpha|beta|rc)[0-9]*)?(-cert[0-9]+)?$",
+      "examples": ["22.6.0", "22.6.0-rc1", "18.9-cert17", "1.8.32.3"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Configuration metadata",
+      "properties": {
+        "generated_at": {"type": "string", "format": "date-time"},
+        "generated_by": {"type": "string"},
+        "description": {"type": "string"},
+        "maintainer": {"type": "string", "default": "Andrius Kairiukstis <k@andrius.mobi>"},
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Classification tags",
+          "examples": [["legacy", "addons"], ["modern", "pjsip"], ["lts"]]
+        }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["os", "distribution", "image"],
+      "properties": {
+        "os": {
+          "type": "string",
+          "enum": ["debian", "alpine", "ubuntu"],
+          "description": "Base operating system"
+        },
+        "distribution": {
+          "type": "string",
+          "description": "OS distribution version",
+          "examples": ["trixie", "bookworm", "bullseye", "3.18", "3.19", "22.04"]
+        },
+        "image": {
+          "type": "string",
+          "description": "Docker base image",
+          "pattern": "^[a-zA-Z0-9/_.-]+:[a-zA-Z0-9._-]+$",
+          "examples": ["debian:trixie", "alpine:3.18", "ubuntu:22.04"]
+        },
+        "architecture": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Supported architectures",
+          "default": ["amd64"],
+          "examples": [["amd64", "arm64"]]
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["single-stage", "multi-stage"],
+          "description": "Build strategy",
+          "default": "multi-stage"
+        },
+        "optimization": {
+          "type": "object",
+          "properties": {
+            "parallel_jobs": {
+              "type": "string",
+              "description": "Build parallelization",
+              "default": "$(($(nproc) + $(nproc) / 2))"
+            },
+            "strip_binaries": {
+              "type": "boolean",
+              "description": "Strip debug symbols",
+              "default": true
+            },
+            "minimize_layers": {
+              "type": "boolean",
+              "description": "Combine RUN commands",
+              "default": true
+            },
+            "cache_mounts": {
+              "type": "boolean",
+              "description": "Use BuildKit cache mounts",
+              "default": true
+            }
+          }
+        },
+        "stages": {
+          "type": "object",
+          "description": "Multi-stage build configuration",
+          "properties": {
+            "builder": {
+              "type": "object",
+              "properties": {
+                "packages": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Build-time packages"
+                },
+                "environment": {
+                  "type": "object",
+                  "additionalProperties": {"type": "string"},
+                  "description": "Build environment variables"
+                }
+              }
+            },
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "packages": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Runtime packages"
+                },
+                "slim": {
+                  "type": "boolean",
+                  "description": "Use slim base image for runtime",
+                  "default": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "asterisk": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "object",
+          "properties": {
+            "url_template": {
+              "type": "string",
+              "description": "Download URL template",
+              "default": "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
+            },
+            "verify_signature": {
+              "type": "boolean",
+              "description": "Verify GPG signature",
+              "default": false
+            }
+          }
+        },
+        "addons": {
+          "type": "object",
+          "description": "Asterisk addons (for legacy versions 1.2-1.8)",
+          "properties": {
+            "version": {
+              "type": ["string", "null"],
+              "description": "Addons version (auto-detected for legacy)",
+              "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+            },
+            "url_template": {
+              "type": "string",
+              "default": "http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-addons-{version}.tar.gz"
+            }
+          }
+        },
+        "codecs": {
+          "type": "object",
+          "description": "Codec configuration",
+          "properties": {
+            "opus": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable Opus codec support",
+                  "default": true
+                },
+                "commercial_path": {
+                  "type": ["string", "null"],
+                  "description": "Path to commercial Opus codec package"
+                }
+              }
+            },
+            "g729": {
+              "type": "object",
+              "properties": {
+                "enabled": {"type": "boolean", "default": false},
+                "commercial_path": {"type": ["string", "null"]}
+              }
+            }
+          }
+        },
+        "configure": {
+          "type": "object",
+          "properties": {
+            "options": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Configure script options",
+              "default": [
+                "--with-resample",
+                "--with-pjproject-bundled",
+                "--with-jansson-bundled",
+                "--with-postgres",
+                "--with-odbc",
+                "--with-srtp",
+                "--disable-xmldoc"
+              ]
+            },
+            "environment": {
+              "type": "object",
+              "additionalProperties": {"type": "string"},
+              "description": "Configure environment variables"
+            }
+          }
+        },
+        "menuselect": {
+          "type": "object",
+          "description": "Asterisk module selection",
+          "properties": {
+            "channels": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Channel drivers to enable",
+              "default": ["chan_pjsip", "chan_iax2", "chan_local"]
+            },
+            "applications": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Applications to enable",
+              "default": ["app_voicemail", "app_queue", "app_confbridge", "app_dial"]
+            },
+            "resources": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Resource modules to enable",
+              "default": ["res_musiconhold", "res_pjsip", "res_ari", "res_http_websocket"]
+            },
+            "exclude": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Modules to explicitly exclude",
+              "default": ["chan_dahdi", "chan_misdn", "app_festival"]
+            },
+            "categories_disable": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Module categories to disable",
+              "default": ["MENUSELECT_CORE_SOUNDS", "MENUSELECT_MOH", "MENUSELECT_EXTRA_SOUNDS"]
+            }
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "Database integration configuration",
+      "properties": {
+        "postgresql": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "default": true},
+            "modules": {
+              "type": "array",
+              "items": {"type": "string"},
+              "default": ["cdr_pgsql", "cel_pgsql", "res_config_pgsql"]
+            },
+            "client_package": {
+              "type": "string",
+              "description": "PostgreSQL client package name",
+              "default": "postgresql-client"
+            }
+          }
+        },
+        "mysql": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "default": false},
+            "modules": {
+              "type": "array",
+              "items": {"type": "string"},
+              "default": ["cdr_mysql", "cel_mysql", "res_config_mysql"]
+            }
+          }
+        },
+        "odbc": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "default": true},
+            "modules": {
+              "type": "array",
+              "items": {"type": "string"},
+              "default": ["cdr_odbc", "cel_odbc", "res_config_odbc", "res_odbc"]
+            },
+            "drivers": {
+              "type": "array",
+              "items": {"type": "string"},
+              "default": ["odbc-postgresql"]
+            }
+          }
+        }
+      }
+    },
+    "docker": {
+      "type": "object",
+      "required": ["tags"],
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Docker image tags",
+          "minItems": 1,
+          "examples": [["22.6.0_trixie", "22.6.0_debian", "22.6", "latest"]]
+        },
+        "additional_tags": {
+          "type": "string",
+          "description": "Comma-separated list of additional Docker tags (e.g., 'latest,stable,22.x')",
+          "pattern": "^[a-zA-Z0-9._-]+(,[a-zA-Z0-9._-]+)*$",
+          "examples": ["latest,stable,22.x", "rc,beta", "development"]
+        },
+        "registry": {
+          "type": "string",
+          "description": "Docker registry",
+          "default": "docker.io"
+        },
+        "repository": {
+          "type": "string",
+          "description": "Docker repository name",
+          "default": "andrius/asterisk"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Target platforms for multi-arch builds",
+          "default": ["linux/amd64"],
+          "examples": [["linux/amd64", "linux/arm64"]]
+        },
+        "networking": {
+          "type": "object",
+          "properties": {
+            "ports": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Exposed ports",
+              "default": ["5060/udp", "5060/tcp", "5061/tcp", "10000-10099/udp"]
+            }
+          }
+        },
+        "volumes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Volume mount points",
+          "default": [
+            "/var/lib/asterisk/sounds",
+            "/var/lib/asterisk/keys",
+            "/var/lib/asterisk/phoneprov",
+            "/var/spool/asterisk",
+            "/var/log/asterisk",
+            "/etc/asterisk"
+          ]
+        },
+        "healthcheck": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean", "default": true},
+            "command": {
+              "type": "string",
+              "default": "/usr/local/bin/healthcheck.sh"
+            },
+            "interval": {"type": "string", "default": "30s"},
+            "timeout": {"type": "string", "default": "10s"},
+            "start_period": {"type": "string", "default": "30s"},
+            "retries": {"type": "integer", "default": 3}
+          }
+        },
+        "user": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "default": "asterisk"},
+            "uid": {"type": "integer", "default": 1000},
+            "gid": {"type": "integer", "default": 1000},
+            "home": {"type": "string", "default": "/home/asterisk"}
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature flags and capabilities",
+      "properties": {
+        "websocket": {
+          "type": "boolean",
+          "description": "Enable WebSocket support",
+          "default": true
+        },
+        "ari": {
+          "type": "boolean",
+          "description": "Enable Asterisk REST Interface",
+          "default": true
+        },
+        "hep": {
+          "type": "boolean",
+          "description": "Enable HEP (Homer Encapsulation Protocol)",
+          "default": true
+        },
+        "srtp": {
+          "type": "boolean",
+          "description": "Enable SRTP support",
+          "default": true
+        },
+        "webrtc": {
+          "type": "boolean",
+          "description": "Enable WebRTC support",
+          "default": true
+        }
+      }
+    },
+    "testing": {
+      "type": "object",
+      "description": "Testing configuration",
+      "properties": {
+        "enabled": {"type": "boolean", "default": true},
+        "basic_functionality": {"type": "boolean", "default": true},
+        "database_connectivity": {"type": "boolean", "default": true},
+        "module_loading": {"type": "boolean", "default": true},
+        "performance": {"type": "boolean", "default": false}
+      }
+    }
+  }
+}

@@ -1,0 +1,237 @@
+#!/bin/bash
+#
+# GitHub CLI Script: Build All Asterisk Docker Images
+# Triggers the build-images.yml workflow with proper run correlation and watch mode
+#
+
+set -euo pipefail
+
+# Source shared utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/libs/gh-workflow-utils.sh"
+
+# Script configuration
+readonly WORKFLOW_FILE="build-images.yml"
+readonly DEFAULT_REGISTRY="andrius/asterisk"
+
+usage() {
+    cat << EOF
+Usage: $0 [options]
+
+Build all supported Asterisk Docker images using GitHub Actions matrix builds.
+This workflow builds multiple versions and distributions in parallel.
+
+Options:
+  --push                      Push images to registry [default: true]
+  --registry REGISTRY         Docker registry [default: $DEFAULT_REGISTRY]
+  --max-parallel NUM          Maximum parallel builds [default: 25]
+  --filter-version VERSION    Build only specific version (optional)
+  --filter-distribution DIST  Build only specific distribution (optional)
+  --help                      Show this help message
+
+Parallel Build Options:
+  1   - Sequential builds (slowest, most reliable)
+  5   - Small parallel batches
+  25  - Default parallel builds (recommended)
+  50  - High parallel builds (fastest, may hit rate limits)
+
+Examples:
+  $0                                              # Build all with defaults
+  $0 --max-parallel 5                           # Use smaller parallel batches
+  $0 --filter-version 22.5.2                    # Build only version 22.5.2
+  $0 --filter-distribution trixie               # Build only Trixie distributions
+  $0 --registry myregistry.com/asterisk          # Custom registry
+  $0 --no-push --max-parallel 1                 # Test builds without pushing
+
+This script will:
+1. Trigger the GitHub Actions matrix workflow
+2. Build all configurations from asterisk/supported-asterisk-builds.yml
+3. Wait for the run to appear and correlate it with your trigger
+4. Watch the run progress in real-time with matrix job status
+5. Exit with the same status as the overall workflow run
+
+The workflow includes automatic validation and will only run on the main branch.
+EOF
+}
+
+parse_arguments() {
+    # Default values
+    PUSH="true"
+    REGISTRY="$DEFAULT_REGISTRY"
+    MAX_PARALLEL="25"
+    FILTER_VERSION=""
+    FILTER_DISTRIBUTION=""
+
+    # Parse optional arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --push)
+                PUSH="true"
+                shift
+                ;;
+            --no-push)
+                PUSH="false"
+                shift
+                ;;
+            --registry)
+                REGISTRY="$2"
+                shift 2
+                ;;
+            --max-parallel)
+                MAX_PARALLEL="$2"
+                shift 2
+                ;;
+            --filter-version)
+                FILTER_VERSION="$2"
+                shift 2
+                ;;
+            --filter-distribution)
+                FILTER_DISTRIBUTION="$2"
+                shift 2
+                ;;
+            --help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate max_parallel
+    if [[ ! "$MAX_PARALLEL" =~ ^(1|5|25|50)$ ]]; then
+        log_with_timestamp "ERROR" "Invalid max-parallel value: $MAX_PARALLEL (must be 1, 5, 25, or 50)"
+        exit 1
+    fi
+
+    # Validate filter-version format if provided
+    if [[ -n "$FILTER_VERSION" ]] && [[ ! "$FILTER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+        log_with_timestamp "WARN" "Filter version '$FILTER_VERSION' doesn't match expected format (e.g., 22.5.2, 23.0.0-rc1)"
+    fi
+
+    # Validate filter-distribution format if provided
+    if [[ -n "$FILTER_DISTRIBUTION" ]] && [[ ! "$FILTER_DISTRIBUTION" =~ ^[a-z][a-z0-9]*$ ]]; then
+        log_with_timestamp "ERROR" "Invalid filter distribution format: $FILTER_DISTRIBUTION"
+        exit 1
+    fi
+}
+
+check_branch() {
+    local current_branch
+    current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
+
+    if [[ "$current_branch" != "main" ]]; then
+        log_with_timestamp "WARN" "Current branch is '$current_branch', but workflow only runs on 'main' branch"
+        log_with_timestamp "WARN" "The workflow will validate the branch and may fail if not on main"
+    else
+        log_with_timestamp "INFO" "Current branch: $current_branch (workflow will proceed)"
+    fi
+}
+
+estimate_build_time() {
+    local max_parallel="$1"
+
+    log_with_timestamp "INFO" "Build Performance Estimates:"
+    case "$max_parallel" in
+        "1")
+            log_with_timestamp "INFO" "  Sequential builds: ~4-6 hours (most reliable)"
+            ;;
+        "5")
+            log_with_timestamp "INFO" "  Small parallel batches: ~1-2 hours (good balance)"
+            ;;
+        "25")
+            log_with_timestamp "INFO" "  Default parallel: ~30-45 minutes (recommended)"
+            ;;
+        "50")
+            log_with_timestamp "INFO" "  High parallel: ~20-30 minutes (fastest, may hit limits)"
+            ;;
+    esac
+}
+
+preview_build_matrix() {
+    log_with_timestamp "INFO" "Loading build matrix preview..."
+
+    # Try to show what will be built using yq if available
+    if command -v yq >/dev/null 2>&1; then
+        local builds_count
+        builds_count=$(yq e '.latest_builds | length' asterisk/supported-asterisk-builds.yml 2>/dev/null || echo "unknown")
+
+        if [[ "$builds_count" != "unknown" && "$builds_count" -gt 0 ]]; then
+            log_with_timestamp "INFO" "Total supported builds in matrix: $builds_count"
+
+            # Show buildable versions (those with os_matrix)
+            local buildable_versions
+            buildable_versions=$(yq e '.latest_builds[] | select(has("os_matrix")) | .version' asterisk/supported-asterisk-builds.yml 2>/dev/null | tr '\n' ' ' || echo "")
+
+            if [[ -n "$buildable_versions" ]]; then
+                log_with_timestamp "INFO" "Buildable versions: $buildable_versions"
+            fi
+        fi
+    else
+        log_with_timestamp "INFO" "Install 'yq' for detailed matrix preview"
+    fi
+
+    if [[ -n "$FILTER_VERSION" ]]; then
+        log_with_timestamp "INFO" "Filtered to version: $FILTER_VERSION"
+    fi
+
+    if [[ -n "$FILTER_DISTRIBUTION" ]]; then
+        log_with_timestamp "INFO" "Filtered to distribution: $FILTER_DISTRIBUTION"
+    fi
+}
+
+main() {
+    log_with_timestamp "INFO" "GitHub CLI All Images Build Script"
+
+    # Handle help
+    if [[ $# -gt 0 ]] && ([[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]); then
+        usage
+        exit 0
+    fi
+
+    # Parse and validate arguments
+    parse_arguments "$@"
+
+    # Check current branch
+    check_branch
+
+    # Display configuration
+    log_with_timestamp "INFO" "Matrix Build Configuration:"
+    log_with_timestamp "INFO" "  Registry: $REGISTRY"
+    log_with_timestamp "INFO" "  Push: $PUSH"
+    log_with_timestamp "INFO" "  Max Parallel: $MAX_PARALLEL"
+    if [[ -n "$FILTER_VERSION" ]]; then
+        log_with_timestamp "INFO" "  Version Filter: $FILTER_VERSION"
+    fi
+    if [[ -n "$FILTER_DISTRIBUTION" ]]; then
+        log_with_timestamp "INFO" "  Distribution Filter: $FILTER_DISTRIBUTION"
+    fi
+
+    # Show build estimates
+    estimate_build_time "$MAX_PARALLEL"
+
+    # Show matrix preview
+    preview_build_matrix
+
+    # Build workflow inputs
+    declare -A workflow_inputs=(
+        ["push"]="$PUSH"
+        ["registry"]="$REGISTRY"
+        ["max_parallel"]="$MAX_PARALLEL"
+        ["filter_version"]="$FILTER_VERSION"
+        ["filter_distribution"]="$FILTER_DISTRIBUTION"
+    )
+
+    # Trigger and watch workflow
+    local exit_code=0
+    trigger_and_watch_workflow "$WORKFLOW_FILE" workflow_inputs || exit_code=$?
+
+    log_with_timestamp "INFO" "All images build script completed with exit code: $exit_code"
+    exit $exit_code
+}
+
+# Run main function with all arguments
+main "$@"

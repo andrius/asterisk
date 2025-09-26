@@ -1,0 +1,195 @@
+# Latest Asterisk Build Matrix
+# Generated on 2025-09-22 19:44:54 UTC
+
+latest_builds:
+  - version: "1.2.40"
+    os_matrix:
+      - os: "debian"
+        distribution: "stretch"
+        template: "debian-stretch-legacy-addons"
+        architectures:
+          - "amd64"
+
+  - version: "1.4.44"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        template: "debian-jessie-legacy-addons"
+        architectures:
+          - "amd64"
+
+  - version: "1.6.2.24"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        template: "debian-jessie-legacy-addons"
+        architectures:
+          - "amd64"
+
+  - version: "1.8.32.3"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        template: "debian-jessie-legacy"
+        architectures:
+          - "amd64"
+
+  - version: "10.12.4"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        template: "debian-jessie-legacy"
+        architectures:
+          - "amd64"
+
+  - version: "11.25.3"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        template: "debian-jessie-asterisk-11"
+        architectures:
+          - "amd64"
+
+  - version: "11.6-cert18"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        architectures:
+          - "amd64"
+
+  - version: "12.8.2"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        architectures:
+          - "amd64"
+
+  - version: "13.38.3"
+    os_matrix:
+      - os: "debian"
+        distribution: "buster"
+        architectures:
+          - "amd64"
+
+  - version: "13.21-cert6"
+    os_matrix:
+      - os: "debian"
+        distribution: "buster"
+        architectures:
+          - "amd64"
+
+  - version: "14.7.8"
+    os_matrix:
+      - os: "debian"
+        distribution: "buster"
+        architectures:
+          - "amd64"
+
+  - version: "15.7.4"
+    os_matrix:
+      - os: "debian"
+        distribution: "buster"
+        architectures:
+          - "amd64"
+
+  - version: "16.30.1"
+    os_matrix:
+      - os: "debian"
+        distribution: "bookworm"
+        architectures:
+          - "amd64"
+
+  - version: "16.8-cert14"
+    os_matrix:
+      - os: "debian"
+        distribution: "buster"
+        architectures:
+          - "amd64"
+
+  - version: "17.9.4"
+    os_matrix:
+      - os: "debian"
+        distribution: "bookworm"
+        architectures:
+          - "amd64"
+
+  - version: "18.26.4"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+
+  - version: "18.9-cert17"
+    os_matrix:
+      - os: "debian"
+        distribution: "bookworm"
+        architectures:
+          - "amd64"
+
+  - version: "19.8.1"
+    os_matrix:
+      - os: "debian"
+        distribution: "bookworm"
+        architectures:
+          - "amd64"
+
+  - version: "20.15.2"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+
+  - version: "20.7-cert7"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+
+  - version: "21.10.2"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+
+  - version: "22.5.2"
+    additional_tags: "latest,stable,22"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "23.0.0-rc2"
+    additional_tags: "23-rc"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "git"
+    additional_tags: "testing,git-latest,development"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        template: "git-dev"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+metadata:
+  generated_at: "2025-09-29T20:27:29Z"
+  supported_os:
+    debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie"]
+  supported_architectures: ["amd64", "arm64"]
+  total_versions: 24
+  mode: "manual"
+  git_support: true
+  git_sha: "ff80666"
+  last_git_update: "2025-09-29T10:29:02Z"

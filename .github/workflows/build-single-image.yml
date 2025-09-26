@@ -1,0 +1,691 @@
+# vim: set filetype=yaml ts=2 sw=2 sts=2 et:
+---
+name: "Build Asterisk PBX image"
+run-name: "Build Asterisk PBX ${{ inputs.version }} image for ${{ inputs.distribution }}"
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architectures:
+        description: "Target architectures (comma-separated: amd64,arm64)"
+        required: false
+        default: "amd64"
+        type: string
+      additional_tags:
+        description: "Additional Docker tags (comma-separated: latest,stable,22.x)"
+        required: false
+        default: ""
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+    outputs:
+      image_tags:
+        description: "Built image tags"
+        value: ${{ jobs.build-summary.outputs.image_tags }}
+      build_result:
+        description: "Build result (success/failure)"
+        value: ${{ jobs.build-summary.outputs.build_result }}
+      config_file:
+        description: "Configuration file used for build"
+        value: ${{ jobs.build-summary.outputs.config_file }}
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architectures:
+        description: "Target architectures (comma-separated: amd64,arm64)"
+        required: false
+        default: "amd64"
+        type: string
+      additional_tags:
+        description: "Additional Docker tags (comma-separated: latest,stable,22.x)"
+        required: false
+        default: ""
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+
+jobs:
+  validate-and-prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      config_file: ${{ steps.validate-config.outputs.config_file }}
+      platforms_matrix: ${{ steps.prepare-matrix.outputs.platforms_matrix }}
+      is_multi_platform: ${{ steps.prepare-matrix.outputs.is_multi_platform }}
+      platform_count: ${{ steps.prepare-matrix.outputs.platform_count }}
+      base_tags: ${{ steps.meta.outputs.base_tags }}
+      final_tags: ${{ steps.meta.outputs.final_tags }}
+      temp_tag_prefix: ${{ steps.meta.outputs.temp_tag_prefix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          echo "Version: ${{ inputs.version }}"
+          echo "Distribution: ${{ inputs.distribution }}"
+          echo "Architectures: ${{ inputs.architectures }}"
+          echo "Additional Tags: ${{ inputs.additional_tags }}"
+          echo "Push: ${{ inputs.push }}"
+          echo "Registry: ${{ inputs.registry }}"
+
+      - name: Determine branch and tag suffix
+        id: branch-info
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Branch: $BRANCH_NAME"
+
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "is_main_branch=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+            echo "✅ Building from main branch - using standard tags"
+          else
+            echo "is_main_branch=false" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-dev" >> $GITHUB_OUTPUT
+            echo "🔧 Building from non-main branch ($BRANCH_NAME) - adding '-dev' suffix to tags"
+          fi
+
+      - name: Validate configuration file
+        id: validate-config
+        working-directory: .
+        run: |
+          DISTRIBUTION="${{ inputs.distribution }}"
+          if [[ "$DISTRIBUTION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            OS_TYPE="alpine"
+          else
+            OS_TYPE="debian"
+          fi
+
+          CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${DISTRIBUTION}.yml"
+
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "❌ Config file not found: $CONFIG_FILE"
+            echo "Available generated configs:"
+            ls -la configs/generated/ || echo "No generated configs found"
+            exit 1
+          fi
+
+          echo "✅ Config file found: $CONFIG_FILE"
+          echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml jinja2 jsonschema
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry, 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || vars.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata and prepare tags
+        id: meta
+        working-directory: .
+        run: |
+          python3 -c "
+          import yaml
+          import json
+          import os
+          import hashlib
+
+          # Get environment variables
+          config_file = os.environ['CONFIG_FILE']
+          version = os.environ['VERSION']
+          distribution = os.environ['DISTRIBUTION']
+          architectures = os.environ['ARCHITECTURES']
+          additional_tags = os.environ['ADDITIONAL_TAGS']
+          registry = os.environ['REGISTRY']
+          tag_suffix = os.environ['TAG_SUFFIX']
+          git_sha = os.environ['GIT_SHA']
+          short_sha = git_sha[:7]
+          is_multi_platform = os.environ['IS_MULTI_PLATFORM']
+
+          with open(config_file, 'r') as f:
+              config = yaml.safe_load(f)
+
+          # Generate base tags (without architecture suffix)
+          primary_tag = f\"{version}_{config['base']['os']}-{distribution}{tag_suffix}\"
+          sha_tag = f\"{version}_{config['base']['os']}-{distribution}-{short_sha}{tag_suffix}\"
+          base_tags = [primary_tag, sha_tag]
+
+          # Add additional tags from inputs (highest priority)
+          if additional_tags:
+              for tag in additional_tags.split(','):
+                  tag = tag.strip()
+                  if tag:
+                      base_tags.append(f\"{tag}{tag_suffix}\")
+
+          # Add tags from config file (lower priority)
+          if 'docker' in config and 'tags' in config['docker']:
+              for tag in config['docker']['tags'][:3]:
+                  if tag != f\"{version}_{config['base']['os']}-{distribution}\":
+                      base_tags.append(f\"{tag}{tag_suffix}\")
+
+          # Generate final tags with registry prefix
+          final_tags = [f\"{registry}:{tag}\" for tag in base_tags]
+
+          # Generate unique temp tag prefix for multi-platform builds
+          temp_prefix = f\"{registry}:temp-{short_sha}\"
+
+          print(f\"base_tags={','.join(base_tags)}\")
+          print(f\"final_tags={','.join(final_tags)}\")
+          print(f\"temp_tag_prefix={temp_prefix}\")
+          print(f\"version={version}\")
+          print(f\"description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}\")
+          print(f\"os_type={config['base']['os']}\")
+          print(f\"labels=org.opencontainers.image.title=Asterisk PBX\")
+          print(f\"labels=org.opencontainers.image.description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}\")
+          print(f\"labels=org.opencontainers.image.version={version}\")
+          " | tee -a $GITHUB_OUTPUT
+        env:
+          CONFIG_FILE: ${{ steps.validate-config.outputs.config_file }}
+          VERSION: ${{ inputs.version }}
+          DISTRIBUTION: ${{ inputs.distribution }}
+          ARCHITECTURES: ${{ inputs.architectures }}
+          ADDITIONAL_TAGS: ${{ inputs.additional_tags }}
+          REGISTRY: ${{ inputs.registry }}
+          TAG_SUFFIX: ${{ steps.branch-info.outputs.tag_suffix }}
+          GIT_SHA: ${{ github.sha }}
+          IS_MULTI_PLATFORM: ${{ steps.prepare-matrix.outputs.is_multi_platform }}
+
+      - name: Generate Dockerfile
+        working-directory: .
+        run: |
+          python3 scripts/generate-dockerfile.py \
+            "${{ steps.validate-config.outputs.config_file }}" \
+            --output "Dockerfile" \
+            --templates-dir "${GITHUB_WORKSPACE}/templates/dockerfile"
+
+          echo "✅ Generated Dockerfile (first 20 lines):"
+          head -20 Dockerfile
+
+      - name: Generate build script
+        working-directory: .
+        run: |
+          python3 -c "
+          import sys
+          import traceback
+          sys.path.insert(0, 'lib')
+
+          try:
+              from dockerfile_generator import DockerfileGenerator
+              generator = DockerfileGenerator('templates')
+              generator.generate_build_script('${{ steps.validate-config.outputs.config_file }}', 'build.sh')
+              print('Generated build.sh script')
+          except Exception as e:
+              print(f'Error generating build script: {e}')
+              traceback.print_exc()
+              sys.exit(1)
+          "
+
+          if [ -f build.sh ]; then
+            chmod +x build.sh
+            echo "✅ Generated build.sh script ($(wc -l < build.sh) lines)"
+          else
+            echo "❌ Failed to generate build.sh"
+            exit 1
+          fi
+
+      - name: Generate healthcheck script
+        working-directory: .
+        run: |
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+
+          with open('${{ steps.validate-config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          env = Environment(loader=FileSystemLoader('templates/partials'))
+          template = env.get_template('healthcheck.sh.j2')
+
+          content = template.render(
+              config=config,
+              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
+          )
+
+          with open('healthcheck.sh', 'w') as f:
+              f.write(content)
+          "
+
+          chmod +x healthcheck.sh
+          echo "✅ Generated healthcheck script"
+
+      - name: Prepare platforms matrix
+        id: prepare-matrix
+        run: |
+          ARCHITECTURES="${{ inputs.architectures }}"
+          echo "Input architectures: $ARCHITECTURES"
+
+          # Create matrix with platform-runner mapping using Python
+          python3 -c "
+          import json
+          import os
+
+          architectures = '$ARCHITECTURES'.split(',')
+          matrix_include = []
+
+          for arch in architectures:
+              arch = arch.strip()
+              if arch:
+                  platform = f'linux/{arch}'
+
+                  # Map platform to native runner
+                  if arch == 'amd64':
+                      runner = 'ubuntu-latest'
+                  elif arch == 'arm64':
+                      runner = 'ubuntu-24.04-arm'
+                  else:
+                      runner = 'ubuntu-latest'  # Fallback
+
+                  matrix_include.append({
+                      'platform': platform,
+                      'runner': runner
+                  })
+
+          platforms_matrix = {'include': matrix_include}
+          platform_count = len(matrix_include)
+          is_multi_platform = 'true' if platform_count > 1 else 'false'
+
+          print(f'platforms_matrix={json.dumps(platforms_matrix)}')
+          print(f'is_multi_platform={is_multi_platform}')
+          print(f'platform_count={platform_count}')
+
+          print(f'Generated matrix: {json.dumps(platforms_matrix)}', file=os.sys.stderr)
+          print(f'Multi-platform build: {is_multi_platform}', file=os.sys.stderr)
+          print(f'Platform count: {platform_count}', file=os.sys.stderr)
+          " | tee -a $GITHUB_OUTPUT
+
+      - name: Validate multi-platform requirements
+        if: steps.prepare-matrix.outputs.is_multi_platform == 'true'
+        run: |
+          if [[ "${{ inputs.push }}" != "true" ]]; then
+            echo "❌ ERROR: Multi-platform builds require push=true"
+            echo ""
+            echo "Docker's push-by-digest strategy requires pushing images to registry"
+            echo "to create multi-platform manifests with 'docker buildx imagetools create'"
+            echo ""
+            echo "Options:"
+            echo "1. Set push=true to enable multi-platform build"
+            echo "2. Use single architecture (e.g., architectures=amd64) for local builds"
+            echo ""
+            echo "Current settings:"
+            echo "- Architectures: ${{ inputs.architectures }}"
+            echo "- Push: ${{ inputs.push }}"
+            exit 1
+          fi
+          echo "✅ Multi-platform validation passed - push enabled"
+
+  build:
+    name: "Platform ${{ matrix.platform }}"
+    needs: validate-and-prepare
+    if: always() && needs.validate-and-prepare.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate-and-prepare.outputs.platforms_matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml jinja2 jsonschema
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry, 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || vars.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Generate Dockerfile
+        working-directory: .
+        run: |
+          python3 scripts/generate-dockerfile.py \
+            "${{ needs.validate-and-prepare.outputs.config_file }}" \
+            --output "Dockerfile" \
+            --templates-dir "${GITHUB_WORKSPACE}/templates/dockerfile"
+
+          echo "✅ Generated Dockerfile for ${{ matrix.platform }}"
+
+      - name: Generate build and healthcheck scripts
+        working-directory: .
+        run: |
+          # Generate build script
+          python3 -c "
+          import sys
+          import traceback
+          sys.path.insert(0, 'lib')
+          try:
+              from dockerfile_generator import DockerfileGenerator
+              generator = DockerfileGenerator('templates')
+              generator.generate_build_script('${{ needs.validate-and-prepare.outputs.config_file }}', 'build.sh')
+              print('Generated build.sh script')
+          except Exception as e:
+              print(f'Error generating build script: {e}')
+              traceback.print_exc()
+              sys.exit(1)
+          "
+          chmod +x build.sh
+
+          # Generate healthcheck script
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+          with open('${{ needs.validate-and-prepare.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+          env = Environment(loader=FileSystemLoader('templates/partials'))
+          template = env.get_template('healthcheck.sh.j2')
+          content = template.render(
+              config=config,
+              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
+          )
+          with open('healthcheck.sh', 'w') as f:
+              f.write(content)
+          "
+          chmod +x healthcheck.sh
+
+      - name: Prepare build configuration
+        id: build-config
+        run: |
+          echo "Building for platform: ${{ matrix.platform }}"
+
+          if [[ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" == "true" ]]; then
+            # Multi-platform: Always use push-by-digest strategy
+            echo "Multi-platform build - using push-by-digest strategy"
+            echo "image_name=${{ inputs.registry }}" >> $GITHUB_OUTPUT
+            echo "use_tags=false" >> $GITHUB_OUTPUT
+            echo "push_enabled=true" >> $GITHUB_OUTPUT
+          else
+            # Single platform: Use final tags directly
+            FINAL_TAGS="${{ needs.validate-and-prepare.outputs.final_tags }}"
+            echo "Single-platform build - using final tags: $FINAL_TAGS"
+            echo "image_name=${{ inputs.registry }}" >> $GITHUB_OUTPUT
+            echo "tags=$FINAL_TAGS" >> $GITHUB_OUTPUT
+            echo "use_tags=true" >> $GITHUB_OUTPUT
+            echo "push_enabled=${{ inputs.push }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: |
+            org.opencontainers.image.title=Asterisk PBX
+            org.opencontainers.image.description=Asterisk ${{ inputs.version }} on ${{ inputs.distribution }}
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+          outputs: ${{ steps.build-config.outputs.use_tags == 'true' && format('type=image,push={0}', steps.build-config.outputs.push_enabled) || format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', steps.build-config.outputs.image_name) }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: ${{ steps.build-config.outputs.use_tags == 'true' && steps.build-config.outputs.tags || '' }}
+          build-args: |
+            ASTERISK_VERSION=${{ inputs.version }}
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Export digest
+        if: steps.build-config.outputs.use_tags == 'false'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "Exported digest: $digest"
+
+      - name: Upload digest
+        if: steps.build-config.outputs.use_tags == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ inputs.version }}-${{ inputs.distribution }}-${{ contains(matrix.platform, 'amd64') && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Set build result
+        id: build-result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ Platform build completed successfully for ${{ matrix.platform }}"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ Platform build failed for ${{ matrix.platform }}"
+          fi
+
+  merge:
+    needs: [validate-and-prepare, build]
+    if: always() && needs.validate-and-prepare.outputs.is_multi_platform == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tags: ${{ needs.validate-and-prepare.outputs.final_tags }}
+      build_result: ${{ steps.merge-result.outputs.result }}
+      config_file: ${{ needs.validate-and-prepare.outputs.config_file }}
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry, 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || vars.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Prepare digest list
+        id: digest-list
+        run: |
+          echo "Collecting digests from artifacts..."
+          DIGEST_LIST=""
+
+          # List all digest files
+          ls -la /tmp/digests/ || echo "No digests directory found"
+
+          for digest_file in /tmp/digests/*; do
+            if [[ -f "$digest_file" ]]; then
+              digest_hash=$(basename "$digest_file")
+              full_digest="sha256:$digest_hash"
+              image_ref="${{ inputs.registry }}@$full_digest"
+
+              if [[ -n "$DIGEST_LIST" ]]; then
+                DIGEST_LIST="$DIGEST_LIST $image_ref"
+              else
+                DIGEST_LIST="$image_ref"
+              fi
+
+              echo "Found digest: $image_ref"
+            fi
+          done
+
+          echo "Complete digest list: $DIGEST_LIST"
+          echo "digest_images=$DIGEST_LIST" >> $GITHUB_OUTPUT
+
+      - name: Create multi-platform manifests
+        run: |
+          FINAL_TAGS="${{ needs.validate-and-prepare.outputs.final_tags }}"
+          DIGEST_IMAGES="${{ steps.digest-list.outputs.digest_images }}"
+
+          echo "Creating multi-platform manifests..."
+          echo "Final tags: $FINAL_TAGS"
+          echo "Digest images: $DIGEST_IMAGES"
+
+          if [[ -z "$DIGEST_IMAGES" ]]; then
+            echo "❌ ERROR: No digest images found"
+            exit 1
+          fi
+
+          IFS=',' read -ra TAG_ARRAY <<< "$FINAL_TAGS"
+          for final_tag in "${TAG_ARRAY[@]}"; do
+            final_tag=$(echo "$final_tag" | xargs)
+            echo "Creating manifest for: $final_tag"
+            docker buildx imagetools create --tag "$final_tag" $DIGEST_IMAGES
+            echo "✅ Created multi-platform manifest: $final_tag"
+          done
+
+      - name: Set merge result
+        id: merge-result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ Multi-platform manifest merge completed successfully"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ Multi-platform manifest merge failed"
+          fi
+
+  build-summary:
+    needs: [validate-and-prepare, build, merge]
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      image_tags: ${{ steps.final-outputs.outputs.image_tags }}
+      build_result: ${{ steps.final-outputs.outputs.build_result }}
+      config_file: ${{ steps.final-outputs.outputs.config_file }}
+
+    steps:
+      - name: Determine final outputs
+        id: final-outputs
+        run: |
+          # Determine which job provides the final outputs
+          if [[ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" == "true" ]]; then
+            # Multi-platform build: use merge outputs
+            echo "image_tags=${{ needs.merge.outputs.image_tags || needs.validate-and-prepare.outputs.final_tags }}" >> $GITHUB_OUTPUT
+            echo "build_result=${{ needs.merge.outputs.build_result || 'failure' }}" >> $GITHUB_OUTPUT
+            echo "config_file=${{ needs.merge.outputs.config_file || needs.validate-and-prepare.outputs.config_file }}" >> $GITHUB_OUTPUT
+          else
+            # Single platform build: use build outputs
+            echo "image_tags=${{ needs.validate-and-prepare.outputs.final_tags }}" >> $GITHUB_OUTPUT
+            echo "build_result=${{ needs.build.result == 'success' && 'success' || 'failure' }}" >> $GITHUB_OUTPUT
+            echo "config_file=${{ needs.validate-and-prepare.outputs.config_file }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build summary
+        run: |
+          echo "## Optimized Multi-Platform Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖥️ **Distribution**: ${{ inputs.distribution }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Architectures**: ${{ inputs.architectures }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 **Multi-platform**: ${{ needs.validate-and-prepare.outputs.is_multi_platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **Platform Count**: ${{ needs.validate-and-prepare.outputs.platform_count }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.additional_tags }}" ]; then
+            echo "- 🏷️ **Additional Tags**: ${{ inputs.additional_tags }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- 🚀 **Pushed**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ inputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ **Final Tags**: ${{ steps.final-outputs.outputs.image_tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Config**: ${{ steps.final-outputs.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Build status
+          OVERALL_SUCCESS="true"
+          if [[ "${{ needs.validate-and-prepare.result }}" != "success" ]]; then
+            echo "- ❌ **Validation**: Failed" >> $GITHUB_STEP_SUMMARY
+            OVERALL_SUCCESS="false"
+          else
+            echo "- ✅ **Validation**: Passed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ needs.build.result }}" == "success" ]]; then
+            echo "- ✅ **Platform Builds**: All successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Platform Builds**: Some failed" >> $GITHUB_STEP_SUMMARY
+            OVERALL_SUCCESS="false"
+          fi
+
+          if [[ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" == "true" ]]; then
+            if [[ "${{ needs.merge.result }}" == "success" ]]; then
+              echo "- ✅ **Manifest Merge**: Successful" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ **Manifest Merge**: Failed" >> $GITHUB_STEP_SUMMARY
+              OVERALL_SUCCESS="false"
+            fi
+
+            echo "- ✅ **Digest Strategy**: Using push-by-digest for optimal performance" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$OVERALL_SUCCESS" == "true" ]]; then
+            echo "- ✅ **Overall Status**: Build successful" >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ inputs.push }}" == "true" ]]; then
+              echo "- 📦 **Result**: Images pushed to registry" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🏠 **Result**: Images built locally" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ❌ **Overall Status**: Build failed" >> $GITHUB_STEP_SUMMARY
+            echo "- 🔍 **Action**: Check individual job logs for details" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Optimized build completed: $(date '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY

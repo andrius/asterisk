@@ -1,0 +1,21 @@
+# Debian Trixie (13) Distribution Configuration
+# Testing/bleeding-edge distribution
+
+distribution: trixie
+
+base:
+  image: "debian:trixie"
+
+# No EOL setup needed for current distributions
+
+# Trixie-specific package versions (latest versions)
+package_overrides:
+  build:
+    - libsrtp2-dev
+  runtime:
+    - libcurl4t64
+    - libssl3t64
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-7.10
+    - libicu76

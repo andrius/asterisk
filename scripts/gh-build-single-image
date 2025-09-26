@@ -1,0 +1,251 @@
+#!/bin/bash
+#
+# GitHub CLI Script: Build Single Asterisk Docker Image
+# Triggers the build-single-image.yml workflow with proper run correlation and watch mode
+#
+
+set -euo pipefail
+
+# Source shared utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/libs/gh-workflow-utils.sh"
+
+# Script configuration
+readonly WORKFLOW_FILE="build-single-image.yml"
+readonly DEFAULT_REGISTRY="andrius/asterisk"
+readonly SUPPORTED_BUILDS_FILE="$SCRIPT_DIR/../asterisk/supported-asterisk-builds.yml"
+
+usage() {
+    cat << EOF
+Usage: $0 <version> [distribution] [options]
+
+Build a single Asterisk Docker image using GitHub Actions.
+
+Arguments:
+  version        Asterisk version to build (e.g., 22.5.2, 23.0.0-rc1)
+  distribution   OS distribution (e.g., trixie, bookworm) [optional: auto-selects if not specified]
+
+Options:
+  --architectures ARCH    Target architectures (comma-separated: amd64,arm64) [default: amd64]
+  --additional-tags TAGS  Additional Docker tags (comma-separated: latest,stable,22.x)
+  --push                  Push images to registry [default: false]
+  --registry REGISTRY     Docker registry [default: $DEFAULT_REGISTRY]
+  --help                  Show this help message
+
+Examples:
+  $0 22.5.2                    # Auto-selects distribution (usually trixie)
+  $0 22.5.2 trixie             # Explicit distribution
+  $0 23.0.0-rc1 bookworm --architectures amd64,arm64 --push
+  $0 22.5.2 --additional-tags latest,stable --registry myregistry.com/asterisk
+
+This script will:
+1. Trigger the GitHub Actions workflow
+2. Wait for the run to appear and correlate it with your trigger
+3. Watch the run progress in real-time
+4. Exit with the same status as the workflow run
+EOF
+}
+
+get_available_distributions() {
+    local version="$1"
+
+    if [[ ! -f "$SUPPORTED_BUILDS_FILE" ]]; then
+        log_with_timestamp "ERROR" "Supported builds file not found: $SUPPORTED_BUILDS_FILE"
+        exit 1
+    fi
+
+    # Extract distributions for the specified version using yq
+    yq ".latest_builds[] | select(.version == \"$version\") | .os_matrix[].distribution" "$SUPPORTED_BUILDS_FILE" 2>/dev/null | sed 's/"//g' || true
+}
+
+get_available_versions() {
+    if [[ ! -f "$SUPPORTED_BUILDS_FILE" ]]; then
+        return 1
+    fi
+
+    # Extract all available versions
+    yq '.latest_builds[].version' "$SUPPORTED_BUILDS_FILE" 2>/dev/null | sed 's/"//g' || true
+}
+
+validate_version_exists() {
+    local version="$1"
+    local available_distributions
+
+    available_distributions=$(get_available_distributions "$version")
+
+    if [[ -z "$available_distributions" ]]; then
+        log_with_timestamp "ERROR" "Version '$version' not found in supported builds"
+        log_with_timestamp "INFO" "Available versions:"
+        get_available_versions | while read -r v; do
+            log_with_timestamp "INFO" "  - $v"
+        done
+        return 1
+    fi
+
+    return 0
+}
+
+auto_select_distribution() {
+    local version="$1"
+    local available_distributions
+    local selected_distribution
+
+    available_distributions=$(get_available_distributions "$version")
+
+    if [[ -z "$available_distributions" ]]; then
+        return 1
+    fi
+
+    # Prefer trixie over other distributions if available
+    if echo "$available_distributions" | grep -q "^trixie$"; then
+        selected_distribution="trixie"
+    else
+        # Select the first available distribution
+        selected_distribution=$(echo "$available_distributions" | head -n1)
+    fi
+
+    echo "$selected_distribution"
+}
+
+parse_arguments() {
+    # At least version is required
+    if [[ $# -lt 1 ]]; then
+        echo "Error: Missing required version argument" >&2
+        usage
+        exit 1
+    fi
+
+    VERSION="$1"
+    shift 1
+
+    # Check if next argument is a distribution or an option
+    DISTRIBUTION=""
+    if [[ $# -gt 0 && ! "$1" =~ ^-- ]]; then
+        DISTRIBUTION="$1"
+        shift 1
+    fi
+
+    # Default values
+    ARCHITECTURES="amd64"
+    ADDITIONAL_TAGS=""
+    PUSH="false"
+    REGISTRY="$DEFAULT_REGISTRY"
+
+    # Parse optional arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --architectures)
+                ARCHITECTURES="$2"
+                shift 2
+                ;;
+            --additional-tags)
+                ADDITIONAL_TAGS="$2"
+                shift 2
+                ;;
+            --push)
+                PUSH="true"
+                shift
+                ;;
+            --registry)
+                REGISTRY="$2"
+                shift 2
+                ;;
+            --help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option $1" >&2
+                usage
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate version exists and get distribution
+    if [[ -z "$VERSION" ]]; then
+        log_with_timestamp "ERROR" "Version is required"
+        exit 1
+    fi
+
+    # Validate that the version exists in supported builds
+    if ! validate_version_exists "$VERSION"; then
+        exit 1
+    fi
+
+    # Auto-select distribution if not provided
+    if [[ -z "$DISTRIBUTION" ]]; then
+        DISTRIBUTION=$(auto_select_distribution "$VERSION")
+        if [[ -z "$DISTRIBUTION" ]]; then
+            log_with_timestamp "ERROR" "No distributions available for version $VERSION"
+            exit 1
+        fi
+        log_with_timestamp "INFO" "Auto-selected distribution: $DISTRIBUTION"
+    else
+        # Validate that the specified distribution is available for this version
+        available_distributions=$(get_available_distributions "$VERSION")
+        if ! echo "$available_distributions" | grep -q "^$DISTRIBUTION$"; then
+            log_with_timestamp "ERROR" "Distribution '$DISTRIBUTION' not available for version '$VERSION'"
+            log_with_timestamp "INFO" "Available distributions for $VERSION:"
+            echo "$available_distributions" | while read -r d; do
+                log_with_timestamp "INFO" "  - $d"
+            done
+            exit 1
+        fi
+    fi
+
+    # Validate version format (basic check)
+    if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+        log_with_timestamp "WARN" "Version '$VERSION' doesn't match expected format (e.g., 22.5.2, 23.0.0-rc1)"
+    fi
+
+    # Validate architectures
+    if [[ "$ARCHITECTURES" =~ [^a-z0-9,] ]]; then
+        log_with_timestamp "ERROR" "Invalid architectures format: $ARCHITECTURES"
+        exit 1
+    fi
+}
+
+main() {
+    log_with_timestamp "INFO" "GitHub CLI Single Image Build Script"
+
+    # Handle help or no arguments
+    if [[ $# -eq 0 ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+        usage
+        exit 0
+    fi
+
+    # Parse and validate arguments
+    parse_arguments "$@"
+
+    # Display configuration
+    log_with_timestamp "INFO" "Build Configuration:"
+    log_with_timestamp "INFO" "  Version: $VERSION"
+    log_with_timestamp "INFO" "  Distribution: $DISTRIBUTION"
+    log_with_timestamp "INFO" "  Architectures: $ARCHITECTURES"
+    log_with_timestamp "INFO" "  Registry: $REGISTRY"
+    log_with_timestamp "INFO" "  Push: $PUSH"
+    if [[ -n "$ADDITIONAL_TAGS" ]]; then
+        log_with_timestamp "INFO" "  Additional Tags: $ADDITIONAL_TAGS"
+    fi
+
+    # Build workflow inputs
+    declare -A workflow_inputs=(
+        ["version"]="$VERSION"
+        ["distribution"]="$DISTRIBUTION"
+        ["architectures"]="$ARCHITECTURES"
+        ["additional_tags"]="$ADDITIONAL_TAGS"
+        ["push"]="$PUSH"
+        ["registry"]="$REGISTRY"
+    )
+
+    # Trigger and watch workflow
+    local exit_code=0
+    trigger_and_watch_workflow "$WORKFLOW_FILE" workflow_inputs || exit_code=$?
+
+    log_with_timestamp "INFO" "Build script completed with exit code: $exit_code"
+    exit $exit_code
+}
+
+# Run main function with all arguments
+main "$@"

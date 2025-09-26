@@ -1,0 +1,208 @@
+# Git-based Development Asterisk Docker build
+# Asterisk git-{{ git_sha }} on {{ config.base.os|title }} {{ config.base.distribution }}
+# Generated from YAML configuration - DO NOT EDIT MANUALLY
+
+{% set build_opt = config.build.optimization | default({}) -%}
+{% set docker_config = config.docker -%}
+{% set user_config = docker_config.user | default({}) -%}
+{% set base_image = config.base.image -%}
+{% set git_sha = config.build.args.GIT_SHA | default('unknown') -%}
+
+# ==============================================================================
+# STAGE 1: Build Environment
+# ==============================================================================
+FROM {{ base_image }} AS asterisk-builder
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX Builder (Git Development)"
+LABEL org.opencontainers.image.description="Build stage for Asterisk git-{{ git_sha }}"
+LABEL org.opencontainers.image.version="git-{{ git_sha }}"
+LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
+
+# Build arguments
+ARG GIT_SHA={{ git_sha }}
+ARG JOBS={{ build_opt.parallel_jobs | default("8") }}
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+
+# Environment variables
+ENV GIT_SHA=${GIT_SHA}
+ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
+{% if build_opt.cache_mounts | default(true) -%}
+ENV TMPDIR="/tmp/asterisk_build"
+{% endif %}
+
+{% if config.base.os == "debian" -%}
+# Create build directories first
+RUN mkdir -p \
+    /usr/src/asterisk \
+{% if build_opt.cache_mounts | default(true) -%}
+    ${TMPDIR} && \
+    chmod 777 ${TMPDIR}
+{% else -%}
+    /tmp/asterisk_build
+{% endif %}
+
+# EOL distribution setup (if needed)
+{% if config.base.eol | default(false) -%}
+RUN {% for cmd in config.packages.eol_setup -%}
+{{ cmd }}{% if not loop.last %} && \
+    {% endif -%}
+{% endfor %}
+
+{% endif -%}
+# Install ca-certificates first, then build dependencies
+{% if build_opt.cache_mounts | default(true) -%}
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder-$TARGETARCH \
+{% else -%}
+RUN \
+{% endif -%}
+    apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends \
+{% for package in config.packages.build -%}
+{% if package != 'ca-certificates' -%}
+        {{ package }}{% if not loop.last %} \{% endif %}
+{% endif -%}
+{% endfor %} && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install git (required for git-based builds)
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-git-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-git-$TARGETARCH \
+    apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    apt-get clean
+
+{% endif -%}
+
+# Clone Asterisk source from git repository
+WORKDIR /usr/src/asterisk
+RUN git clone --depth 1 {{ config.asterisk.git_repository }} . && \
+    GIT_SHA_FULL=$(git rev-parse HEAD) && \
+    GIT_SHA_SHORT=$(git rev-parse --short HEAD) && \
+    echo "Git SHA: $GIT_SHA_FULL (short: $GIT_SHA_SHORT)" && \
+    echo "$GIT_SHA_SHORT" > /usr/src/asterisk/.git_sha
+
+# Copy and run build script
+COPY build.sh /usr/src/asterisk/build.sh
+RUN chmod +x /usr/src/asterisk/build.sh
+
+# Build Asterisk with git source
+{% if build_opt.cache_mounts | default(true) -%}
+RUN --mount=type=cache,target=/tmp/asterisk_build \
+{% else -%}
+RUN \
+{% endif -%}
+    cd /usr/src/asterisk && \
+    ./build.sh && \
+    make install && \
+    make install-logrotate && \
+    make basic-pbx && \
+    ldconfig
+
+# ==============================================================================
+# STAGE 2: Runtime Environment
+# ==============================================================================
+FROM {{ base_image }} AS asterisk-runtime
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX (Git Development)"
+LABEL org.opencontainers.image.description="Asterisk git-{{ git_sha }} on {{ config.base.os|title }} {{ config.base.distribution }}"
+LABEL org.opencontainers.image.version="git-{{ git_sha }}"
+LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
+
+# Runtime environment
+ARG GIT_SHA={{ git_sha }}
+ARG TARGETARCH
+ENV GIT_SHA=${GIT_SHA}
+
+{% if config.base.os == "debian" -%}
+# EOL distribution setup (if needed)
+{% if config.base.eol | default(false) -%}
+RUN {% for cmd in config.packages.eol_setup -%}
+{{ cmd }}{% if not loop.last %} && \
+    {% endif -%}
+{% endfor %}
+
+{% endif -%}
+# Install runtime dependencies
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+{% for package in config.packages.runtime -%}
+        {{ package }}{% if not loop.last %} \{% endif %}
+{% endfor %} && \
+    apt-get clean
+
+{% endif -%}
+
+# Create asterisk user and required directories
+{% set uid = user_config.uid | default(1000) -%}
+{% set gid = user_config.gid | default(1000) -%}
+RUN groupadd -g {{ gid }} asterisk && \
+    useradd -r -u {{ uid }} -g asterisk -d /var/lib/asterisk -s /bin/bash asterisk && \
+    mkdir -p \
+    /var/run/asterisk \
+    /var/log/asterisk \
+    /var/spool/asterisk/monitor \
+    /var/spool/asterisk/outgoing \
+    /var/spool/asterisk/tmp \
+    /var/spool/asterisk/voicemail \
+    /var/spool/asterisk/fax \
+    /var/lib/asterisk/keys \
+    /var/lib/asterisk/phoneprov \
+    /var/lib/asterisk/sounds \
+    /var/lib/asterisk/docs
+
+# Copy Asterisk from builder stage
+COPY --from=asterisk-builder /usr/sbin/asterisk /usr/sbin/asterisk
+COPY --from=asterisk-builder /usr/lib/asterisk/ /usr/lib/asterisk/
+COPY --from=asterisk-builder /var/lib/asterisk/ /var/lib/asterisk/
+COPY --from=asterisk-builder /etc/asterisk/ /etc/asterisk/
+COPY --from=asterisk-builder /var/spool/asterisk/ /var/spool/asterisk/
+COPY --from=asterisk-builder /var/log/asterisk/ /var/log/asterisk/
+COPY --from=asterisk-builder /usr/src/asterisk/.git_sha /var/lib/asterisk/.git_sha
+
+# Copy Asterisk shared libraries
+COPY --from=asterisk-builder /usr/lib/libasterisk*.so* /usr/lib/
+
+# Set proper ownership and permissions
+RUN chown -R asterisk:asterisk \
+    /etc/asterisk \
+    /var/lib/asterisk \
+    /var/run/asterisk \
+    /var/log/asterisk \
+    /var/spool/asterisk \
+    /usr/lib/asterisk 2>/dev/null || true && \
+    chmod -R 750 /var/spool/asterisk
+
+# Copy healthcheck script
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
+
+# Runtime verification
+RUN asterisk -V || (echo "Error: Unable to run asterisk -V" && exit 1)
+
+# Configure volumes
+{% for volume in docker_config.volumes -%}
+VOLUME ["{{ volume }}"]
+{% endfor %}
+
+# Expose ports
+{% for port in docker_config.expose_ports -%}
+EXPOSE {{ port }}
+{% endfor %}
+
+# Switch to asterisk user
+USER asterisk
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
+
+# Default command
+CMD ["/usr/sbin/asterisk", "-f"]

@@ -1,0 +1,164 @@
+name: Build Asterisk Docker Image
+description: Builds Asterisk Docker images using the template-based build system
+
+inputs:
+  version:
+    description: 'Asterisk version (e.g., "22.5.2") or "git" for latest git build'
+    required: true
+  distribution:
+    description: 'OS distribution (e.g., "trixie", "bookworm", "jessie")'
+    required: false
+    default: "trixie"
+  architectures:
+    description: 'Target architectures (comma-separated: amd64,arm64)'
+    required: false
+    default: "amd64"
+  force-config:
+    description: 'Force template regeneration (true/false)'
+    required: false
+    default: "true"
+  push:
+    description: 'Push images to registry (true/false)'
+    required: false
+    default: "false"
+  registry:
+    description: 'Docker registry path'
+    required: false
+    default: "andrius/asterisk"
+  additional-tags:
+    description: 'Additional Docker tags (comma-separated)'
+    required: false
+    default: ""
+  timeout:
+    description: 'Build timeout in minutes'
+    required: false
+    default: "60"
+
+outputs:
+  image-tags:
+    description: "Built image tags"
+    value: ${{ steps.build.outputs.image_tags }}
+  build-result:
+    description: "Build result (success/failure)"
+    value: ${{ steps.build.outputs.build_result }}
+  git-sha:
+    description: "Git SHA (for git builds)"
+    value: ${{ steps.build.outputs.git_sha }}
+  config-file:
+    description: "Configuration file used"
+    value: ${{ steps.build.outputs.config_file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup prerequisites
+      shell: bash
+      run: |
+        echo "🔧 Setting up build environment..."
+
+        # Check prerequisites
+        which docker || (echo "❌ Docker not found" && exit 1)
+        which python3 || (echo "❌ Python3 not found" && exit 1)
+
+        # Set up environment variables
+        echo "BUILD_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+        echo "BUILD_DISTRIBUTION=${{ inputs.distribution }}" >> $GITHUB_ENV
+        echo "BUILD_ARCHITECTURES=${{ inputs.architectures }}" >> $GITHUB_ENV
+        echo "BUILD_REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
+
+        # Prepare build flags
+        BUILD_FLAGS=""
+        if [ "${{ inputs.force-config }}" = "true" ]; then
+          BUILD_FLAGS="$BUILD_FLAGS --force-config"
+        fi
+        if [ "${{ inputs.push }}" = "true" ]; then
+          BUILD_FLAGS="$BUILD_FLAGS --push --registry ${{ inputs.registry }}"
+        fi
+        echo "BUILD_FLAGS=$BUILD_FLAGS" >> $GITHUB_ENV
+
+        echo "✅ Prerequisites ready"
+
+    - name: Build Asterisk image
+      id: build
+      shell: bash
+      timeout-minutes: ${{ inputs.timeout }}
+      run: |
+        echo "🚀 Starting Asterisk build..."
+        echo "Version: ${{ inputs.version }}"
+        echo "Distribution: ${{ inputs.distribution }}"
+        echo "Architectures: ${{ inputs.architectures }}"
+        echo "Force config: ${{ inputs.force-config }}"
+        echo "Push: ${{ inputs.push }}"
+        echo ""
+
+        # Determine build command based on version type
+        if [ "${{ inputs.version }}" = "git" ]; then
+          echo "🔄 Building git version..."
+          BUILD_CMD="./scripts/build-asterisk.sh --git ${{ inputs.distribution }} $BUILD_FLAGS"
+
+          # Fetch git SHA for output
+          GIT_SHA=$(curl -s https://api.github.com/repos/asterisk/asterisk/commits/master | jq -r '.sha[:7]')
+          echo "git_sha=git-$GIT_SHA" >> $GITHUB_OUTPUT
+
+        else
+          echo "📦 Building version ${{ inputs.version }}..."
+          BUILD_CMD="./scripts/build-asterisk.sh ${{ inputs.version }} ${{ inputs.distribution }} $BUILD_FLAGS"
+        fi
+
+        echo "Command: $BUILD_CMD"
+        echo ""
+
+        # Execute build
+        if $BUILD_CMD; then
+          echo "build_result=success" >> $GITHUB_OUTPUT
+          echo "✅ Build completed successfully"
+
+          # Generate image tags output
+          if [ "${{ inputs.version }}" = "git" ]; then
+            PRIMARY_TAG="git-${GIT_SHA}_debian-${{ inputs.distribution }}"
+          else
+            PRIMARY_TAG="${{ inputs.version }}_debian-${{ inputs.distribution }}"
+          fi
+
+          # Add additional tags if specified
+          ALL_TAGS="$PRIMARY_TAG"
+          if [ -n "${{ inputs.additional-tags }}" ]; then
+            IFS=',' read -ra EXTRA_TAGS <<< "${{ inputs.additional-tags }}"
+            for tag in "${EXTRA_TAGS[@]}"; do
+              ALL_TAGS="$ALL_TAGS,$tag"
+            done
+          fi
+
+          echo "image_tags=$ALL_TAGS" >> $GITHUB_OUTPUT
+
+          # Set config file output
+          if [ "${{ inputs.version }}" = "git" ]; then
+            CONFIG_FILE="configs/generated/asterisk-git-master-${{ inputs.distribution }}.yml"
+          else
+            CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${{ inputs.distribution }}.yml"
+          fi
+          echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
+        else
+          echo "build_result=failure" >> $GITHUB_OUTPUT
+          echo "❌ Build failed"
+          exit 1
+        fi
+
+    - name: Build summary
+      shell: bash
+      if: always()
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Distribution**: ${{ inputs.distribution }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Architectures**: ${{ inputs.architectures }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Result**: ${{ steps.build.outputs.build_result }}" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.build.outputs.build_result }}" = "success" ]; then
+          echo "- **Image Tags**: ${{ steps.build.outputs.image_tags }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.build.outputs.git_sha }}" ]; then
+            echo "- **Git SHA**: ${{ steps.build.outputs.git_sha }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Config File**: ${{ steps.build.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+        fi

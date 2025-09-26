@@ -1,0 +1,53 @@
+name: Test Reusable Action
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to test (e.g., 1.4.44 or git)"
+        required: true
+        default: "1.4.44"
+        type: string
+      distribution:
+        description: "Distribution to test"
+        required: false
+        default: "jessie"
+        type: string
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test reusable action
+        id: test
+        uses: ./.github/actions/build-asterisk-image
+        with:
+          version: ${{ inputs.version }}
+          distribution: ${{ inputs.distribution }}
+          force-config: true
+          push: false
+          timeout: 60
+
+      - name: Verify results
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ inputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Distribution | ${{ inputs.distribution }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Result | ${{ steps.test.outputs.build-result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tags | ${{ steps.test.outputs.image-tags }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Config File | ${{ steps.test.outputs.config-file }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.test.outputs.build-result }}" = "success" ]; then
+            echo "✅ Reusable action test PASSED"
+          else
+            echo "❌ Reusable action test FAILED"
+            exit 1
+          fi

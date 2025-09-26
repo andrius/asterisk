@@ -1,0 +1,59 @@
+# Legacy Asterisk Variant Template
+# For legacy Asterisk versions (1.8, 10.x) that have limited features
+# Variables: {{VERSION}}
+
+extends: "asterisk-base"
+variant: "legacy"
+
+asterisk:
+  # No addons for these versions
+  addons:
+    version: null
+
+  # Simplified menuselect for legacy versions
+  menuselect:
+    minimal: true
+    enable_apps:
+      - app_voicemail
+      - app_directory
+      - app_confbridge
+      - app_queue
+      - app_dial
+      - app_playback
+      - app_echo
+      - app_record
+      - app_mixmonitor
+      - app_chanspy
+      - app_page
+      - app_meetme
+      - app_macro
+      - app_verbose
+    enable_channels:
+      - chan_sip
+      - chan_local
+      - chan_bridge_media
+    enable_resources:
+      - res_musiconhold
+      - res_agi
+      - res_clioriginate
+      - res_timing_timerfd
+      - res_timing_pthread
+    disable_sounds: []
+    disable_modules: []
+
+  # Limited configure options for older versions
+  configure_options:
+    - --with-ssl=ssl
+    - --with-crypto
+
+  # Standard source URL for non-certified versions
+  source:
+    url_template: "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
+
+# Limited feature set for older versions
+features:
+  recordings: true
+  hep: false
+  pjsip: false  # No PJSIP in legacy versions
+  websockets: false
+  tls: true

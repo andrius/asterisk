@@ -1,0 +1,158 @@
+# Docker Compose configuration for Asterisk {{ config.version }}
+# Generated from YAML configuration - DO NOT EDIT MANUALLY
+
+services:
+  asterisk:
+    image: {{ config.docker.registry }}/{{ config.docker.repository }}:{{ config.docker.tags[0] }}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ASTERISK_VERSION: {{ config.version }}
+        {% if config.asterisk.addons.version -%}
+        ASTERISK_ADDONS_VERSION: {{ config.asterisk.addons.version }}
+        {% endif -%}
+        DEBIAN_FRONTEND: noninteractive
+      {% if config.docker.platforms -%}
+      platforms:
+        {% for platform in config.docker.platforms -%}
+        - {{ platform }}
+        {% endfor -%}
+      {% endif -%}
+
+    container_name: asterisk-{{ config.version.replace('.', '-') }}
+    hostname: asterisk-pbx
+
+    ports:
+      {% for port in config.docker.networking.ports | default(["5060:5060/udp", "5060:5060/tcp", "5061:5061/tcp", "10000-10099:10000-10099/udp"]) -%}
+      - "{{ port }}"
+      {% endfor %}
+
+    volumes:
+      # Named volumes for production
+      - asterisk_config:/etc/asterisk
+      - asterisk_logs:/var/log/asterisk
+      - asterisk_spool:/var/spool/asterisk
+      - asterisk_sounds:/var/lib/asterisk/sounds
+      - asterisk_keys:/var/lib/asterisk/keys
+      - asterisk_phoneprov:/var/lib/asterisk/phoneprov
+      {% if config.features.recordings | default(true) -%}
+      - asterisk_recordings:/var/lib/asterisk/monitor
+      {% endif %}
+
+    environment:
+      # Asterisk configuration
+      - ASTERISK_VERSION={{ config.version }}
+      {% if config.docker.user -%}
+      - ASTERISK_USER={{ config.docker.user.name | default("asterisk") }}
+      - ASTERISK_UID={{ config.docker.user.uid | default(1000) }}
+      - ASTERISK_GID={{ config.docker.user.gid | default(1000) }}
+      {% endif -%}
+
+      # Database configuration
+      {% if config.database.postgresql.enabled | default(true) -%}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-asterisk}
+      - POSTGRES_USER=${POSTGRES_USER:-asterisk}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+      {% endif -%}
+
+      # Feature flags
+      {% for feature, enabled in config.features.items() if enabled -%}
+      - ENABLE_{{ feature.upper() }}=true
+      {% endfor %}
+
+    {% if config.docker.healthcheck.enabled | default(true) -%}
+    healthcheck:
+      test: ["CMD", "{{ config.docker.healthcheck.command | default("/usr/local/bin/healthcheck.sh") }}"]
+      interval: {{ config.docker.healthcheck.interval | default("30s") }}
+      timeout: {{ config.docker.healthcheck.timeout | default("10s") }}
+      start_period: {{ config.docker.healthcheck.start_period | default("30s") }}
+      retries: {{ config.docker.healthcheck.retries | default(3) }}
+    {% endif -%}
+
+    restart: unless-stopped
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Network configuration
+    networks:
+      - asterisk_net
+
+    {% if config.database.postgresql.enabled | default(true) -%}
+    depends_on:
+      - postgres
+    {% endif %}
+
+  {% if config.database.postgresql.enabled | default(true) -%}
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-asterisk}
+      - POSTGRES_USER=${POSTGRES_USER:-asterisk}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-asterisk123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-asterisk}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    restart: unless-stopped
+
+    networks:
+      - asterisk_net
+  {% endif %}
+
+volumes:
+  asterisk_config:
+    driver: local
+  asterisk_logs:
+    driver: local
+  asterisk_spool:
+    driver: local
+  asterisk_sounds:
+    driver: local
+  asterisk_keys:
+    driver: local
+  asterisk_phoneprov:
+    driver: local
+  {% if config.features.recordings | default(true) -%}
+  asterisk_recordings:
+    driver: local
+  {% endif -%}
+  {% if config.database.postgresql.enabled | default(true) -%}
+  postgres_data:
+    driver: local
+  {% endif %}
+
+networks:
+  asterisk_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

@@ -1,0 +1,245 @@
+# Multi-stage optimized Asterisk Docker build
+# Asterisk {{ version }} on {{ config.base.os|title }} {{ config.base.distribution }}
+# Generated from YAML configuration - DO NOT EDIT MANUALLY
+
+{% set build_opt = config.build.optimization | default({}) -%}
+{% set docker_config = config.docker -%}
+{% set user_config = docker_config.user | default({}) -%}
+{% set base_image = config.base.image -%}
+
+# ==============================================================================
+# STAGE 1: Build Environment
+# ==============================================================================
+FROM {{ base_image }} AS asterisk-builder
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX Builder"
+LABEL org.opencontainers.image.description="Build stage for Asterisk {{ version }}"
+LABEL org.opencontainers.image.version="{{ version }}"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
+
+# Build arguments
+ARG ASTERISK_VERSION={{ version }}
+{% if config.asterisk.addons.version -%}
+ARG ASTERISK_ADDONS_VERSION={{ config.asterisk.addons.version }}
+{% endif -%}
+ARG JOBS={{ build_opt.parallel_jobs | default("8") }}
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+
+# Environment variables
+ENV ASTERISK_VERSION=${ASTERISK_VERSION}
+ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
+{% if build_opt.cache_mounts | default(true) -%}
+ENV TMPDIR="/tmp/asterisk_build"
+{% endif %}
+
+{% if config.base.os == "debian" -%}
+# Create build directories first
+RUN mkdir -p \
+    /usr/src/asterisk \
+{% if build_opt.cache_mounts | default(true) -%}
+    ${TMPDIR} && \
+    chmod 777 ${TMPDIR}
+{% else -%}
+    /tmp/asterisk_build
+{% endif %}
+
+# EOL distribution setup (if needed)
+{% if config.base.eol | default(false) -%}
+RUN {% for cmd in config.packages.eol_setup -%}
+{{ cmd }}{% if not loop.last %} && \
+    {% endif %}
+{% endfor %}
+
+{% endif -%}
+# Update package lists and install ca-certificates first, then build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends \
+{{ build_packages | build_packages_without_ca | join_packages(80) }} && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+{% if build_opt.cache_mounts | default(true) -%}
+    mkdir -p ${TMPDIR} && chmod 777 ${TMPDIR}
+{% endif %}
+{% elif config.base.os == "alpine" -%}
+# Install build dependencies
+RUN apk add --no-cache --virtual .build-deps \
+{{ build_packages | join_packages(80) }}
+{% endif %}
+
+{% if config.base.os == "alpine" -%}
+# Create build directories and set permissions
+RUN mkdir -p \
+    /usr/src/asterisk \
+{% if config.asterisk.addons.version -%}
+    /usr/src/asterisk/addons \
+{% endif -%}
+{% if build_opt.cache_mounts | default(true) -%}
+    ${TMPDIR} && \
+    chmod 777 ${TMPDIR}
+{% else -%}
+    /tmp/asterisk_build
+{% endif %}
+{% endif %}
+
+WORKDIR /usr/src/asterisk
+
+# Download and extract Asterisk source
+{% set source_url = config.asterisk.source.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz") -%}
+RUN curl -fsSL {{ source_url.format(version=version) }} | \
+    tar --strip-components=1 -xz
+
+{% if config.asterisk.addons.version -%}
+# Download and extract Asterisk addons (for legacy versions)
+WORKDIR /usr/src/asterisk/addons
+{% set addons_url = config.asterisk.addons.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz") -%}
+RUN curl -fsSL {{ addons_url.format(version=config.asterisk.addons.version) }} | \
+    tar --strip-components=1 -xz
+
+WORKDIR /usr/src/asterisk
+{% endif %}
+
+# Configure Asterisk build (skip for very old versions that don't have configure script)
+{% set major_version = version.split('.')[0] | int -%}
+{% set minor_version = version.split('.')[1] | int -%}
+{% set is_very_old = (major_version == 1 and minor_version < 4) -%}
+{% if not is_very_old -%}
+{% if configure_options -%}
+RUN ./configure \
+{% for option in configure_options -%}
+    {{ option }}{% if not loop.last %} \{% endif %}
+
+{% endfor %}
+{% else -%}
+RUN ./configure
+{% endif %}
+
+# Generate menuselect configuration
+RUN make menuselect/menuselect menuselect-tree menuselect.makeopts
+{% endif %}
+
+{% if config.base.os == "debian" and not is_very_old -%}
+# Optimize build configuration for smaller image
+RUN sed -i 's/HAVE_XML2 = yes/HAVE_XML2 = no/' makeopts && \
+    sed -i 's/HAVE_XMLSTARLET = yes/HAVE_XMLSTARLET = no/' makeopts
+{% endif %}
+
+# Copy and execute build script
+COPY build.sh /usr/src/asterisk/build.sh
+RUN chmod +x build.sh && ./build.sh
+
+# ==============================================================================
+# STAGE 2: Runtime Environment
+# ==============================================================================
+FROM {{ base_image }} AS asterisk-runtime
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX Runtime"
+LABEL org.opencontainers.image.description="Runtime environment for Asterisk {{ version }}"
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
+
+{% if config.base.os == "debian" -%}
+# Install only runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+{{ runtime_packages | join_packages(80) }} && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+{% elif config.base.os == "alpine" -%}
+# Install runtime dependencies
+RUN apk add --no-cache \
+{{ runtime_packages | join_packages(80) }}
+{% endif %}
+
+# Create asterisk user and required directories
+RUN useradd --uid {{ user_config.uid | default(1000) }} --system --user-group \
+    --home-dir {{ user_config.home | default("/home/asterisk") }} --create-home \
+    {{ user_config.name | default("asterisk") }} && \
+    mkdir -p \
+    /var/run/asterisk \
+    /var/log/asterisk \
+    /var/spool/asterisk/monitor \
+    /var/spool/asterisk/outgoing \
+    /var/spool/asterisk/tmp \
+    /var/spool/asterisk/voicemail \
+    /var/spool/asterisk/fax \
+    /var/lib/asterisk/keys \
+    /var/lib/asterisk/phoneprov \
+    /var/lib/asterisk/sounds \
+    /var/lib/asterisk/docs
+
+# ==============================================================================
+# STAGE 3: Final Production Image
+# ==============================================================================
+FROM asterisk-runtime AS asterisk-production
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX"
+LABEL org.opencontainers.image.description="Production Asterisk PBX {{ version }}"
+LABEL org.opencontainers.image.version="{{ version }}"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
+LABEL org.opencontainers.image.vendor="{{ maintainer }}"
+
+# Copy Asterisk binaries and configurations from builder
+COPY --from=asterisk-builder /usr/sbin/asterisk /usr/sbin/asterisk
+COPY --from=asterisk-builder /usr/lib/asterisk /usr/lib/asterisk
+COPY --from=asterisk-builder /var/lib/asterisk /var/lib/asterisk
+COPY --from=asterisk-builder /etc/asterisk /etc/asterisk
+
+# Copy Asterisk shared libraries
+COPY --from=asterisk-builder /usr/lib/libasterisk*.so* /usr/lib/
+
+{% if docker_config.healthcheck.enabled | default(true) -%}
+# Copy healthcheck script
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
+{% endif %}
+
+# Set proper ownership and permissions
+RUN chown -R {{ user_config.name | default("asterisk") }}:{{ user_config.name | default("asterisk") }} \
+    /etc/asterisk \
+    {{ user_config.home | default("/home/asterisk") }} \
+    /var/*/asterisk \
+    /usr/lib*/asterisk 2>/dev/null || true && \
+    chmod -R 750 /var/spool/asterisk
+
+# Runtime verification
+RUN asterisk -V || (echo "Error: Unable to run asterisk -V" && exit 1)
+
+# Configure networking
+{% for port in docker_config.networking.ports | default(["5060/udp", "5060/tcp", "5061/tcp", "10000-10499/udp"]) -%}
+# EXPOSE {{ port }}
+{% endfor %}
+
+# Define volumes for persistent data
+{% if docker_config.volumes -%}
+VOLUME [{% for volume in docker_config.volumes %}"{{ volume }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+
+{% if docker_config.healthcheck.enabled | default(true) -%}
+# Add health check
+HEALTHCHECK --interval={{ docker_config.healthcheck.interval | default("30s") }} \
+    --timeout={{ docker_config.healthcheck.timeout | default("10s") }} \
+    --start-period={{ docker_config.healthcheck.start_period | default("30s") }} \
+    --retries={{ docker_config.healthcheck.retries | default(3) }} \
+    CMD {{ docker_config.healthcheck.command | default("/usr/local/bin/healthcheck.sh") }}
+{% endif %}
+
+# Switch to non-root user
+USER {{ user_config.name | default("asterisk") }}
+
+# Set working directory
+WORKDIR {{ user_config.home | default("/home/asterisk") }}
+
+# Default command with production settings
+{% set supports_w_option = not (major_version == 1 and minor_version < 6) -%}
+{% if supports_w_option -%}
+CMD ["/usr/sbin/asterisk", "-vvvdddf", "-T", "-W", "-U", "{{ user_config.name | default("asterisk") }}", "-p"]
+{% else -%}
+CMD ["/usr/sbin/asterisk", "-vvvdddf", "-T", "-U", "{{ user_config.name | default("asterisk") }}", "-p"]
+{% endif %}
