@@ -1,0 +1,299 @@
+name: Build Single Asterisk Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architectures:
+        description: "Target architectures (comma-separated: amd64,arm64)"
+        required: false
+        default: "amd64"
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+    outputs:
+      image_tags:
+        description: "Built image tags"
+        value: ${{ jobs.build-single.outputs.image_tags }}
+      build_result:
+        description: "Build result (success/failure)"
+        value: ${{ jobs.build-single.outputs.build_result }}
+      config_file:
+        description: "Configuration file used for build"
+        value: ${{ jobs.build-single.outputs.config_file }}
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Asterisk version to build (e.g., 22.5.2)"
+        required: true
+        type: string
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: true
+        type: string
+      architectures:
+        description: "Target architectures (comma-separated: amd64,arm64)"
+        required: false
+        default: "amd64"
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: false
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+
+jobs:
+  build-single:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      image_tags: ${{ steps.meta.outputs.tags }}
+      build_result: ${{ steps.build-result.outputs.result }}
+      config_file: ${{ steps.validate-config.outputs.config_file }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          echo "Version: ${{ inputs.version }}"
+          echo "Distribution: ${{ inputs.distribution }}"
+          echo "Architectures: ${{ inputs.architectures }}"
+          echo "Push: ${{ inputs.push }}"
+          echo "Registry: ${{ inputs.registry }}"
+
+      - name: Validate configuration file
+        id: validate-config
+        working-directory: .
+        run: |
+          DISTRIBUTION="${{ inputs.distribution }}"
+          if [[ "$DISTRIBUTION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            OS_TYPE="alpine"
+          else
+            OS_TYPE="debian"
+          fi
+
+          CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${DISTRIBUTION}.yml"
+
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "❌ Config file not found: $CONFIG_FILE"
+            echo "Available generated configs:"
+            ls -la configs/generated/ || echo "No generated configs found"
+            exit 1
+          fi
+
+          echo "✅ Config file found: $CONFIG_FILE"
+          echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml jinja2 jsonschema
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry, 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || secrets.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        working-directory: .
+        run: |
+          python3 -c "
+          import yaml
+          import json
+
+          with open('${{ steps.validate-config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          version = '${{ inputs.version }}'
+          distribution = '${{ inputs.distribution }}'
+          architectures = '${{ inputs.architectures }}'
+          registry = '${{ inputs.registry }}'
+
+          primary_tag = f'{registry}:{version}_{config[\"base\"][\"os\"]}-{distribution}'
+          tags = [primary_tag]
+
+          if 'docker' in config and 'tags' in config['docker']:
+              for tag in config['docker']['tags'][:3]:
+                  if tag != f'{version}_{config[\"base\"][\"os\"]}-{distribution}':
+                      tags.append(f'{registry}:{tag}')
+
+          print(f'tags={','.join(tags)}')
+          print(f'version={version}')
+          print(f'description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}')
+          print(f'os_type={config['base']['os']}')
+          print(f'labels=org.opencontainers.image.title=Asterisk PBX')
+          print(f'labels=org.opencontainers.image.description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}')
+          print(f'labels=org.opencontainers.image.version={version}')
+          " | tee -a $GITHUB_OUTPUT
+
+      - name: Generate Dockerfile
+        working-directory: .
+        run: |
+          python3 scripts/generate-dockerfile.py \
+            "${{ steps.validate-config.outputs.config_file }}" \
+            --output "Dockerfile" \
+            --templates-dir "${GITHUB_WORKSPACE}/templates/dockerfile"
+
+          echo "✅ Generated Dockerfile (first 20 lines):"
+          head -20 Dockerfile
+
+      - name: Generate build script
+        working-directory: .
+        run: |
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'lib')
+          from dockerfile_generator import DockerfileGenerator
+
+          generator = DockerfileGenerator('templates')
+          generator.generate_build_script('${{ steps.validate-config.outputs.config_file }}', 'build.sh')
+          print('Generated build.sh script')
+          "
+
+          if [ -f build.sh ]; then
+            chmod +x build.sh
+            echo "✅ Generated build.sh script ($(wc -l < build.sh) lines)"
+          else
+            echo "❌ Failed to generate build.sh"
+            exit 1
+          fi
+
+      - name: Generate healthcheck script
+        working-directory: .
+        run: |
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+
+          with open('${{ steps.validate-config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          env = Environment(loader=FileSystemLoader('templates/partials'))
+          template = env.get_template('healthcheck.sh.j2')
+
+          content = template.render(
+              config=config,
+              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
+          )
+
+          with open('healthcheck.sh', 'w') as f:
+              f.write(content)
+          "
+
+          chmod +x healthcheck.sh
+          echo "✅ Generated healthcheck script"
+
+      - name: Prepare build platforms
+        id: platforms
+        run: |
+          ARCHITECTURES="${{ inputs.architectures }}"
+          PLATFORMS=""
+
+          IFS=',' read -ra ARCH_ARRAY <<< "$ARCHITECTURES"
+          for arch in "${ARCH_ARRAY[@]}"; do
+            arch=$(echo "$arch" | xargs)
+            if [[ -n "$PLATFORMS" ]]; then
+              PLATFORMS="${PLATFORMS},linux/${arch}"
+            else
+              PLATFORMS="linux/${arch}"
+            fi
+          done
+
+          echo "platforms=$PLATFORMS" >> $GITHUB_OUTPUT
+          echo "Building for platforms: $PLATFORMS"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.platforms }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Asterisk PBX
+            org.opencontainers.image.description=${{ steps.meta.outputs.description }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha,scope=${{ inputs.version }}-${{ inputs.distribution }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.version }}-${{ inputs.distribution }}
+          build-args: |
+            ASTERISK_VERSION=${{ inputs.version }}
+            BUILDKIT_INLINE_CACHE=1
+
+
+
+      - name: Set build result
+        id: build-result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ Build completed successfully"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ Build failed"
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Single Image Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖥️ **Distribution**: ${{ inputs.distribution }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Architectures**: ${{ inputs.architectures }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Pushed**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ inputs.registry }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Config**: ${{ steps.validate-config.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.build-result.outputs.result }}" == "success" ]; then
+            echo "- ✅ **Status**: Multi-arch build successful" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ inputs.push }}" == "true" ]; then
+              echo "- 📦 **Images pushed to registry**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🏠 **Images built locally (not pushed)**" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ❌ **Status**: Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Build completed: $(date '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY

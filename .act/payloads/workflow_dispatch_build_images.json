@@ -1,0 +1,9 @@
+{
+  "inputs": {
+    "push": false,
+    "registry": "test.local/asterisk",
+    "max_parallel": "1",
+    "filter_version": "22.5.2",
+    "filter_distribution": "trixie"
+  }
+}

@@ -1,0 +1,56 @@
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+external_media_address = ${EXTERNAL_IP}
+external_signaling_address = ${EXTERNAL_IP}
+
+[transport-tcp]
+type = transport
+protocol = tcp
+bind = 0.0.0.0:5060
+external_media_address = ${EXTERNAL_IP}
+external_signaling_address = ${EXTERNAL_IP}
+
+[trunk-auth]
+type=auth
+auth_type = userpass
+username = ${TRUNK_USERNAME}
+password = ${TRUNK_PASSWORD}
+realm = *
+
+[trunk-registration]
+type = registration
+server_uri = sip:${TRUNK_HOST}:5060
+client_uri = sip:${TRUNK_USERNAME}@${TRUNK_HOST}
+contact_user = ${TRUNK_USERNAME}
+outbound_auth = trunk-auth
+transport = transport-udp
+retry_interval = 30
+max_retries = 0
+expiration = 1800
+forbidden_retry_interval = 300
+
+[trunk]
+type = aor
+contact = sip:${TRUNK_HOST}:5060
+max_contacts = 4
+qualify_frequency = 60
+
+[trunk]
+type = endpoint
+transport = transport-udp
+context = from-trunk
+outbound_auth = trunk-auth
+aors = trunk
+from_user = ${TRUNK_USERNAME}
+from_domain = ${TRUNK_HOST}
+disallow = all
+allow = ulaw
+allow = g722
+; allow = opus
+direct_media = no
+trust_id_inbound = yes
+rtp_symmetric = yes
+force_rport = yes
+rewrite_contact = yes

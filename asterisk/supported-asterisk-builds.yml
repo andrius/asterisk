@@ -1,0 +1,55 @@
+# Latest Asterisk Build Matrix
+# Generated on 2025-09-22 19:44:54 UTC
+
+latest_builds:
+  - version: "1.2.40"
+  - version: "1.4.44"
+  - version: "1.6.2.24"
+  - version: "1.8.32.3"
+  - version: "10.12.4"
+  - version: "11.25.3"
+  - version: "11.6-cert18"
+  - version: "12.8.2"
+  - version: "13.38.3"
+  - version: "13.21-cert6"
+  - version: "14.7.8"
+  - version: "15.7.4"
+  - version: "16.30.1"
+  - version: "16.8-cert14"
+  - version: "17.9.4"
+  - version: "18.26.4"
+  - version: "18.9-cert17"
+  - version: "19.8.1"
+  - version: "20.15.2"
+  - version: "20.7-cert7"
+  - version: "21.10.2"
+
+  - version: "22.5.2"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+      - os: "debian"
+        distribution: "bookworm"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "23.0.0-rc2"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+metadata:
+  generated_at: "2025-09-22T20:27:29Z"
+  supported_os:
+    debian: ["bookworm", "trixie"]
+  supported_architectures: ["amd64", "arm64"]
+  total_versions: 23
+  mode: "updates_only"
+  new_versions_count: 1

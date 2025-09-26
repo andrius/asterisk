@@ -1,0 +1,10 @@
+# Environment files
+.env
+
+# docker-compose file with local environment overrides
+docker-compose.override.yml
+
+# Keys and certificates
+asterisk/keys/*
+!asterisk/keys/.keep
+

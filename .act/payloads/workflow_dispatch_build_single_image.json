@@ -1,0 +1,9 @@
+{
+  "inputs": {
+    "version": "22.5.2",
+    "distribution": "trixie",
+    "architecture": "amd64",
+    "push": false,
+    "registry": "test.local/asterisk"
+  }
+}
