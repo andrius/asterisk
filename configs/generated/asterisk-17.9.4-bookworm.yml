@@ -1,4 +1,4 @@
-version: 22.5.2
+version: 17.9.4
 base:
   os: debian
   distribution: bookworm
@@ -105,13 +105,12 @@ asterisk:
     - --with-pjproject-bundled
     - --with-ssl=ssl
     - --with-crypto
-    - --enable-dev-mode
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 docker:
   tags:
-  - 22.5.2_debian-bookworm
-  - 22.5.2_debian-bookworm-amd64
+  - 17.9.4_debian-bookworm
+  - 17.9.4_debian-bookworm-amd64
   registry: docker.io
   repository: asterisk
   expose_ports:
@@ -129,4 +128,4 @@ build:
   script: build-asterisk.sh
   args:
     DEBIAN_FRONTEND: noninteractive
-    ASTERISK_VERSION: 22.5.2
+    ASTERISK_VERSION: 17.9.4

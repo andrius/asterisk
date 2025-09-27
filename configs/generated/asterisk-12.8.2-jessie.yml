@@ -1,0 +1,185 @@
+# Debian Jessie-specific Asterisk Docker Build Configuration Template (EOL)
+# All package versions hardcoded for Debian Jessie (8) - End of Life
+# Variables: 12.8.2
+
+version: "12.8.2"
+
+base:
+  os: "debian"
+  distribution: "jessie"
+  image: "debian/eol:jessie-slim"
+  eol: true
+
+packages:
+  eol_setup:
+    - 'echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes'
+    - 'echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main contrib non-free" > /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports main contrib non-free" >> /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates main contrib non-free" >> /etc/apt/sources.list'
+  build:
+    - build-essential
+    - autoconf
+    - binutils-dev
+    - ca-certificates
+    - curl
+    - file
+    - libcurl4-openssl-dev
+    - libedit-dev
+    - libgsm1-dev
+    - libogg-dev
+    - libpopt-dev
+    - libresample1-dev
+    - libspandsp-dev
+    - libspeex-dev
+    - libspeexdsp-dev
+    - libsqlite3-dev
+    - libsrtp0-dev
+    - libssl-dev
+    - libvorbis-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - unixodbc-dev
+    - uuid
+    - uuid-dev
+    - xmlstarlet
+    - pkg-config
+    - make
+    - patch
+    - libtool
+    - libncurses-dev
+    - libpqxx-dev
+    - libicu-dev
+    - libjansson-dev
+    - python3-dev
+  runtime:
+    - curl
+    - libcurl3
+    - libedit2
+    - libgsm1
+    - libogg0
+    - libpopt0
+    - libresample1
+    - libspandsp2
+    - libspeex1
+    - libspeexdsp1
+    - libsqlite3-0
+    - libsrtp0
+    - libssl1.0.0
+    - libvorbis0a
+    - libxml2
+    - libxslt1.1
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - uuid
+    - libncurses5
+    - libpqxx-4.0
+    - libicu52
+    - libjansson4
+    - python3
+    - binutils
+
+asterisk:
+  menuselect:
+    enable_apps:
+      - app_voicemail
+      - app_directory
+      - app_confbridge
+      - app_queue
+      - app_dial
+      - app_playback
+      - app_echo
+      - app_record
+      - app_mixmonitor
+      - app_chanspy
+      - app_page
+      - app_meetme
+      - app_macro
+      - app_verbose
+    enable_channels:
+      - chan_sip
+      - chan_pjsip
+      - chan_local
+      - chan_bridge_media
+    enable_resources:
+      - res_pjsip
+      - res_pjsip_session
+      - res_pjsip_outbound_registration
+      - res_pjsip_endpoint_identifier_ip
+      - res_pjsip_authenticator_digest
+      - res_pjsip_caller_id
+      - res_pjsip_dialog_info_body_generator
+      - res_pjsip_dtmf_info
+      - res_pjsip_empty_info
+      - res_pjsip_endpoint_identifier_anonymous
+      - res_pjsip_endpoint_identifier_user
+      - res_pjsip_exten_state
+      - res_pjsip_header_funcs
+      - res_pjsip_logger
+      - res_pjsip_messaging
+      - res_pjsip_multihomed
+      - res_pjsip_mwi
+      - res_pjsip_nat
+      - res_pjsip_notify
+      - res_pjsip_one_touch_record_info
+      - res_pjsip_path
+      - res_pjsip_pidf_body_generator
+      - res_pjsip_pidf_digium_body_supplement
+      - res_pjsip_pidf_eyebeam_body_supplement
+      - res_pjsip_publish_asterisk
+      - res_pjsip_pubsub
+      - res_pjsip_refer
+      - res_pjsip_registrar
+      - res_pjsip_rfc3326
+      - res_pjsip_sdp_rtp
+      - res_pjsip_send_to_voicemail
+      - res_pjsip_session_caps
+      - res_pjsip_t38
+      - res_pjsip_transport_websocket
+      - res_pjsip_xpidf_body_generator
+      - res_musiconhold
+      - res_agi
+      - res_clioriginate
+    disable_sounds: []
+    disable_modules: []
+  configure_options:
+    - "--with-pjproject-bundled"
+    - "--with-ssl=ssl"
+    - "--with-crypto"
+    - "--enable-dev-mode"
+
+docker:
+  tags:
+    - "12.8.2_debian-jessie"
+    - "12.8.2_debian-jessie-amd64"
+  ports:
+    - "5060:5060/tcp"
+    - "5060:5060/udp"
+    - "10000-10200:10000-10200/udp"
+  volumes:
+    - "/etc/asterisk"
+    - "/var/lib/asterisk"
+    - "/var/log/asterisk"
+    - "/var/spool/asterisk"
+  environment:
+    ASTERISK_UID: "1001"
+    ASTERISK_GID: "1001"
+
+features:
+  recordings: true
+  hep: true
+  pjsip: true
+  websockets: true
+  tls: true
+
+build:
+  script: "build-asterisk.sh"
+  args:
+    DEBIAN_FRONTEND: "noninteractive"
+    ASTERISK_VERSION: "12.8.2"

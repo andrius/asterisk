@@ -1,8 +1,8 @@
 # Debian Trixie-specific Asterisk Docker Build Configuration Template
 # All package versions hardcoded for Debian Trixie
-# Variables: 22.5.2
+# Variables: 18.26.4
 
-version: "22.5.2"
+version: "18.26.4"
 
 base:
   os: "debian"
@@ -117,8 +117,8 @@ asterisk:
 
 docker:
   tags:
-    - "22.5.2_debian-trixie"
-    - "22.5.2_debian-trixie-amd64"
+    - "18.26.4_debian-trixie"
+    - "18.26.4_debian-trixie-amd64"
   registry: "docker.io"
   repository: "asterisk"
   expose_ports:
@@ -137,4 +137,4 @@ build:
   script: "build-asterisk.sh"
   args:
     DEBIAN_FRONTEND: "noninteractive"
-    ASTERISK_VERSION: "22.5.2"
+    ASTERISK_VERSION: "18.26.4"

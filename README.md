@@ -8,7 +8,11 @@ Complete setup examples are available in the [`examples/`](examples/) directory.
 
 ## 📦 Currently Supported Optimized Versions
 
-As defined in [`asterisk/supported-asterisk-builds.yml`](asterisk/supported-asterisk-builds.yml):
+All the latest asterisk releases are supported (see the [Asterisk Versions page](https://docs.asterisk.org/About-the-Project/Asterisk-Versions/)).
+
+IMPORTANT: Only the latest stable and release candidate versions are actively built and maintained. Due to Asterisk dependencies, we also support complilation on the old and EOL Debian distributions. Be aware of that and possible vulnerabilities when using old distributions!
+
+Currently supported versions as defined in [`asterisk/supported-asterisk-builds.yml`](asterisk/supported-asterisk-builds.yml):
 
 ### **Asterisk 22.5.2** (Latest Stable)
 
@@ -102,6 +106,63 @@ The system automatically:
 While focus is on modern optimized versions, the repository maintains compatibility with all the Asterisk versions starting from 1.2, incluging LTS and Certified releases.
 
 ## 🛠️ Development
+
+### Template System Architecture
+
+The build system uses a sophisticated template-based approach that automatically selects the appropriate template and distribution for each Asterisk version. Templates handle both package dependencies and feature compatibility across different Asterisk eras.
+
+#### Template Selection Matrix
+
+| Asterisk Version         | Distribution      | Template                       | PJSIP Support | Key Features                 |
+| ------------------------ | ----------------- | ------------------------------ | ------------- | ---------------------------- |
+| **10.12.4**              | Jessie            | `debian-stretch-asterisk10-11` | ❌ No         | chan_sip only, SSL 1.0.0     |
+| **11.25.3, 11.6-cert18** | Jessie            | `debian-buster-asterisk10-11`  | ❌ No         | chan_sip only, pre-PJSIP era |
+| **12.8.2**               | Jessie            | `debian-jessie` (standard)     | ✅ Yes        | First PJSIP support          |
+| **13.38.3, 13.21-cert6** | Buster            | `debian-buster` (standard)     | ✅ Yes        | Mature PJSIP                 |
+| **14.7.8, 15.7.4**       | Buster            | `debian-buster` (standard)     | ✅ Yes        | Enhanced features            |
+| **16.30.1**              | Bookworm          | `debian-bookworm` (standard)   | ✅ Yes        | Modern Debian                |
+| **16.8-cert14**          | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest Debian                |
+| **18.26.4, 18.9-cert17** | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | WebRTC, ARI                  |
+| **19.8.1, 20.15.2**      | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Modern features              |
+| **21.10.2**              | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest LTS                   |
+| **22.5.2**               | Trixie + Bookworm | `debian-trixie/bookworm`       | ✅ Yes        | Multi-platform               |
+| **23.0.0-rc2**           | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest release               |
+
+#### Template Types Explained
+
+##### **1. Standard Templates**
+
+- **Purpose**: Modern Asterisk versions (12+) with full PJSIP support
+- **Naming**: `debian-{distribution}.yml.template`
+- **Features**: WebRTC, ARI, PJSIP, WebSocket transport
+- **Examples**: `debian-trixie.yml.template`, `debian-bookworm.yml.template`
+
+##### **2. Specialized 10-11 Templates**
+
+- **Purpose**: Pre-PJSIP Asterisk versions (10.x, 11.x)
+- **Naming**: `debian-{distribution}-asterisk10-11.yml.template`
+- **Features**: chan_sip only, no PJSIP modules, legacy compatibility
+- **Examples**: `debian-stretch-asterisk10-11.yml.template`, `debian-buster-asterisk10-11.yml.template`
+
+##### **3. Cross-Distribution Compatibility**
+
+The system intelligently maps newer Asterisk feature sets to older distributions:
+
+- **10.12.4** uses Stretch template on Jessie distribution (newer template, older OS)
+- **11.25.3** uses Buster template on Jessie distribution (compatibility bridge)
+
+#### Package Version Management
+
+Each template contains hardcoded package versions specific to its target distribution:
+
+| Package Type | Trixie       | Bookworm    | Bullseye    | Buster      | Stretch     | Jessie      |
+| ------------ | ------------ | ----------- | ----------- | ----------- | ----------- | ----------- |
+| **SSL**      | libssl3      | libssl3     | libssl1.1   | libssl1.1   | libssl1.1   | libssl1.0.0 |
+| **ICU**      | libicu76     | libicu72    | libicu67    | libicu63    | libicu57    | libicu52    |
+| **PQXX**     | libpqxx-7.10 | libpqxx-6.4 | libpqxx-6.4 | libpqxx-6.2 | libpqxx-4.0 | libpqxx-4.0 |
+| **SRTP**     | libsrtp2-1   | libsrtp2-1  | libsrtp2-1  | libsrtp2-1  | libsrtp2-1  | libsrtp0    |
+| **NCurses**  | libncurses6  | libncurses6 | libncurses5 | libncurses6 | libncurses5 | libncurses5 |
+| **cURL**     | libcurl4     | libcurl4    | libcurl4    | libcurl4    | libcurl4    | libcurl3    |
 
 ### Template-Based Development
 

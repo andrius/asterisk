@@ -1,0 +1,143 @@
+# Debian Jessie-specific Asterisk Docker Build Configuration Template (EOL)
+# For legacy Asterisk versions (1.2, 1.4, 1.6) requiring asterisk-addons
+# All package versions hardcoded for Debian Jessie (8)
+# Variables: {{VERSION}}
+
+version: "{{VERSION}}"
+
+base:
+  os: "debian"
+  distribution: "jessie"
+  image: "debian/eol:jessie-slim"
+  eol: true
+
+packages:
+  eol_setup:
+    - 'echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes'
+    - 'echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main contrib non-free" > /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports main contrib non-free" >> /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates main contrib non-free" >> /etc/apt/sources.list'
+  build:
+    - build-essential
+    - autoconf
+    - binutils-dev
+    - bison
+    - ca-certificates
+    - curl
+    - file
+    - flex
+    - libcurl4-openssl-dev
+    - libedit-dev
+    - libgsm1-dev
+    - libjansson-dev
+    - libnewt-dev
+    - libogg-dev
+    - libpopt-dev
+    - libresample1-dev
+    - libspandsp-dev
+    - libspeex-dev
+    - libspeexdsp-dev
+    - libsqlite3-dev
+    - libsrtp0-dev
+    - libssl-dev
+    - libvorbis-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - unixodbc-dev
+    - uuid
+    - uuid-dev
+    - xmlstarlet
+    - pkg-config
+    - make
+    - patch
+    - libtool
+    - libncurses-dev
+    - libpqxx-dev
+    - libicu-dev
+    - python3-dev
+    - zlib1g-dev
+  runtime:
+    - curl
+    - libcurl3
+    - libedit2
+    - libgsm1
+    - libnewt0.52
+    - libogg0
+    - libpopt0
+    - libresample1
+    - libspandsp2
+    - libspeex1
+    - libspeexdsp1
+    - libsqlite3-0
+    - libsrtp0
+    - libssl1.0.0
+    - libvorbis0a
+    - libxml2
+    - libxslt1.1
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - uuid
+    - libncurses5
+    - libpqxx-4.0
+    - libicu52
+    - python3
+    - binutils
+    - zlib1g
+
+asterisk:
+  addons:
+    # Version-specific addons mapping (1.2->1.2.9, 1.4->1.4.9, 1.6->1.6.2.4)
+    version: "{{ADDONS_VERSION}}"
+    url_template: "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz"
+  menuselect:
+    minimal: true
+    enable_apps: []
+    enable_channels: []
+    enable_resources: []
+    disable_sounds: []
+    disable_modules: []
+  configure_options:
+    - "--libdir=/usr/lib64"
+    - "--with-postgres"
+    - "--with-odbc"
+    - "--with-ssl=ssl"
+    - "--with-crypto"
+    - "--disable-xmldoc"
+
+docker:
+  tags:
+    - "{{VERSION}}_debian-jessie"
+    - "{{VERSION}}_debian-jessie-amd64"
+  ports:
+    - "5060:5060/tcp"
+    - "5060:5060/udp"
+    - "10000-10200:10000-10200/udp"
+  volumes:
+    - "/etc/asterisk"
+    - "/var/lib/asterisk"
+    - "/var/log/asterisk"
+    - "/var/spool/asterisk"
+  environment:
+    ASTERISK_UID: "1001"
+    ASTERISK_GID: "1001"
+
+features:
+  recordings: true
+  hep: false
+  pjsip: false
+  websockets: false
+  tls: true
+
+build:
+  script: "build-asterisk.sh"
+  args:
+    DEBIAN_FRONTEND: "noninteractive"
+    ASTERISK_VERSION: "{{VERSION}}"
+    ASTERISK_ADDONS_VERSION: "{{VERSION}}"

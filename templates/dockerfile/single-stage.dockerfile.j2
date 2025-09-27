@@ -31,6 +31,14 @@ ENV TMPDIR="/tmp/asterisk_build"
 {% endif %}
 
 {% if config.base.os == "debian" -%}
+# EOL distribution setup (if needed)
+{% if config.base.eol | default(false) -%}
+RUN {% for cmd in config.packages.eol_setup -%}
+{{ cmd }}{% if not loop.last %} && \
+    {% endif %}
+{% endfor %}
+
+{% endif -%}
 # Install all dependencies (build + runtime + development tools)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -77,14 +85,14 @@ RUN chmod 777 ${TMPDIR}
 WORKDIR /usr/src/asterisk
 
 # Download and extract Asterisk source
-{% set source_url = config.asterisk.source.url_template | default("http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-{version}.tar.gz") -%}
+{% set source_url = config.asterisk.source.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz") -%}
 RUN curl -fsSL {{ source_url.format(version=version) }} | \
     tar --strip-components=1 -xz
 
 {% if config.asterisk.addons.version -%}
 # Download and extract Asterisk addons (for legacy versions)
 WORKDIR /usr/src/asterisk/addons
-{% set addons_url = config.asterisk.addons.url_template | default("http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-addons-{version}.tar.gz") -%}
+{% set addons_url = config.asterisk.addons.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz") -%}
 RUN curl -fsSL {{ addons_url.format(version=config.asterisk.addons.version) }} | \
     tar --strip-components=1 -xz
 

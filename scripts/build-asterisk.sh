@@ -109,9 +109,9 @@ validate_version() {
     local version="$1"
 
     # Allow versions like: 22.5.2, 23.0.0-rc1, 1.8.32.3, 13.21-cert6
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9]+)?$ ]]; then
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?(-[a-zA-Z0-9]+)?$ ]]; then
         log ERROR "Invalid version format: $version"
-        log ERROR "Expected format: major.minor[.patch][-suffix] (e.g., 22.5.2, 23.0.0-rc1, 13.21-cert6)"
+        log ERROR "Expected format: major.minor[.patch][.subpatch][-suffix] (e.g., 22.5.2, 23.0.0-rc1, 1.8.32.3, 13.21-cert6)"
         return 1
     fi
 
@@ -312,6 +312,7 @@ try:
         os_name = matrix_entry.get('os', 'debian')  # default to debian if missing
         distribution = matrix_entry.get('distribution', 'trixie')
         architectures = matrix_entry.get('architectures', ['amd64', 'arm64'])
+        template = matrix_entry.get('template', '')  # empty string if no template specified
 
         log_debug(f"Processing matrix entry: {os_name}/{distribution} with {architectures}")
 
@@ -334,6 +335,7 @@ try:
                 'os': os_name,
                 'distribution': distribution,
                 'architectures': filtered_architectures,  # Changed: now array of architectures
+                'template': template,  # Include template field
                 'source': 'custom_matrix'
             })
 
@@ -345,7 +347,8 @@ try:
     for build in builds:
         # Convert architectures array to comma-separated string
         architectures_str = ','.join(build['architectures'])
-        print(f"{build['os']}:{build['distribution']}:{architectures_str}:{build['source']}")
+        template_str = build['template']  # May be empty string
+        print(f"{build['os']}:{build['distribution']}:{architectures_str}:{template_str}:{build['source']}")
 
     # Count total architecture combinations for logging
     total_arch_combinations = sum(len(build['architectures']) for build in builds)
@@ -387,7 +390,8 @@ export VERBOSE="$VERBOSE"
     BUILD_TARGETS=()
     while IFS= read -r line <&3; do
         # Only capture lines that look like build targets (contain colons)
-        if [[ "$line" =~ ^[^:]+:[^:]+:[^:]+:[^:]+$ ]]; then
+        # Format: os:distribution:architectures:template:source (5 fields, 4 colons)
+        if [[ "$line" =~ ^[^:]+:[^:]+:[^:]+:[^:]*:[^:]+$ ]]; then
             BUILD_TARGETS+=("$line")
         fi
     done
@@ -402,8 +406,12 @@ fi
 # Display build targets
 log INFO "Build targets:"
 for target in "${BUILD_TARGETS[@]}"; do
-    IFS=':' read -r os distribution architectures source <<< "$target"
-    log INFO "  → $os/$distribution ($architectures) [from: $source]"
+    IFS=':' read -r os distribution architectures template source <<< "$target"
+    template_info=""
+    if [[ -n "$template" ]]; then
+        template_info=" [template: $template]"
+    fi
+    log INFO "  → $os/$distribution ($architectures)$template_info [from: $source]"
 done
 
 if [[ "$DRY_RUN" == true ]]; then
@@ -416,6 +424,7 @@ ensure_config() {
     local version="$1"
     local os="$2"
     local distribution="$3"
+    local template="$4"  # Optional template name
 
     # Only use modern generated config format (using actual naming pattern)
     local generated_config="${PROJECT_DIR}/configs/generated/asterisk-${version}-${distribution}.yml"
@@ -435,17 +444,39 @@ ensure_config() {
     # Ensure configs/generated directory exists
     mkdir -p "${PROJECT_DIR}/configs/generated"
 
-    # For now, we expect generated configs to already exist
-    # Future: implement proper config generation or use template-based approach
-    log ERROR "Generated config not found: $generated_config" >&2
-    log ERROR "Generated configs must be created beforehand in configs/generated/" >&2
-    log ERROR "Available configs:" >&2
-    if ls "${PROJECT_DIR}/configs/generated/"*.yml >/dev/null 2>&1; then
-        ls "${PROJECT_DIR}/configs/generated/"*.yml | sed 's|.*/||' | sed 's/^/  - /' >&2
+    # Generate config from template
+    if [[ -n "$template" ]]; then
+        log INFO "Generating config from template '$template' for $version ($os/$distribution)" >&2
+        template_args=("--template" "$template")
     else
-        log ERROR "  No generated configs found" >&2
+        log INFO "Generating config from template for $version ($os/$distribution)" >&2
+        template_args=()
     fi
-    return 1
+
+    if ! python3 "${SCRIPT_DIR}/generate-config.py" \
+        "$version" \
+        "$distribution" \
+        --templates-dir "${PROJECT_DIR}/templates" \
+        --output-dir "${PROJECT_DIR}/configs/generated" \
+        "${template_args[@]}" >&2; then
+        log ERROR "Failed to generate config from template" >&2
+        log ERROR "Available templates:" >&2
+        if ls "${PROJECT_DIR}/templates/"*.yml.template >/dev/null 2>&1; then
+            ls "${PROJECT_DIR}/templates/"*.yml.template | sed 's|.*/||' | sed 's/^/  - /' >&2
+        else
+            log ERROR "  No templates found" >&2
+        fi
+        return 1
+    fi
+
+    if [[ ! -f "$generated_config" ]]; then
+        log ERROR "Config generation succeeded but file not found: $generated_config" >&2
+        return 1
+    fi
+
+    log SUCCESS "Generated config: $generated_config" >&2
+    echo "$generated_config"
+    return 0
 }
 
 # Function to generate healthcheck.sh from template
@@ -537,8 +568,14 @@ if not asterisk_config.get('addons'):
 
 # Add backward compatibility for templates expecting asterisk.source structure
 if not asterisk_config.get('source'):
+    # Detect certified versions and use appropriate URL
+    if '-cert' in version:
+        url_template = 'https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-{version}.tar.gz'
+    else:
+        url_template = 'https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz'
+
     asterisk_config['source'] = {
-        'url_template': 'http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-{version}.tar.gz'
+        'url_template': url_template
     }
 
 # Add backward compatibility for templates expecting features structure
@@ -785,7 +822,7 @@ FAILED_BUILDS=()
 
 # Process each build target
 for target in "${BUILD_TARGETS[@]}"; do
-    IFS=':' read -r os distribution architectures source <<< "$target"
+    IFS=':' read -r os distribution architectures template source <<< "$target"
 
     log INFO ""
     log INFO "=========================================="
@@ -793,7 +830,7 @@ for target in "${BUILD_TARGETS[@]}"; do
     log INFO "=========================================="
 
     # Generate/find config (config is per distribution, not per architecture)
-    config_file=$(ensure_config "$VERSION" "$os" "$distribution")
+    config_file=$(ensure_config "$VERSION" "$os" "$distribution" "$template")
     if [[ $? -ne 0 ]]; then
         log ERROR "Failed to ensure config for $target"
         FAILED_BUILDS+=("$target:config_generation")
@@ -833,7 +870,7 @@ if [[ ${#SUCCESSFUL_BUILDS[@]} -gt 0 ]]; then
     log INFO ""
     log INFO "Successful builds:"
     for build in "${SUCCESSFUL_BUILDS[@]}"; do
-        IFS=':' read -r os distribution architectures source <<< "$build"
+        IFS=':' read -r os distribution architectures template source <<< "$build"
         log SUCCESS "  ✓ $VERSION ($os/$distribution [$architectures])"
     done
 fi
@@ -842,7 +879,7 @@ if [[ ${#FAILED_BUILDS[@]} -gt 0 ]]; then
     log INFO ""
     log ERROR "Failed builds:"
     for build in "${FAILED_BUILDS[@]}"; do
-        IFS=':' read -r os distribution architectures source reason <<< "$build"
+        IFS=':' read -r os distribution architectures template source reason <<< "$build"
         log ERROR "  ✗ $VERSION ($os/$distribution [$architectures]) - $reason"
     done
 fi

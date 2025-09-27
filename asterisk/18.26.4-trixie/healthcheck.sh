@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk health check script
-# Generated from template for 23.0.0-rc1
+# Generated from template for 18.26.4
 
 set -euo pipefail
 
@@ -69,6 +69,16 @@ check_pjsip_status() {
     return 0
 }
 
+check_database_connectivity() {
+    log "Checking database connectivity..."
+    # Check if ODBC is configured and working
+    if ! timeout $TIMEOUT $ASTERISK_CLI "odbc show all" | grep -q "Connected" 2>/dev/null; then
+        log "⚠ No ODBC connections found (this may be normal)"
+    else
+        log "✓ Database connections available"
+    fi
+    return 0
+}
 
 check_essential_modules() {
     log "Checking essential modules..."
@@ -76,9 +86,8 @@ check_essential_modules() {
         "res_rtp_asterisk"
         "res_timing_timerfd"
         "res_crypto"
-"res_pjsip"
-"res_ari"
-)
+        "res_pjsip"
+    )
 
     for module in "${required_modules[@]}"; do
         if ! timeout $TIMEOUT $ASTERISK_CLI "module show like $module" | grep -q "$module" >/dev/null 2>&1; then
@@ -120,8 +129,9 @@ main() {
     local checks=(
         "check_asterisk_running"
         "check_asterisk_responsive"
-"check_pjsip_status"
-"check_essential_modules"
+        "check_pjsip_status"
+        "check_database_connectivity"
+        "check_essential_modules"
         "check_filesystem_access"
     )
 

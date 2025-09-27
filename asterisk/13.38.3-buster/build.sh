@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk build script
-# Generated from template for 23.0.0-rc1
+# Generated from template for 13.38.3
 # Contains menuselect configuration and build commands
 
 set -euo pipefail
@@ -23,7 +23,7 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-log "Starting Asterisk 23.0.0-rc1 build process..."
+log "Starting Asterisk 13.38.3 build process..."
 
 # Set build parallelization (use Docker ARG or default)
 NPROC=$(nproc)
@@ -82,7 +82,6 @@ menuselect/menuselect --enable chan_bridge_media menuselect.makeopts || warn "Mo
 menuselect/menuselect --enable chan_iax2 menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_iax2 menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --enable chan_local menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_local menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --enable chan_pjsip menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_pjsip menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
-menuselect/menuselect --enable chan_websocket menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_websocket menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 
 # Enable resource modules
 menuselect/menuselect --enable res_ari menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable res_ari menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
@@ -156,4 +155,4 @@ log "Stripping binaries to reduce image size..."
 find /usr/sbin /usr/lib/asterisk -type f -executable \
     -exec strip --strip-unneeded {} + 2>/dev/null || true
 
-log "Asterisk 23.0.0-rc1 build completed successfully!"
+log "Asterisk 13.38.3 build completed successfully!"

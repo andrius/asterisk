@@ -160,10 +160,9 @@ class DockerfileGenerator:
             if asterisk_config.get("configure", {}).get("options"):
                 configure_options = asterisk_config["configure"]["options"]
 
-            # Determine build characteristics from version (only modern versions supported)
+            # Determine build characteristics from version
             major_version = int(version.split('.')[0])
-            if major_version < 11:
-                raise ValueError(f"Legacy versions ({version}) not supported. Use only Asterisk 11+ versions.")
+            is_legacy_version = major_version < 10
 
             is_multi_stage = build_config.get("type", "multi-stage") == "multi-stage"
 
@@ -175,13 +174,14 @@ class DockerfileGenerator:
                     "runtime": {"packages": runtime_packages, "slim": True}
                 }
 
-            # Modern Asterisk builds do not use addons (addons only for legacy 1.x versions)
-            asterisk_config["addons"] = {"version": None}
+            # Only override addons if not already configured (preserve legacy addons settings)
+            if not asterisk_config.get("addons"):
+                asterisk_config["addons"] = {"version": None}
 
             # Add backward compatibility for templates expecting asterisk.source structure
             if not asterisk_config.get("source"):
                 asterisk_config["source"] = {
-                    "url_template": "http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-{version}.tar.gz"
+                    "url_template": "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
                 }
 
             # Add backward compatibility for templates expecting features structure
@@ -289,7 +289,20 @@ class DockerfileGenerator:
         config = self.load_config(config_path)
         context = self.prepare_build_context(config)
 
-        template = self.jinja_env.get_template("partials/build.sh.j2")
+        # Check configuration to determine appropriate build script template
+        menuselect_config = context.config.get("asterisk", {}).get("menuselect", {})
+        is_minimal = menuselect_config.get("minimal", False)
+        addons_config = context.config.get("asterisk", {}).get("addons")
+        has_addons = addons_config and addons_config.get("version")
+
+        # Use appropriate build script template (addons takes precedence over minimal)
+        if has_addons:
+            template = self.jinja_env.get_template("partials/build-legacy-addons.sh.j2")
+        elif is_minimal:
+            template = self.jinja_env.get_template("partials/build-asterisk10.sh.j2")
+        else:
+            template = self.jinja_env.get_template("partials/build.sh.j2")
+
         script_content = template.render(
             config=context.config,
             menuselect_commands=context.menuselect_commands,

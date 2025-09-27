@@ -1,0 +1,152 @@
+# Debian Buster-specific Asterisk Docker Build Configuration Template (EOL)
+# For Asterisk 10-11 versions (Pre-PJSIP era) - End of Life
+# All package versions hardcoded for Debian Buster (10)
+# Variables: {{VERSION}}
+
+version: "{{VERSION}}"
+
+base:
+  os: "debian"
+  distribution: "buster"
+  image: "debian/eol:buster-slim"
+  eol: true
+
+packages:
+  eol_setup:
+    - 'echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes'
+    - 'echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ buster main contrib non-free" > /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian/ buster-backports main contrib non-free" >> /etc/apt/sources.list'
+    - 'echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ buster/updates main contrib non-free" >> /etc/apt/sources.list'
+  build:
+    - build-essential
+    - autoconf
+    - binutils-dev
+    - ca-certificates
+    - curl
+    - file
+    - libcurl4-openssl-dev
+    - libedit-dev
+    - libgsm1-dev
+    - libogg-dev
+    - libpopt-dev
+    - libresample1-dev
+    - libspandsp-dev
+    - libspeex-dev
+    - libspeexdsp-dev
+    - libsqlite3-dev
+    - libsrtp2-dev
+    - libssl-dev
+    - libvorbis-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - unixodbc-dev
+    - uuid
+    - uuid-dev
+    - xmlstarlet
+    - pkg-config
+    - make
+    - patch
+    - libtool
+    - libncurses-dev
+    - libpqxx-dev
+    - libicu-dev
+    - libjansson-dev
+    - python3-dev
+  runtime:
+    - curl
+    - libcurl4
+    - libedit2
+    - libgsm1
+    - libogg0
+    - libpopt0
+    - libresample1
+    - libspandsp2
+    - libspeex1
+    - libspeexdsp1
+    - libsqlite3-0
+    - libsrtp2-1
+    - libssl1.1
+    - libvorbis0a
+    - libxml2
+    - libxslt1.1
+    - odbcinst
+    - portaudio19-dev
+    - procps
+    - unixodbc
+    - uuid
+    - libncurses6
+    - libpqxx-6.2
+    - libicu63
+    - libjansson4
+    - python3
+    - binutils
+
+asterisk:
+  menuselect:
+    enable_apps:
+      - app_voicemail
+      - app_directory
+      - app_confbridge
+      - app_queue
+      - app_dial
+      - app_playback
+      - app_echo
+      - app_record
+      - app_mixmonitor
+      - app_chanspy
+      - app_page
+      - app_meetme
+      - app_macro
+      - app_verbose
+    enable_channels:
+      - chan_sip
+      - chan_local
+      - chan_bridge_media
+    enable_resources:
+      - res_musiconhold
+      - res_agi
+      - res_clioriginate
+      - res_crypto
+      - res_realtime
+      - res_timing_timerfd
+      - res_timing_pthread
+    disable_sounds: []
+    disable_modules: []
+  configure_options:
+    - "--with-ssl=ssl"
+    - "--with-crypto"
+
+docker:
+  tags:
+    - "{{VERSION}}_debian-buster"
+    - "{{VERSION}}_debian-buster-amd64"
+  ports:
+    - "5060:5060/tcp"
+    - "5060:5060/udp"
+    - "10000-10200:10000-10200/udp"
+  volumes:
+    - "/etc/asterisk"
+    - "/var/lib/asterisk"
+    - "/var/log/asterisk"
+    - "/var/spool/asterisk"
+  environment:
+    ASTERISK_UID: "1001"
+    ASTERISK_GID: "1001"
+
+features:
+  recordings: true
+  hep: true
+  pjsip: false
+  websockets: false
+  tls: true
+
+build:
+  script: "build-asterisk.sh"
+  args:
+    DEBIAN_FRONTEND: "noninteractive"
+    ASTERISK_VERSION: "{{VERSION}}"

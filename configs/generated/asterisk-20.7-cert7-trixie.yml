@@ -1,13 +1,14 @@
-version: 22.5.2
+version: 20.7-cert7
 base:
   os: debian
-  distribution: bookworm
-  image: debian:bookworm
+  distribution: trixie
+  image: debian:trixie
 packages:
   build:
   - build-essential
   - autoconf
   - binutils-dev
+  - ca-certificates
   - curl
   - file
   - libcurl4-openssl-dev
@@ -65,8 +66,8 @@ packages:
   - unixodbc
   - uuid
   - libncurses6
-  - libpqxx-6.4
-  - libicu72
+  - libpqxx-7.10
+  - libicu76
   - libjansson4
   - python3
   - binutils
@@ -107,11 +108,11 @@ asterisk:
     - --with-crypto
     - --enable-dev-mode
   source:
-    url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
+    url_template: https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-{version}.tar.gz
 docker:
   tags:
-  - 22.5.2_debian-bookworm
-  - 22.5.2_debian-bookworm-amd64
+  - 20.7-cert7_debian-trixie
+  - 20.7-cert7_debian-trixie-amd64
   registry: docker.io
   repository: asterisk
   expose_ports:
@@ -129,4 +130,4 @@ build:
   script: build-asterisk.sh
   args:
     DEBIAN_FRONTEND: noninteractive
-    ASTERISK_VERSION: 22.5.2
+    ASTERISK_VERSION: 20.7-cert7

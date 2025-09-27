@@ -1,5 +1,5 @@
 # Multi-stage optimized Asterisk Docker build
-# Asterisk 22.5.2 on Debian trixie
+# Asterisk 19.8.1 on Debian trixie
 # Generated from YAML configuration - DO NOT EDIT MANUALLY
 
 # ==============================================================================
@@ -9,12 +9,12 @@ FROM debian:trixie AS asterisk-builder
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Builder"
-LABEL org.opencontainers.image.description="Build stage for Asterisk 22.5.2"
-LABEL org.opencontainers.image.version="22.5.2"
+LABEL org.opencontainers.image.description="Build stage for Asterisk 19.8.1"
+LABEL org.opencontainers.image.version="19.8.1"
 LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk-docker"
 
 # Build arguments
-ARG ASTERISK_VERSION=22.5.2
+ARG ASTERISK_VERSION=19.8.1
 ARG JOBS=8
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -29,6 +29,7 @@ RUN mkdir -p \
 ${TMPDIR} && \
     chmod 777 ${TMPDIR}
 
+# EOL distribution setup (if needed)
 # Update package lists and install ca-certificates first, then build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates && \
@@ -47,16 +48,15 @@ RUN apt-get update && \
 WORKDIR /usr/src/asterisk
 
 # Download and extract Asterisk source
-RUN curl -fsSL http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-22.5.2.tar.gz | \
+RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-19.8.1.tar.gz | \
     tar --strip-components=1 -xz
 
 
-# Configure Asterisk build
+# Configure Asterisk build (skip for very old versions that don't have configure script)
 RUN ./configure \
 --with-pjproject-bundled \
 --with-ssl=ssl \
---with-crypto \
---enable-dev-mode
+--with-crypto
 
 # Generate menuselect configuration
 RUN make menuselect/menuselect menuselect-tree menuselect.makeopts
@@ -76,7 +76,7 @@ FROM debian:trixie-slim AS asterisk-runtime
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Runtime"
-LABEL org.opencontainers.image.description="Runtime environment for Asterisk 22.5.2"
+LABEL org.opencontainers.image.description="Runtime environment for Asterisk 19.8.1"
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
@@ -130,10 +130,8 @@ RUN chmod +x /usr/local/bin/healthcheck.sh
 RUN chown -R asterisk:asterisk \
     /etc/asterisk \
     /home/asterisk \
-    /var/run/asterisk \
-    /var/log/asterisk \
-    /var/spool/asterisk \
-    /var/lib/asterisk && \
+    /var/*/asterisk \
+    /usr/lib*/asterisk 2>/dev/null || true && \
     chmod -R 750 /var/spool/asterisk
 
 # Runtime verification

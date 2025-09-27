@@ -138,7 +138,7 @@
             "url_template": {
               "type": "string",
               "description": "Download URL template",
-              "default": "http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-{version}.tar.gz"
+              "default": "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
             },
             "verify_signature": {
               "type": "boolean",

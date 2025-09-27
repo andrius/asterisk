@@ -1,20 +1,19 @@
-# Debian Trixie-specific Asterisk Docker Build Configuration Template
-# All package versions hardcoded for Debian Trixie
-# Variables: {{VERSION}}
+# Debian Bookworm-specific Asterisk Docker Build Configuration Template
+# All package versions hardcoded for Debian Bookworm
+# Variables: 16.30.1
 
-version: "{{VERSION}}"
+version: "16.30.1"
 
 base:
   os: "debian"
-  distribution: "trixie"
-  image: "debian:trixie"
+  distribution: "bookworm"
+  image: "debian:bookworm"
 
 packages:
   build:
     - build-essential
     - autoconf
     - binutils-dev
-    - ca-certificates
     - curl
     - file
     - libcurl4-openssl-dev
@@ -72,8 +71,8 @@ packages:
     - unixodbc
     - uuid
     - libncurses6
-    - libpqxx-7.10
-    - libicu76
+    - libpqxx-6.4
+    - libicu72
     - libjansson4
     - python3
     - binutils
@@ -113,11 +112,12 @@ asterisk:
       - --with-pjproject-bundled
       - --with-ssl=ssl
       - --with-crypto
+      - --enable-dev-mode
 
 docker:
   tags:
-    - "{{VERSION}}_debian-trixie"
-    - "{{VERSION}}_debian-trixie-amd64"
+    - "16.30.1_debian-bookworm"
+    - "16.30.1_debian-bookworm-amd64"
   registry: "docker.io"
   repository: "asterisk"
   expose_ports:
@@ -136,4 +136,4 @@ build:
   script: "build-asterisk.sh"
   args:
     DEBIAN_FRONTEND: "noninteractive"
-    ASTERISK_VERSION: "{{VERSION}}"
+    ASTERISK_VERSION: "16.30.1"
