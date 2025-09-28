@@ -311,6 +311,12 @@
           "minItems": 1,
           "examples": [["22.6.0_trixie", "22.6.0_debian", "22.6", "latest"]]
         },
+        "additional_tags": {
+          "type": "string",
+          "description": "Comma-separated list of additional Docker tags (e.g., 'latest,stable,22.x')",
+          "pattern": "^[a-zA-Z0-9._-]+(,[a-zA-Z0-9._-]+)*$",
+          "examples": ["latest,stable,22.x", "rc,beta", "development"]
+        },
         "registry": {
           "type": "string",
           "description": "Docker registry",

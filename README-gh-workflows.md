@@ -142,6 +142,7 @@ filter_distribution: "trixie" # Build specific distribution
 version: "22.5.2"              # Asterisk version
 distribution: "trixie"         # OS distribution
 architecture: "amd64"          # Target architecture
+additional_tags: "latest,stable,22.x"  # Additional Docker tags (comma-separated)
 push: false                    # Push to registry
 registry: "test.local/asterisk" # Target registry
 ```
@@ -153,6 +154,60 @@ registry: "test.local/asterisk" # Target registry
 4. **Build image**: Multi-stage Docker build with buildx
 5. **Test image**: Smoke tests (version check, healthcheck validation)
 6. **Report results**: Image size, tags, build status
+
+### 4. Git Version Support
+
+**Purpose**: Build Docker images from latest Asterisk development repository.
+
+**Usage**:
+```bash
+# Build from git HEAD (local)
+./scripts/build-asterisk.sh --git trixie
+
+# Build and push git version
+./scripts/build-asterisk.sh --git trixie --push --registry myregistry.com/asterisk
+```
+
+**Git Version Format**: `git-{SHA}` (e.g., `git-ff80666`)
+
+**Process**:
+1. **Fetch latest SHA**: Gets current HEAD from https://github.com/asterisk/asterisk.git
+2. **Generate config**: Creates `asterisk-git-master-{distribution}.yml` configuration
+3. **Build image**: Uses git-dev template variant for development builds
+4. **Tag image**: Creates `git-{SHA}_debian-{distribution}` tagged image
+
+**Git Workflow Integration**:
+- Git builds use special `git-dev` template with development-focused configuration
+- Automatic SHA detection ensures build reproducibility
+- Generated configs are automatically regenerated for each build
+
+### 5. Additional Tags Support
+
+**Purpose**: Apply semantic tags to Docker images for easier version management.
+
+**Configuration**: Add `additional_tags` property to version entries in `asterisk/supported-asterisk-builds.yml`:
+
+```yaml
+latest_builds:
+  - version: "22.5.2"
+    additional_tags: "latest,stable,22"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures: ["amd64", "arm64"]
+```
+
+**Tag Types**:
+- **`latest`**: Points to the most current stable release
+- **`stable`**: Alias for the latest stable production version
+- **`22`**: Major version tag for Asterisk 22.x series
+- **`23-rc`**: Release candidate tag for pre-releases
+- **`20-cert`**: Certified release tag for certified builds
+
+**Workflow Integration**:
+- Additional tags are extracted during matrix generation
+- Tags flow through build pipeline to Docker buildx
+- Registry prefixing applied automatically for all tags
 
 ## 🧪 Testing with nektos/act
 
@@ -305,6 +360,26 @@ gh act workflow_dispatch \
 # Verifies filtering logic works correctly
 ```
 
+#### Test Additional Tags Support
+```bash
+# Test build with additional tags
+gh act workflow_dispatch \
+  -W .github/workflows/build-single-image.yml \
+  -e .act/payloads/workflow_dispatch_build_single_image.json \
+  --dryrun \
+  --env ADDITIONAL_TAGS="latest,stable,22.x"
+
+# Verify tags are processed and applied correctly
+```
+
+#### Test Git Version Builds
+```bash
+# Test git build functionality (local)
+./scripts/build-asterisk.sh --git trixie --dry-run
+
+# Expected output: git-{SHA} version detection and build setup
+```
+
 ## 🚀 Usage Examples
 
 ### Manual Workflow Triggers
@@ -341,6 +416,15 @@ gh workflow run build-single-image.yml \
   -f distribution="trixie" \
   -f architecture="amd64" \
   -f push=false
+
+# Test build with additional tags
+gh workflow run build-single-image.yml \
+  -f version="22.5.2" \
+  -f distribution="trixie" \
+  -f architecture="amd64" \
+  -f additional_tags="latest,stable,22.x" \
+  -f push=true \
+  -f registry="your-registry.com/asterisk"
 ```
 
 ### Interpreting Results

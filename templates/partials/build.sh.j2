@@ -30,6 +30,18 @@ NPROC=$(nproc)
 JOBS=${JOBS:-8}
 log "Using $JOBS parallel jobs for compilation (detected $NPROC CPUs)"
 
+# Configure Asterisk
+log "Configuring Asterisk with options..."
+{% if configure_options -%}
+./configure {{ configure_options | join(' ') }}
+{% else -%}
+./configure --with-pjproject-bundled --with-ssl=ssl --with-crypto
+{% endif %}
+
+# Build menuselect tool
+log "Building menuselect tool..."
+make menuselect
+
 # Configure Asterisk modules using menuselect
 log "Configuring Asterisk modules..."
 

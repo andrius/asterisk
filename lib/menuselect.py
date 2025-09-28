@@ -196,6 +196,11 @@ class MenuSelectGenerator:
 
     def _parse_version(self, version: str) -> tuple:
         """Parse version string"""
+        # Handle git versions
+        if version.startswith('git-'):
+            # For git versions, treat as latest modern version (99.99.99)
+            return 99, 99, 99, None
+
         base_version = version.split('-cert')[0]
         match = re.match(r'^(\d+)\.(\d+)(?:\.(\d+))?(?:-(alpha|beta|rc)\d*)?', base_version)
         if not match:
@@ -217,8 +222,8 @@ class MenuSelectGenerator:
         return self.major >= 12
 
     def _version_supports_websocket(self) -> bool:
-        """Check if version supports WebSocket channels (22+)"""
-        return self.major >= 22
+        """Check if version supports WebSocket channels (23+, mandatory)"""
+        return self.major >= 23
 
     def _version_supports_ari(self) -> bool:
         """Check if version supports ARI (12+)"""
@@ -279,9 +284,16 @@ class MenuSelectGenerator:
         if self._version_supports_ari() and features.get("ari", True):
             enable_modules.extend(self.RESOURCE_MODULES["ari"])
 
-        # WebSocket modules
-        if features.get("websocket", True) and not self.is_legacy:
+        # WebSocket and ARI modules (MANDATORY for v23+)
+        if self._version_supports_websocket():
+            # Force enable all WebSocket modules for v23+
             enable_modules.extend(self.RESOURCE_MODULES["websocket"])
+            # Force enable all ARI modules for v23+ (overrides feature flag)
+            enable_modules.extend(self.RESOURCE_MODULES["ari"])
+        else:
+            # Optional WebSocket modules for older versions
+            if features.get("websocket", True) and not self.is_legacy:
+                enable_modules.extend(self.RESOURCE_MODULES["websocket"])
 
         # Security modules
         if features.get("srtp", True) and not self.is_legacy:

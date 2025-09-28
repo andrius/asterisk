@@ -55,6 +55,8 @@ Examples:
                        help="Also generate docker-compose.yml")
     parser.add_argument("--generate-script", action="store_true",
                        help="Also generate build script")
+    parser.add_argument("--skip-format-dockerfile", action="store_true",
+                       help="Skip formatting generated Dockerfile with dockerfmt (default: format enabled)")
 
     args = parser.parse_args()
 
@@ -91,7 +93,8 @@ Examples:
         results = batch_generator.generate_from_directory(
             args.batch,
             args.batch_output,
-            args.template
+            args.template,
+            not args.skip_format_dockerfile
         )
 
         # Summary
@@ -144,7 +147,8 @@ Examples:
         dockerfile_content = generator.generate_dockerfile(
             str(config_path),
             str(args.output),
-            args.template
+            args.template,
+            not args.skip_format_dockerfile
         )
 
         print(f"Generated: {args.output}")

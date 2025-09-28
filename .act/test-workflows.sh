@@ -20,6 +20,11 @@ echo ""
 echo "🔨 Testing build-single-image workflow (dispatch)..."
 gh act workflow_dispatch -W .github/workflows/build-single-image.yml -e .act/payloads/workflow_dispatch_build_single_image.json --dryrun
 
+# Test git daily workflow (the one that was failing)
+echo ""
+echo "🚀 Testing git daily workflow..."
+gh act workflow_dispatch -W .github/workflows/build-git-daily.yml -e .act/payloads/workflow_dispatch_build_git_daily.json --dryrun
+
 # Test push triggers
 echo ""
 echo "📤 Testing push triggers..."

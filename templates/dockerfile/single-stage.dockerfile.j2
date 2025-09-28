@@ -6,14 +6,16 @@
 {% set docker_config = config.docker -%}
 {% set user_config = docker_config.user | default({}) -%}
 {% set base_image = config.base.image -%}
+{% set major_version = version.split('.')[0] | int -%}
+{% set minor_version = version.split('.')[1] | int -%}
 
 FROM {{ base_image }}
 
 LABEL maintainer="{{ maintainer }}"
 LABEL org.opencontainers.image.title="Asterisk PBX Development"
-LABEL org.opencontainers.image.description="Development build of Asterisk {{ version }}"
+LABEL org.opencontainers.image.description="Development build of Asterisk PBX {{ version }}"
 LABEL org.opencontainers.image.version="{{ version }}"
-LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk-docker"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
 
 # Build arguments
 ARG ASTERISK_VERSION={{ version }}
@@ -176,8 +178,8 @@ RUN chown -R {{ user_config.name | default("asterisk") }}:{{ user_config.name | 
 RUN asterisk -V || (echo "Error: Unable to run asterisk -V" && exit 1)
 
 # Configure networking
-{% for port in docker_config.networking.ports | default(["5060/udp", "5060/tcp", "5061/tcp", "10000-10099/udp"]) -%}
-EXPOSE {{ port }}
+{% for port in docker_config.networking.ports | default(["5060/udp", "5060/tcp", "5061/tcp", "10000-10499/udp"]) -%}
+# EXPOSE {{ port }}
 {% endfor %}
 
 # Define volumes for persistent data
@@ -201,4 +203,9 @@ HEALTHCHECK --interval={{ docker_config.healthcheck.interval | default("30s") }}
 WORKDIR {{ user_config.home | default("/home/asterisk") }}
 
 # Default command with development settings (more verbose)
+{% set supports_w_option = not (major_version == 1 and minor_version < 6) -%}
+{% if supports_w_option -%}
 CMD ["/usr/sbin/asterisk", "-vvvvdddf", "-T", "-W", "-U", "{{ user_config.name | default("asterisk") }}", "-p"]
+{% else -%}
+CMD ["/usr/sbin/asterisk", "-vvvvdddf", "-T", "-U", "{{ user_config.name | default("asterisk") }}", "-p"]
+{% endif %}

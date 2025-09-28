@@ -7,6 +7,9 @@ Uses Jinja2 templates to generate optimized Dockerfiles from YAML configurations
 import os
 import json
 import yaml
+import subprocess
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader, Template
@@ -119,6 +122,59 @@ class DockerfileGenerator:
     def _build_packages_without_ca(self, packages: List[str]) -> List[str]:
         return [pkg for pkg in packages if pkg != 'ca-certificates']
 
+    def _format_dockerfile(self, dockerfile_content: str) -> str:
+        """Format Dockerfile content using dockerfmt"""
+        try:
+            # Check if Docker is available
+            if not shutil.which("docker"):
+                print("Warning: Docker not found. Skipping Dockerfile formatting.")
+                return dockerfile_content
+
+            # Create temporary file in current working directory (more accessible for Docker)
+            current_dir = os.getcwd()
+            temp_filename = f".temp_dockerfile_{os.getpid()}_{int(os.urandom(4).hex(), 16)}"
+            temp_file_path = os.path.join(current_dir, temp_filename)
+
+            # Write content to file
+            with open(temp_file_path, 'w') as f:
+                f.write(dockerfile_content)
+
+            try:
+                # Run dockerfmt in container
+                cmd = [
+                    "docker", "run", "--rm",
+                    "-v", f"{current_dir}:/pwd",
+                    "ghcr.io/reteps/dockerfmt:latest",
+                    "--indent", "4",
+                    "--newline",
+                    f"/pwd/{temp_filename}"
+                ]
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                if result.returncode == 0:
+                    return result.stdout
+                else:
+                    print(f"Warning: dockerfmt failed with exit code {result.returncode}: {result.stderr}")
+                    return dockerfile_content
+
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+
+        except subprocess.TimeoutExpired:
+            print("Warning: dockerfmt timed out. Skipping formatting.")
+            return dockerfile_content
+        except Exception as e:
+            print(f"Warning: dockerfmt formatting failed: {e}. Skipping formatting.")
+            return dockerfile_content
+
     def load_config(self, config_path: str) -> Dict[str, Any]:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
@@ -161,8 +217,13 @@ class DockerfileGenerator:
                 configure_options = asterisk_config["configure"]["options"]
 
             # Determine build characteristics from version
-            major_version = int(version.split('.')[0])
-            is_legacy_version = major_version < 10
+            if version.startswith('git-'):
+                # Git versions are always modern (latest)
+                major_version = 99
+                is_legacy_version = False
+            else:
+                major_version = int(version.split('.')[0])
+                is_legacy_version = major_version < 10
 
             is_multi_stage = build_config.get("type", "multi-stage") == "multi-stage"
 
@@ -226,14 +287,19 @@ class DockerfileGenerator:
             raise ValueError(f"Error preparing build context: {e}")
 
     def generate_dockerfile(self, config_path: str, output_path: str = None,
-                          template_name: str = None) -> str:
+                          template_name: str = None, format_dockerfile: bool = True) -> str:
         """Generate Dockerfile from configuration"""
         config = self.load_config(config_path)
         context = self.prepare_build_context(config)
 
         # Determine template to use
         if not template_name:
-            if context.is_multi_stage:
+            # Check if this is a git build
+            if (config.get("asterisk", {}).get("source_type") == "git" or
+                config.get("variant") == "git-dev" or
+                config.get("version", "").startswith("git-")):
+                template_name = "git-dev.dockerfile.j2"
+            elif context.is_multi_stage:
                 template_name = "multi-stage.dockerfile.j2"
             else:
                 template_name = "single-stage.dockerfile.j2"
@@ -244,6 +310,12 @@ class DockerfileGenerator:
         except Exception as e:
             raise ValueError(f"Template '{template_name}' not found: {e}")
 
+        # Extract git SHA for git builds
+        git_sha = None
+        version = context.config["version"]
+        if version.startswith("git-"):
+            git_sha = version.replace("git-", "")
+
         # Render Dockerfile
         dockerfile_content = template.render(
             config=context.config,
@@ -251,7 +323,8 @@ class DockerfileGenerator:
             configure_options=context.configure_options,
             is_multi_stage=context.is_multi_stage,
             # Helper functions
-            version=context.config["version"],
+            version=version,
+            git_sha=git_sha,
             base_image=context.config["base"]["image"],
             build_packages=context.build_packages,
             runtime_packages=context.runtime_packages,
@@ -260,6 +333,10 @@ class DockerfileGenerator:
             # Features
             **context.config.get("features", {})
         )
+
+        # Apply formatting if requested
+        if format_dockerfile:
+            dockerfile_content = self._format_dockerfile(dockerfile_content)
 
         # Write to file if output path specified
         if output_path:
@@ -347,7 +424,7 @@ class BatchGenerator:
         self.generator = generator
 
     def generate_from_directory(self, configs_dir: str, output_dir: str,
-                              template_name: str = None) -> Dict[str, str]:
+                              template_name: str = None, format_dockerfile: bool = True) -> Dict[str, str]:
         """Generate Dockerfiles for all configs in directory"""
         results = {}
         configs_path = Path(configs_dir)
@@ -362,7 +439,8 @@ class BatchGenerator:
                 content = self.generator.generate_dockerfile(
                     str(config_file),
                     str(output_file),
-                    template_name
+                    template_name,
+                    format_dockerfile
                 )
 
                 results[str(config_file)] = str(output_file)

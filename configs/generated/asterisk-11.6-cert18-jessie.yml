@@ -1,19 +1,80 @@
-version: 11.6-cert18
+asterisk:
+  addons:
+    version: null
+  configure_options:
+  - --with-pjproject-bundled
+  - --with-ssl=ssl
+  - --with-crypto
+  menuselect:
+    apps:
+    - app_voicemail
+    - app_queue
+    - app_confbridge
+    - app_directory
+    - app_dial
+    - app_playback
+    - app_record
+    - app_echo
+    - app_mixmonitor
+    channels:
+    - chan_pjsip
+    - chan_iax2
+    - chan_local
+    - chan_bridge_media
+    drivers:
+    - res_musiconhold
+    - res_pjsip
+    - res_pjsip_session
+    - res_pjsip_outbound_registration
+    - res_pjsip_registrar
+    - res_rtp_asterisk
+    - res_timing_timerfd
+    - res_crypto
+    exclude:
+    - chan_dahdi
+    - chan_misdn
+    - app_festival
+  opus_codec: null
+  source:
+    url_template: https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-{version}.tar.gz
 base:
-  os: debian
   distribution: jessie
   image: debian/eol:jessie-slim
-  eol: true
+  os: debian
+build:
+  args:
+    ASTERISK_VERSION: 11.6-cert18
+    DEBIAN_FRONTEND: noninteractive
+  script: build-asterisk.sh
+docker:
+  environment:
+    ASTERISK_GID: '1001'
+    ASTERISK_UID: '1001'
+  expose_ports:
+  - 5060/udp
+  - 5060/tcp
+  - 10000-20000/udp
+  ports:
+  - 5060:5060/tcp
+  - 5060:5060/udp
+  - 10000-10200:10000-10200/udp
+  registry: docker.io
+  repository: asterisk
+  tags:
+  - 11.6-cert18_debian-jessie
+  - 11.6-cert18_debian-jessie-amd64
+  volumes:
+  - /etc/asterisk
+  - /var/lib/asterisk
+  - /var/log/asterisk
+  - /var/spool/asterisk
+features:
+  hep: false
+  pjsip: true
+  recordings: true
+  tls: true
+  websockets: false
 packages:
-  eol_setup:
-  - echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes
-  - echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check
-  - echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main
-    contrib non-free" > /etc/apt/sources.list
-  - echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports
-    main contrib non-free" >> /etc/apt/sources.list
-  - echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates
-    main contrib non-free" >> /etc/apt/sources.list
   build:
   - build-essential
   - autoconf
@@ -24,40 +85,50 @@ packages:
   - libcurl4-openssl-dev
   - libedit-dev
   - libgsm1-dev
+  - libicu-dev
+  - libjansson-dev
+  - libncurses-dev
   - libogg-dev
   - libpopt-dev
+  - libpqxx-dev
   - libresample1-dev
   - libspandsp-dev
   - libspeex-dev
   - libspeexdsp-dev
   - libsqlite3-dev
-  - libsrtp0-dev
   - libssl-dev
+  - libtool
   - libvorbis-dev
   - libxml2-dev
   - libxslt1-dev
+  - make
   - odbcinst
+  - patch
+  - pkg-config
   - portaudio19-dev
   - procps
+  - python3-dev
   - unixodbc
   - unixodbc-dev
   - uuid
   - uuid-dev
   - xmlstarlet
-  - pkg-config
-  - make
-  - patch
-  - libtool
-  - libncurses-dev
-  - libpqxx-dev
-  - libicu-dev
-  - libjansson-dev
-  - python3-dev
+  - libsrtp0-dev
+  eol_setup:
+  - echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes
+  - echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check
+  - echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main
+    contrib non-free" > /etc/apt/sources.list
+  - echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports
+    main contrib non-free" >> /etc/apt/sources.list
+  - echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates
+    main contrib non-free" >> /etc/apt/sources.list
   runtime:
+  - binutils
   - curl
-  - libcurl3
   - libedit2
   - libgsm1
+  - libjansson4
   - libogg0
   - libpopt0
   - libresample1
@@ -65,115 +136,19 @@ packages:
   - libspeex1
   - libspeexdsp1
   - libsqlite3-0
-  - libsrtp0
-  - libssl1.0.0
   - libvorbis0a
   - libxml2
   - libxslt1.1
   - odbcinst
   - portaudio19-dev
   - procps
+  - python3
   - unixodbc
   - uuid
+  - libcurl3
+  - libssl1.0.0
+  - libsrtp0
   - libncurses5
   - libpqxx-4.0
   - libicu52
-  - libjansson4
-  - python3
-  - binutils
-asterisk:
-  menuselect:
-    enable_apps:
-    - app_voicemail
-    - app_directory
-    - app_confbridge
-    - app_queue
-    - app_dial
-    - app_playback
-    - app_echo
-    - app_record
-    - app_mixmonitor
-    - app_chanspy
-    - app_page
-    - app_meetme
-    - app_macro
-    - app_verbose
-    enable_channels:
-    - chan_sip
-    - chan_pjsip
-    - chan_local
-    - chan_bridge_media
-    enable_resources:
-    - res_pjsip
-    - res_pjsip_session
-    - res_pjsip_outbound_registration
-    - res_pjsip_endpoint_identifier_ip
-    - res_pjsip_authenticator_digest
-    - res_pjsip_caller_id
-    - res_pjsip_dialog_info_body_generator
-    - res_pjsip_dtmf_info
-    - res_pjsip_empty_info
-    - res_pjsip_endpoint_identifier_anonymous
-    - res_pjsip_endpoint_identifier_user
-    - res_pjsip_exten_state
-    - res_pjsip_header_funcs
-    - res_pjsip_logger
-    - res_pjsip_messaging
-    - res_pjsip_multihomed
-    - res_pjsip_mwi
-    - res_pjsip_nat
-    - res_pjsip_notify
-    - res_pjsip_one_touch_record_info
-    - res_pjsip_path
-    - res_pjsip_pidf_body_generator
-    - res_pjsip_pidf_digium_body_supplement
-    - res_pjsip_pidf_eyebeam_body_supplement
-    - res_pjsip_publish_asterisk
-    - res_pjsip_pubsub
-    - res_pjsip_refer
-    - res_pjsip_registrar
-    - res_pjsip_rfc3326
-    - res_pjsip_sdp_rtp
-    - res_pjsip_send_to_voicemail
-    - res_pjsip_session_caps
-    - res_pjsip_t38
-    - res_pjsip_transport_websocket
-    - res_pjsip_xpidf_body_generator
-    - res_musiconhold
-    - res_agi
-    - res_clioriginate
-    disable_sounds: []
-    disable_modules: []
-  configure_options:
-  - --with-pjproject-bundled
-  - --with-ssl=ssl
-  - --with-crypto
-  source:
-    url_template: https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-{version}.tar.gz
-docker:
-  tags:
-  - 11.6-cert18_debian-jessie
-  - 11.6-cert18_debian-jessie-amd64
-  ports:
-  - 5060:5060/tcp
-  - 5060:5060/udp
-  - 10000-10200:10000-10200/udp
-  volumes:
-  - /etc/asterisk
-  - /var/lib/asterisk
-  - /var/log/asterisk
-  - /var/spool/asterisk
-  environment:
-    ASTERISK_UID: '1001'
-    ASTERISK_GID: '1001'
-features:
-  recordings: true
-  hep: true
-  pjsip: true
-  websockets: true
-  tls: true
-build:
-  script: build-asterisk.sh
-  args:
-    DEBIAN_FRONTEND: noninteractive
-    ASTERISK_VERSION: 11.6-cert18
+version: 11.6-cert18

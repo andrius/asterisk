@@ -2,7 +2,6 @@ volumes:
   asterisk_logs:
 
 services:
-  # Asterisk PBX
   asterisk:
     build:
       context: ./asterisk
@@ -10,6 +9,7 @@ services:
     ports:
       - "5060:5060/udp" # SIP UDP
       - "5060:5060/tcp" # SIP TCP
+      - "5061:5061/tcp" # SIP TLS
       - "10000-10199:10000-10199/udp" # RTP Media (ensure these ports are open in firewall)
     volumes:
       - asterisk_logs:/var/log/asterisk

@@ -1,83 +1,11 @@
-version: 16.8-cert14
-base:
-  os: debian
-  distribution: bookworm
-  image: debian:bookworm
-packages:
-  build:
-  - build-essential
-  - autoconf
-  - binutils-dev
-  - curl
-  - file
-  - libcurl4-openssl-dev
-  - libedit-dev
-  - libgsm1-dev
-  - libogg-dev
-  - libpopt-dev
-  - libresample1-dev
-  - libspandsp-dev
-  - libspeex-dev
-  - libspeexdsp-dev
-  - libsqlite3-dev
-  - libsrtp2-dev
-  - libssl-dev
-  - libvorbis-dev
-  - libxml2-dev
-  - libxslt1-dev
-  - odbcinst
-  - portaudio19-dev
-  - procps
-  - unixodbc
-  - unixodbc-dev
-  - uuid
-  - uuid-dev
-  - xmlstarlet
-  - pkg-config
-  - make
-  - patch
-  - libtool
-  - libncurses-dev
-  - libpqxx-dev
-  - libicu-dev
-  - libjansson-dev
-  - python3-dev
-  runtime:
-  - curl
-  - libcurl4
-  - libedit2
-  - libgsm1
-  - libogg0
-  - libpopt0
-  - libresample1
-  - libspandsp2
-  - libspeex1
-  - libspeexdsp1
-  - libsqlite3-0
-  - libsrtp2-1
-  - libssl3
-  - libvorbis0a
-  - libxml2
-  - libxslt1.1
-  - odbcinst
-  - portaudio19-dev
-  - procps
-  - unixodbc
-  - uuid
-  - libncurses6
-  - libpqxx-6.4
-  - libicu72
-  - libjansson4
-  - python3
-  - binutils
 asterisk:
-  opus_codec: null
+  addons:
+    version: null
+  configure_options:
+  - --with-pjproject-bundled
+  - --with-ssl=ssl
+  - --with-crypto
   menuselect:
-    channels:
-    - chan_pjsip
-    - chan_iax2
-    - chan_local
-    - chan_bridge_media
     apps:
     - app_voicemail
     - app_queue
@@ -88,6 +16,11 @@ asterisk:
     - app_record
     - app_echo
     - app_mixmonitor
+    channels:
+    - chan_pjsip
+    - chan_iax2
+    - chan_local
+    - chan_bridge_media
     drivers:
     - res_musiconhold
     - res_pjsip
@@ -101,23 +34,28 @@ asterisk:
     - chan_dahdi
     - chan_misdn
     - app_festival
-    configure_options:
-    - --with-pjproject-bundled
-    - --with-ssl=ssl
-    - --with-crypto
-    - --enable-dev-mode
+  opus_codec: null
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-{version}.tar.gz
+base:
+  distribution: bookworm
+  image: debian:bookworm
+  os: debian
+build:
+  args:
+    ASTERISK_VERSION: 16.8-cert14
+    DEBIAN_FRONTEND: noninteractive
+  script: build-asterisk.sh
 docker:
-  tags:
-  - 16.8-cert14_debian-bookworm
-  - 16.8-cert14_debian-bookworm-amd64
-  registry: docker.io
-  repository: asterisk
   expose_ports:
   - 5060/udp
   - 5060/tcp
   - 10000-20000/udp
+  registry: docker.io
+  repository: asterisk
+  tags:
+  - 16.8-cert14_debian-bookworm
+  - 16.8-cert14_debian-bookworm-amd64
   volumes:
   - /var/lib/asterisk/sounds
   - /var/lib/asterisk/keys
@@ -125,8 +63,78 @@ docker:
   - /var/spool/asterisk
   - /var/log/asterisk
   - /etc/asterisk
-build:
-  script: build-asterisk.sh
-  args:
-    DEBIAN_FRONTEND: noninteractive
-    ASTERISK_VERSION: 16.8-cert14
+features:
+  hep: false
+  pjsip: true
+  recordings: true
+  tls: true
+  websockets: false
+packages:
+  build:
+  - build-essential
+  - autoconf
+  - binutils-dev
+  - ca-certificates
+  - curl
+  - file
+  - libcurl4-openssl-dev
+  - libedit-dev
+  - libgsm1-dev
+  - libicu-dev
+  - libjansson-dev
+  - libncurses-dev
+  - libogg-dev
+  - libpopt-dev
+  - libpqxx-dev
+  - libresample1-dev
+  - libspandsp-dev
+  - libspeex-dev
+  - libspeexdsp-dev
+  - libsqlite3-dev
+  - libssl-dev
+  - libtool
+  - libvorbis-dev
+  - libxml2-dev
+  - libxslt1-dev
+  - make
+  - odbcinst
+  - patch
+  - pkg-config
+  - portaudio19-dev
+  - procps
+  - python3-dev
+  - unixodbc
+  - unixodbc-dev
+  - uuid
+  - uuid-dev
+  - xmlstarlet
+  - libsrtp2-dev
+  runtime:
+  - binutils
+  - curl
+  - libedit2
+  - libgsm1
+  - libjansson4
+  - libogg0
+  - libpopt0
+  - libresample1
+  - libspandsp2
+  - libspeex1
+  - libspeexdsp1
+  - libsqlite3-0
+  - libvorbis0a
+  - libxml2
+  - libxslt1.1
+  - odbcinst
+  - portaudio19-dev
+  - procps
+  - python3
+  - unixodbc
+  - uuid
+  - libcurl4
+  - libssl3
+  - libsrtp2-1
+  - libncurses6
+  - libpqxx-6.4
+  - libicu72
+version: 16.8-cert14

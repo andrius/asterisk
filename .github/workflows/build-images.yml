@@ -1,6 +1,8 @@
 name: Build All Asterisk Docker Images (Matrix)
 
 on:
+  schedule:
+    - cron: "0 1 * * 1" # Weekly on Monday at 01:00 UTC
   workflow_dispatch:
     inputs:
       push:
@@ -16,13 +18,13 @@ on:
       max_parallel:
         description: "Maximum parallel builds"
         required: false
-        default: "5"
+        default: "25"
         type: choice
         options:
           - "1"
-          - "3"
           - "5"
-          - "10"
+          - "25"
+          - "50"
       filter_version:
         description: "Build only specific version (optional)"
         required: false
@@ -35,6 +37,10 @@ on:
           - ""
           - "trixie"
           - "bookworm"
+          - "bullseye"
+          - "buster"
+          - "jessie"
+          - "stretch"
 
 env:
   REGISTRY: ${{ inputs.registry || 'andrius/asterisk' }}
@@ -111,6 +117,7 @@ jobs:
 
                   buildable_versions.append(version)
                   os_matrix = build['os_matrix']
+                  additional_tags = build.get('additional_tags', '')
 
                   if isinstance(os_matrix, dict):
                       os_matrix = [os_matrix]
@@ -124,14 +131,22 @@ jobs:
                           continue
 
                       architectures_str = ','.join(architectures)
-                      matrix['include'].append({
+                      matrix_item = {
                           'version': version,
                           'distribution': distribution,
                           'architectures': architectures_str,
                           'os': os_name
-                      })
+                      }
+
+                      # Add additional_tags if present
+                      if additional_tags:
+                          matrix_item['additional_tags'] = additional_tags
+
+                      matrix['include'].append(matrix_item)
                       total_configs += 1
-                      print(f'✅ Added: {version} {os_name}/{distribution} [{architectures_str}]', file=sys.stderr)
+
+                      tags_info = f' +tags: {additional_tags}' if additional_tags else ''
+                      print(f'✅ Added: {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
 
               if total_configs == 0:
                   print('❌ No buildable configurations found!', file=sys.stderr)
@@ -170,13 +185,14 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
       fail-fast: false
-      max-parallel: ${{ fromJson(inputs.max_parallel || '5') }}
+      max-parallel: ${{ fromJson(inputs.max_parallel || '25') }}
 
     uses: ./.github/workflows/build-single-image.yml
     with:
       version: ${{ matrix.version }}
       distribution: ${{ matrix.distribution }}
       architectures: ${{ matrix.architectures }}
+      additional_tags: ${{ matrix.additional_tags || '' }}
       push: ${{ inputs.push }}
       registry: ${{ inputs.registry || 'andrius/asterisk' }}
     secrets: inherit

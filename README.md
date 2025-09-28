@@ -1,53 +1,229 @@
 # Asterisk Docker Images
 
-Modern Docker images for Asterisk PBX with automated builds and optimized for size and performance configurations.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 23 versions from 1.2.40 to 23.0.0-rc2.
 
-Complete setup examples are available in the [`examples/`](examples/) directory.
+## Quick Start
 
-> **📝 Legacy Code**: Original code preserved in the [legacy](https://github.com/andrius/asterisk/tree/legacy) branch.
+```bash
+# Build latest stable version
+./scripts/build-asterisk.sh 22.5.2
 
-## 📦 Currently Supported Optimized Versions
+# Run container with version-specific tag
+docker run --rm -p 5060:5060/udp asterisk:22.5.2_debian-trixie
 
-All the latest asterisk releases are supported (see the [Asterisk Versions page](https://docs.asterisk.org/About-the-Project/Asterisk-Versions/)).
+# Run container with semantic tag (if built with additional_tags)
+docker run --rm -p 5060:5060/udp asterisk:latest
 
-IMPORTANT: Only the latest stable and release candidate versions are actively built and maintained. Due to Asterisk dependencies, we also support complilation on the old and EOL Debian distributions. Be aware of that and possible vulnerabilities when using old distributions!
+# Check Asterisk version
+docker run --rm asterisk:latest asterisk -V
+```
 
-Currently supported versions as defined in [`asterisk/supported-asterisk-builds.yml`](asterisk/supported-asterisk-builds.yml):
+Complete examples available in [`examples/`](examples/) directory. Legacy code preserved in [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy).
 
-### **Asterisk 22.5.2** (Latest Stable)
+## Supported Versions
 
-- **Debian Trixie** (AMD64)
-- **Debian Bookworm** (AMD64)
+All 23 Asterisk versions with automatic variant detection. Build directories contain generated Dockerfiles and configurations.
 
-### **Asterisk 23.0.0-rc2** (Release Candidate)
+| Version         | Type              | Distribution | Architectures | Additional Tags    | Build Directory                                                  |
+| --------------- | ----------------- | ------------ | ------------- | ------------------ | ---------------------------------------------------------------- |
+| **23.0.0-rc2**  | Release Candidate | Trixie       | amd64, arm64  | `23-rc`            | [asterisk/23.0.0-rc2-trixie](./asterisk/23.0.0-rc2-trixie)       |
+| **22.5.2**      | Current Stable    | Trixie       | amd64, arm64  | `latest,stable,22` | [asterisk/22.5.2-trixie](./asterisk/22.5.2-trixie)               |
+| **21.10.2**     | LTS               | Trixie       | amd64, arm64  | -                  | [asterisk/21.10.2-trixie](./asterisk/21.10.2-trixie)             |
+| **20.15.2**     | Previous Stable   | Trixie       | amd64, arm64  | -                  | [asterisk/20.15.2-trixie](./asterisk/20.15.2-trixie)             |
+| **20.7-cert7**  | Certified         | Trixie       | amd64, arm64  | `20-cert`          | [asterisk/20.7-cert7-trixie](./asterisk/20.7-cert7-trixie)       |
+| **19.8.1**      | Legacy Stable     | Bookworm     | amd64         | -                  | [asterisk/19.8.1-bookworm](./asterisk/19.8.1-bookworm)           |
+| **18.26.4**     | LTS               | Trixie       | amd64         | -                  | [asterisk/18.26.4-trixie](./asterisk/18.26.4-trixie)             |
+| **18.9-cert17** | LTS Certified     | Trixie       | amd64         | -                  | [asterisk/18.9-cert17-trixie](./asterisk/18.9-cert17-trixie)     |
+| **17.9.4**      | Legacy            | Bookworm     | amd64         | -                  | [asterisk/17.9.4-bookworm](./asterisk/17.9.4-bookworm)           |
+| **16.30.1**     | Legacy LTS        | Bookworm     | amd64         | -                  | [asterisk/16.30.1-bookworm](./asterisk/16.30.1-bookworm)         |
+| **16.8-cert14** | LTS Certified     | Bookworm     | amd64         | -                  | [asterisk/16.8-cert14-bookworm](./asterisk/16.8-cert14-bookworm) |
+| **15.7.4**      | Legacy            | Buster       | amd64         | -                  | [asterisk/15.7.4-buster](./asterisk/15.7.4-buster)               |
+| **14.7.8**      | Legacy            | Buster       | amd64         | -                  | [asterisk/14.7.8-buster](./asterisk/14.7.8-buster)               |
+| **13.38.3**     | Legacy LTS        | Buster       | amd64         | -                  | [asterisk/13.38.3-buster](./asterisk/13.38.3-buster)             |
+| **13.21-cert6** | LTS Certified     | Buster       | amd64         | -                  | [asterisk/13.21-cert6-buster](./asterisk/13.21-cert6-buster)     |
+| **12.8.2**      | Legacy            | Jessie       | amd64         | -                  | [asterisk/12.8.2-jessie](./asterisk/12.8.2-jessie)               |
+| **11.25.3**     | Legacy LTS        | Jessie       | amd64         | -                  | [asterisk/11.25.3-jessie](./asterisk/11.25.3-jessie)             |
+| **11.6-cert18** | LTS Certified     | Jessie       | amd64         | -                  | [asterisk/11.6-cert18-jessie](./asterisk/11.6-cert18-jessie)     |
+| **10.12.4**     | Legacy            | Jessie       | amd64         | -                  | [asterisk/10.12.4-jessie](./asterisk/10.12.4-jessie)             |
+| **1.8.32.3**    | Historical        | Jessie       | amd64         | -                  | [asterisk/1.8.32.3-jessie](./asterisk/1.8.32.3-jessie)           |
+| **1.6.2.24**    | Historical        | Jessie       | amd64         | -                  | [asterisk/1.6.2.24-jessie](./asterisk/1.6.2.24-jessie)           |
+| **1.4.44**      | Historical        | Jessie       | amd64         | -                  | [asterisk/1.4.44-jessie](./asterisk/1.4.44-jessie)               |
+| **1.2.40**      | Historical        | Stretch      | amd64         | -                  | [asterisk/1.2.40-stretch](./asterisk/1.2.40-stretch)             |
 
-- **Debian Trixie** (AMD64)
+## Additional Tags
 
-**More versions and distributions coming soon!**
+The build system supports semantic Docker tags for easier version management. These tags are defined in the `additional_tags` property of `asterisk/supported-asterisk-builds.yml` and automatically applied during builds.
 
-## 🌟 Key Improvements
+## Docker Tags Format
 
-- **🔄 Automated Release Discovery**: Daily discovery of new Asterisk releases
-- **📋 YAML-Driven Configuration**: Template-based build system
-- **🏗️ Multi-Stage Builds**: Optimized production-ready images
-- **🗄️ Database Integration**: Full PostgreSQL and MySQL support
-- **🌐 Modern Features**: WebSocket, ARI, WebRTC, and comprehensive telephony features
-- **📦 Multi-Platform Ready**: ARM64 and AMD64 architecture support
-- **🔧 Template System**: Jinja2-based Dockerfile generation
-- **🧪 Automated Testing**: Health checks and functionality validation
+This project uses a dual-tagging system: **version-specific tags** in the format `{version}_{os}-{distribution}` (e.g., `22.5.2_debian-trixie`) for precise deployment, and semantic tags (e.g., `latest`, `stable`, `22`, `23-rc`, `20-cert`) for convenient version management.
 
-## 📋 Examples
+Primary tags include the full OS and distribution context, while additional semantic tags are defined per version in the build matrix using the additional_tags property. Multi-architecture builds create unified manifests under the same tag names, automatically selecting the correct architecture.
 
-More examples are available in the [`examples/`](examples/) directory.
+For development, use semantic tags like `asterisk:latest` or `asterisk:stable`, and for production a specific tag like `asterisk:22.5.2_debian-trixie` that guarantee exact version and environment reproducibility.
 
-### Basic Setup ([`examples/basic/`](examples/basic/))
+### Current Tag Meanings
 
-A ready-to-use Docker Compose configuration with:
+- **`latest`** - Points to the most current stable release (currently **22.5.2**)
+- **`stable`** - Alias for the latest stable production version
+- **`22`** - Major version tag for the Asterisk 22.x series
+- **`23-rc`** - Release candidate tag for Asterisk 23.x pre-releases
+- **`20-cert`** - Certified release tag for Asterisk 20.x certified builds
 
-- **Production-ready Asterisk container** with SIP/RTP port configuration
-- **Custom configuration templates** including PJSIP setup
-- **Development overrides** for local testing and debugging
-- **Volume management** for logs and configuration persistence
+### Usage Examples
+
+```bash
+# Use semantic tags for consistent deployments
+docker run --rm -p 5060:5060/udp asterisk:latest
+
+# Target specific release types
+docker run --rm asterisk:stable asterisk -V
+docker run --rm asterisk:23-rc asterisk -V
+docker run --rm asterisk:20-cert asterisk -V
+
+# Major version targeting
+docker run --rm asterisk:22 asterisk -V
+```
+
+### Configuration
+
+Additional tags are configured per version in the build matrix:
+
+```yaml
+# In asterisk/supported-asterisk-builds.yml
+latest_builds:
+  - version: "22.5.2"
+    additional_tags: "latest,stable,22"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures: ["amd64", "arm64"]
+```
+
+When building, both version-specific tags (`22.5.2_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
+
+## Key Features
+
+- **DRY Template System**
+- **Automatic Variant Detection**: Smart selection based on Asterisk version patterns
+- **Multi-Stage Builds**: Optimized images (unpacked image size is about 232MB)
+- **Daily Release Discovery**: Automated detection and configuration of new Asterisk releases
+- **Comprehensive Support**: All Asterisk versions from 1.2.x through 23.x with appropriate OS distributions
+- **Modern Features**: PJSIP, WebRTC, ARI, WebSocket transport for compatible versions
+
+## Architecture
+
+### DRY Template System
+
+The build system uses template inheritance to eliminate duplication:
+
+- **Base Templates**: Common packages and Asterisk configuration (37 build + 21 runtime packages)
+- **Distribution Layer**: OS-specific package versions (libicu76 for Trixie, libicu72 for Bookworm)
+- **Variant Layer**: Version-specific features (modern, asterisk10, legacy-addons)
+
+```
+templates/
+├── base/                          # Common packages & configuration
+│   ├── asterisk-base.yml.template
+│   └── common-packages.yml
+├── distributions/                 # OS-specific package versions
+│   ├── debian-trixie.yml          # libicu76, libpqxx-7.10
+│   ├── debian-bookworm.yml        # libicu72, libpqxx-6.4
+│   ├── debian-buster.yml          # libicu63, libpqxx-6.2
+│   ├── debian-jessie.yml          # libicu52, libpqxx-4.0
+│   └── debian-stretch.yml         # libicu57, libpqxx-4.0
+├── variants/                      # Version-specific templates
+│   ├── modern.yml.template        # Asterisk 12+ with PJSIP
+│   ├── asterisk10.yml.template    # Asterisk 1.8-11.x transitional
+│   └── legacy-addons.yml.template # Asterisk 1.2-1.6 with addons
+├── dockerfile/                    # Jinja2 Dockerfile generation
+└── partials/                      # Build scripts & health checks
+```
+
+### Automatic Variant Detection
+
+| Version Range | Variant         | Features                          |
+| ------------- | --------------- | --------------------------------- |
+| 1.2.x - 1.6.x | `legacy-addons` | Separate addons, chan_sip only    |
+| 1.8.x - 11.x  | `asterisk10`    | Pre-PJSIP, chan_sip, transitional |
+| 12.x+         | `modern`        | PJSIP, WebRTC, ARI, full features |
+
+### Project Structure
+
+```
+.
+├── asterisk/                       # Build artifacts (auto-generated)
+├── configs/generated/              # Generated YAML configurations
+├── templates/                      # DRY template system
+├── scripts/                        # Build automation
+│   ├── build-asterisk.sh           # Main build interface
+│   ├── generate-config.py          # Config generation
+│   └── discover-latest-versions.sh # Release discovery
+├── lib/                            # Python libraries
+│   ├── template_generator.py       # DRY template engine
+│   └── dockerfile_generator.py     # Dockerfile generator
+└── schema/                         # Validation schemas
+```
+
+## Development
+
+### Common Tasks
+
+```bash
+# Discover new Asterisk releases
+./scripts/discover-latest-versions.sh --output-yaml --updates-only
+
+# Build specific version
+./scripts/build-asterisk.sh 22.5.2 --force-config
+
+# Build with specific distribution
+./scripts/build-asterisk.sh 22.5.2 debian bookworm
+
+# Preview build without execution
+./scripts/build-asterisk.sh 22.5.2 --dry-run
+
+# Generate config only
+python3 scripts/generate-config.py 22.5.2 trixie
+```
+
+### Template Modification
+
+Modify templates based on scope of changes:
+
+```bash
+# Base changes (affects all versions)
+vim templates/base/common-packages.yml
+vim templates/base/asterisk-base.yml.template
+
+# Distribution changes (affects specific OS)
+vim templates/distributions/debian-trixie.yml
+
+# Variant changes (affects version ranges)
+vim templates/variants/modern.yml.template
+```
+
+After template changes, rebuild with `--force-config`:
+
+```bash
+./scripts/build-asterisk.sh VERSION --force-config
+```
+
+### Testing
+
+```bash
+# Validate configuration
+python3 scripts/generate-dockerfile.py configs/generated/asterisk-22.5.2-trixie.yml --validate
+
+# Test health check
+docker run --rm asterisk:22.5.2_debian-trixie /usr/local/bin/healthcheck.sh --verbose
+
+# Run container with shell
+docker run -it --rm asterisk:22.5.2_debian-trixie /bin/bash
+```
+
+## Examples
+
+### Basic Setup
 
 ```bash
 cd examples/basic/
@@ -55,226 +231,27 @@ cp docker-compose.override.yml.template docker-compose.override.yml
 docker compose up -d
 ```
 
-The basic example demonstrates proper containerization patterns and provides a starting point for production deployments.
+The basic example includes:
 
-## 🏗️ Architecture Overview
+- Production-ready Asterisk container
+- PJSIP configuration templates
+- Volume management for persistence
+- Development override options
 
-### New Build System
+## Contributing
 
-- **Template-Based**: All builds generated from YAML templates
-- **Version Discovery**: Automatic detection of new Asterisk releases
-- **Multi-Stage Optimization**: Separate builder and runtime environments
-- **Package Management**: Distribution-specific dependency resolution
-- **Health Monitoring**: Comprehensive container health checks
+1. Template changes in `templates/` directory
+2. New features via YAML schema extension
+3. Additional OS/distribution support
+4. Test coverage improvements
 
-### Directory Structure
+## GitHub Actions
 
-```
-.
-├── asterisk/                    # Build artifacts (auto-generated)
-├── configs/                     # YAML configurations
-├── templates/                   # Build templates
-│   ├── debian-trixie.yml.template
-│   ├── debian-bookworm.yml.template
-│   └── dockerfile/              # Jinja2 templates
-├── scripts/                     # Build automation
-│   ├── build-asterisk.sh       # Main build interface
-│   ├── discover-latest-versions.sh
-│   └── generate-dockerfile.py
-├── lib/                         # Python libraries
-└── schema/                      # Validation schemas
-```
-
-## 🔄 Automation Features
-
-### Daily Release Discovery
-
-The system automatically:
-
-- 🔍 Scans for new Asterisk releases
-- 📝 Updates build matrices
-- ⚙️ Generates configurations for new versions
-- 🚀 Triggers builds via GitHub Actions
-
-### GitHub Actions Workflows
-
-- **`discover-releases.yml`**: Daily release discovery (20:00 UTC)
+- **`discover-releases.yml`**: Daily release discovery at 8:00 PM UTC
 - **`build-images.yml`**: Automated multi-platform builds
 
-## 📚 Legacy Support
+## Support
 
-While focus is on modern optimized versions, the repository maintains compatibility with all the Asterisk versions starting from 1.2, incluging LTS and Certified releases.
-
-## 🛠️ Development
-
-### Template System Architecture
-
-The build system uses a sophisticated template-based approach that automatically selects the appropriate template and distribution for each Asterisk version. Templates handle both package dependencies and feature compatibility across different Asterisk eras.
-
-#### Template Selection Matrix
-
-| Asterisk Version         | Distribution      | Template                       | PJSIP Support | Key Features                 |
-| ------------------------ | ----------------- | ------------------------------ | ------------- | ---------------------------- |
-| **10.12.4**              | Jessie            | `debian-stretch-asterisk10-11` | ❌ No         | chan_sip only, SSL 1.0.0     |
-| **11.25.3, 11.6-cert18** | Jessie            | `debian-buster-asterisk10-11`  | ❌ No         | chan_sip only, pre-PJSIP era |
-| **12.8.2**               | Jessie            | `debian-jessie` (standard)     | ✅ Yes        | First PJSIP support          |
-| **13.38.3, 13.21-cert6** | Buster            | `debian-buster` (standard)     | ✅ Yes        | Mature PJSIP                 |
-| **14.7.8, 15.7.4**       | Buster            | `debian-buster` (standard)     | ✅ Yes        | Enhanced features            |
-| **16.30.1**              | Bookworm          | `debian-bookworm` (standard)   | ✅ Yes        | Modern Debian                |
-| **16.8-cert14**          | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest Debian                |
-| **18.26.4, 18.9-cert17** | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | WebRTC, ARI                  |
-| **19.8.1, 20.15.2**      | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Modern features              |
-| **21.10.2**              | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest LTS                   |
-| **22.5.2**               | Trixie + Bookworm | `debian-trixie/bookworm`       | ✅ Yes        | Multi-platform               |
-| **23.0.0-rc2**           | Trixie            | `debian-trixie` (standard)     | ✅ Yes        | Latest release               |
-
-#### Template Types Explained
-
-##### **1. Standard Templates**
-
-- **Purpose**: Modern Asterisk versions (12+) with full PJSIP support
-- **Naming**: `debian-{distribution}.yml.template`
-- **Features**: WebRTC, ARI, PJSIP, WebSocket transport
-- **Examples**: `debian-trixie.yml.template`, `debian-bookworm.yml.template`
-
-##### **2. Specialized 10-11 Templates**
-
-- **Purpose**: Pre-PJSIP Asterisk versions (10.x, 11.x)
-- **Naming**: `debian-{distribution}-asterisk10-11.yml.template`
-- **Features**: chan_sip only, no PJSIP modules, legacy compatibility
-- **Examples**: `debian-stretch-asterisk10-11.yml.template`, `debian-buster-asterisk10-11.yml.template`
-
-##### **3. Cross-Distribution Compatibility**
-
-The system intelligently maps newer Asterisk feature sets to older distributions:
-
-- **10.12.4** uses Stretch template on Jessie distribution (newer template, older OS)
-- **11.25.3** uses Buster template on Jessie distribution (compatibility bridge)
-
-#### Package Version Management
-
-Each template contains hardcoded package versions specific to its target distribution:
-
-| Package Type | Trixie       | Bookworm    | Bullseye    | Buster      | Stretch     | Jessie      |
-| ------------ | ------------ | ----------- | ----------- | ----------- | ----------- | ----------- |
-| **SSL**      | libssl3      | libssl3     | libssl1.1   | libssl1.1   | libssl1.1   | libssl1.0.0 |
-| **ICU**      | libicu76     | libicu72    | libicu67    | libicu63    | libicu57    | libicu52    |
-| **PQXX**     | libpqxx-7.10 | libpqxx-6.4 | libpqxx-6.4 | libpqxx-6.2 | libpqxx-4.0 | libpqxx-4.0 |
-| **SRTP**     | libsrtp2-1   | libsrtp2-1  | libsrtp2-1  | libsrtp2-1  | libsrtp2-1  | libsrtp0    |
-| **NCurses**  | libncurses6  | libncurses6 | libncurses5 | libncurses6 | libncurses5 | libncurses5 |
-| **cURL**     | libcurl4     | libcurl4    | libcurl4    | libcurl4    | libcurl4    | libcurl3    |
-
-### Template-Based Development
-
-All modifications must be made through templates:
-
-```bash
-# Edit template (ONLY way to make changes)
-vim templates/debian-trixie.yml.template
-
-# Regenerate with --force-config
-./scripts/build-asterisk.sh 22.5.2 --force-config
-
-# Test build
-docker build -t test asterisk/22.5.2-trixie/
-```
-
-### Adding New Versions
-
-```bash
-# Discover new releases
-./scripts/discover-latest-versions.sh --output-yaml --updates-only
-
-# Build newly discovered versions
-./scripts/build-asterisk.sh NEW_VERSION
-```
-
-### Build an Optimized Image
-
-```bash
-# Build Asterisk 22.5.2 on Debian Trixie
-./scripts/build-asterisk.sh 22.5.2
-
-# Build specific OS variant
-./scripts/build-asterisk.sh 22.5.2 debian bookworm
-
-# Preview what would be built
-./scripts/build-asterisk.sh 23.0.0-rc1 --dry-run
-```
-
-### Run Container
-
-```bash
-# Run latest optimized build
-docker run --rm -p 5060:5060/udp asterisk:22.5.2_debian-trixie
-
-# Check Asterisk version
-docker run --rm asterisk:22.5.2_debian-trixie asterisk -V
-```
-
-## 🎯 Roadmap
-
-### Phase 1: Core Optimization (Current)
-
-- ✅ Modern Asterisk versions
-- ✅ Multi-stage build optimization
-- ✅ Automated release discovery
-
-### Phase 2: Expansion (Coming Soon)
-
-- 🔄 Alpine Linux support
-- 🔄 ARM64 architecture builds
-- 🔄 Additional LTS versions (18.x, 20.x)
-
-## 🤝 Contributing
-
-Contributions are welcome! The new system is designed for maintainability:
-
-1. **Template Changes**: Modify templates in `templates/` directory
-2. **New Features**: Extend YAML schema and build logic
-3. **Version Support**: Add new OS/distribution combinations
-4. **Testing**: Enhance validation and health checks
-
-### Development Commands
-
-```bash
-# Test template changes
-./scripts/build-asterisk.sh VERSION --force-config --verbose
-
-# Validate configurations
-python3 scripts/generate-dockerfile.py CONFIG.yml --validate
-
-# Test health checks
-docker run --rm IMAGE /usr/local/bin/healthcheck.sh --verbose
-```
-
-## 📄 Migration from Legacy
-
-If you were using the original andrius/asterisk images:
-
-### Image Tags
-
-- **Old**: `andrius/asterisk:latest`
-- **New**: `andrius/asterisk:22.5.2_debian-trixie`
-
-### Configuration
-
-- **Old**: Manual Dockerfile edits
-- **New**: YAML-based configuration system
-
-### Features
-
-- **Enhanced**: Modern Asterisk features (WebRTC, ARI, PJSIP)
-- **Optimized**: ~232MB production images vs ~6GB legacy
-- **Automated**: Continuous updates and security patches
-
-## 🆘 Support
-
-- **🐛 Issues**: Report bugs via GitHub Issues
-- **💬 Discussions**: Community support and questions
-- **📖 Documentation**: Detailed guides in the repository
-- **🏛️ Legacy**: Reference implementations in `legacy` branch
-
----
-
-**Status**: 🚧 **Active Development** - Revitalizing abandoned repository with modern automation
+- **Issues**: [Report via GitHub Issues](https://github.com/andrius/asterisk/issues)
+- **Documentation**: Available in repository
+- **Legacy Reference**: See [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy)

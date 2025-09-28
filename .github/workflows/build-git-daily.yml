@@ -1,0 +1,262 @@
+name: Build Git Asterisk Daily
+
+on:
+  schedule:
+    # Run daily at 05:00 UTC
+    - cron: "0 5 * * *"
+
+  workflow_dispatch:
+    inputs:
+      distribution:
+        description: "OS distribution (e.g., trixie, bookworm)"
+        required: false
+        default: "trixie"
+        type: string
+      architectures:
+        description: "Target architectures (comma-separated: amd64,arm64)"
+        required: false
+        default: "amd64,arm64"
+        type: string
+      push:
+        description: "Push images to registry"
+        required: false
+        default: true
+        type: boolean
+      registry:
+        description: "Docker registry (default: docker.io/andrius/asterisk)"
+        required: false
+        default: "andrius/asterisk"
+        type: string
+
+jobs:
+  build-git:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest Asterisk git SHA
+        id: git-info
+        run: |
+          GIT_SHA=$(git ls-remote https://github.com/asterisk/asterisk.git HEAD | cut -f1 | cut -c1-7)
+          echo "git_sha=$GIT_SHA" >> $GITHUB_OUTPUT
+          echo "version=git-$GIT_SHA" >> $GITHUB_OUTPUT
+          echo "Latest Asterisk git SHA: $GIT_SHA"
+
+      - name: Validate inputs
+        run: |
+          echo "Git SHA: ${{ steps.git-info.outputs.git_sha }}"
+          echo "Version: ${{ steps.git-info.outputs.version }}"
+          echo "Distribution: ${{ inputs.distribution || 'trixie' }}"
+          echo "Architectures: ${{ inputs.architectures || 'amd64,arm64' }}"
+          echo "Push: ${{ inputs.push || 'true' }}"
+          echo "Registry: ${{ inputs.registry || 'andrius/asterisk' }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml jinja2 jsonschema
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker registry
+        if: ${{ inputs.push != false }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ startsWith(inputs.registry || 'andrius/asterisk', 'ghcr.io') && 'ghcr.io' || 'docker.io' }}
+          username: ${{ startsWith(inputs.registry || 'andrius/asterisk', 'ghcr.io') && github.actor || secrets.DOCKER_USERNAME }}
+          password: ${{ startsWith(inputs.registry || 'andrius/asterisk', 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Generate git-based config
+        id: config
+        run: |
+          DISTRIBUTION="${{ inputs.distribution || 'trixie' }}"
+          GIT_SHA="${{ steps.git-info.outputs.git_sha }}"
+          VERSION="${{ steps.git-info.outputs.version }}"
+
+          # Create config directory
+          mkdir -p configs/generated
+
+          # Generate config from git template
+          CONFIG_FILE="configs/generated/asterisk-${VERSION}-${DISTRIBUTION}.yml"
+
+          python3 -c "
+          import sys
+          import os
+
+          # Read git-dev template
+          template_path = 'templates/variants/git-dev.yml.template'
+          try:
+              with open(template_path, 'r') as f:
+                  template_content = f.read()
+          except FileNotFoundError:
+              print(f'Error: Git template not found: {template_path}', file=sys.stderr)
+              sys.exit(1)
+
+          # Replace template variables
+          config_content = template_content.replace('{{VERSION}}', '${VERSION}')
+          config_content = config_content.replace('{{DISTRIBUTION}}', '${DISTRIBUTION}')
+          config_content = config_content.replace('{{GIT_SHA}}', '${GIT_SHA}')
+
+          # Write config file
+          with open('${CONFIG_FILE}', 'w') as f:
+              f.write(config_content)
+
+          print('Git config generated successfully')
+          "
+
+          echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Generated git config: $CONFIG_FILE"
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          DISTRIBUTION="${{ inputs.distribution || 'trixie' }}"
+          GIT_SHA="${{ steps.git-info.outputs.git_sha }}"
+          VERSION="${{ steps.git-info.outputs.version }}"
+          REGISTRY="${{ inputs.registry || 'andrius/asterisk' }}"
+
+          # Create tags
+          PRIMARY_TAG="${REGISTRY}:testing-${GIT_SHA}"
+          SIMPLE_TAG="${REGISTRY}:testing"
+          TAGS="${PRIMARY_TAG},${SIMPLE_TAG}"
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "primary_tag=$PRIMARY_TAG" >> $GITHUB_OUTPUT
+          echo "simple_tag=$SIMPLE_TAG" >> $GITHUB_OUTPUT
+          echo "description=Asterisk ${VERSION} from git (${GIT_SHA}) on Debian ${DISTRIBUTION}" >> $GITHUB_OUTPUT
+
+          echo "✅ Tags: $TAGS"
+
+      - name: Generate Dockerfile
+        run: |
+          python3 scripts/generate-dockerfile.py \
+            "${{ steps.config.outputs.config_file }}" \
+            --output "Dockerfile" \
+            --templates-dir "${GITHUB_WORKSPACE}/templates/dockerfile"
+
+          echo "✅ Generated Dockerfile (first 20 lines):"
+          head -20 Dockerfile
+
+      - name: Generate build script
+        run: |
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'lib')
+          from dockerfile_generator import DockerfileGenerator
+
+          generator = DockerfileGenerator('templates')
+          generator.generate_build_script('${{ steps.config.outputs.config_file }}', 'build.sh')
+          print('Generated build.sh script')
+          "
+
+          if [ -f build.sh ]; then
+            chmod +x build.sh
+            echo "✅ Generated build.sh script ($(wc -l < build.sh) lines)"
+          else
+            echo "❌ Failed to generate build.sh"
+            exit 1
+          fi
+
+      - name: Generate healthcheck script
+        run: |
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+
+          with open('${{ steps.config.outputs.config_file }}', 'r') as f:
+              config = yaml.safe_load(f)
+
+          env = Environment(loader=FileSystemLoader('templates/partials'))
+          template = env.get_template('healthcheck.sh.j2')
+
+          content = template.render(
+              config=config,
+              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
+          )
+
+          with open('healthcheck.sh', 'w') as f:
+              f.write(content)
+          "
+
+          chmod +x healthcheck.sh
+          echo "✅ Generated healthcheck script"
+
+      - name: Prepare build platforms
+        id: platforms
+        run: |
+          ARCHITECTURES="${{ inputs.architectures || 'amd64' }}"
+          PLATFORMS=""
+
+          IFS=',' read -ra ARCH_ARRAY <<< "$ARCHITECTURES"
+          for arch in "${ARCH_ARRAY[@]}"; do
+            arch=$(echo "$arch" | xargs)
+            if [[ -n "$PLATFORMS" ]]; then
+              PLATFORMS="${PLATFORMS},linux/${arch}"
+            else
+              PLATFORMS="linux/${arch}"
+            fi
+          done
+
+          echo "platforms=$PLATFORMS" >> $GITHUB_OUTPUT
+          echo "Building for platforms: $PLATFORMS"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.platforms }}
+          push: ${{ inputs.push != false }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Asterisk PBX (Git Development)
+            org.opencontainers.image.description=${{ steps.meta.outputs.description }}
+            org.opencontainers.image.version=${{ steps.git-info.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha,scope=git-${{ inputs.distribution || 'trixie' }}
+          cache-to: type=gha,mode=max,scope=git-${{ inputs.distribution || 'trixie' }}
+          build-args: |
+            GIT_SHA=${{ steps.git-info.outputs.git_sha }}
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Git Asterisk Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **Git SHA**: ${{ steps.git-info.outputs.git_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **Version**: ${{ steps.git-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖥️ **Distribution**: ${{ inputs.distribution || 'trixie' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Architectures**: ${{ inputs.architectures || 'amd64' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Pushed**: ${{ inputs.push != false }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ inputs.registry || 'andrius/asterisk' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ **Config**: ${{ steps.config.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "- ✅ **Status**: Git build successful" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ inputs.push != false }}" == "true" ]; then
+              echo "- 📦 **Images pushed to registry**:" >> $GITHUB_STEP_SUMMARY
+              echo "  - ${{ steps.meta.outputs.primary_tag }}" >> $GITHUB_STEP_SUMMARY
+              echo "  - ${{ steps.meta.outputs.simple_tag }}" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🏠 **Images built locally (not pushed)**" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ❌ **Status**: Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Git build completed: $(date '+%Y-%m-%d %H:%M:%S UTC')_" >> $GITHUB_STEP_SUMMARY
+

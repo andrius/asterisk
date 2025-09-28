@@ -11,7 +11,7 @@ LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Builder"
 LABEL org.opencontainers.image.description="Build stage for Asterisk 11.25.3"
 LABEL org.opencontainers.image.version="11.25.3"
-LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk-docker"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
 
 # Build arguments
 ARG ASTERISK_VERSION=11.25.3
@@ -26,46 +26,41 @@ ENV TMPDIR="/tmp/asterisk_build"
 # Create build directories first
 RUN mkdir -p \
     /usr/src/asterisk \
-${TMPDIR} && \
-    chmod 777 ${TMPDIR}
+    ${TMPDIR} \
+    && chmod 777 ${TMPDIR}
 
 # EOL distribution setup (if needed)
-RUN echo "APT::Get::force-yes \"true\";" > /etc/apt/apt.conf.d/90-force-yes && \
-echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/90-disable-validity-check && \
-echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie main contrib non-free" > /etc/apt/sources.list && \
-echo "deb [check-valid-until=no] http://archive.debian.org/debian/ jessie-backports main contrib non-free" >> /etc/apt/sources.list && \
-echo "deb [check-valid-until=no] http://archive.debian.org/debian-security/ jessie/updates main contrib non-free" >> /etc/apt/sources.list
 # Update package lists and install ca-certificates first, then build dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
-    apt-get install -y --no-install-recommends \
-  build-essential autoconf binutils-dev curl file libcurl4-openssl-dev \
-  libedit-dev libgsm1-dev libogg-dev libpopt-dev libresample1-dev \
-  libspandsp-dev libspeex-dev libspeexdsp-dev libsqlite3-dev libsrtp0-dev \
-  libssl-dev libvorbis-dev libxml2-dev libxslt1-dev odbcinst portaudio19-dev \
-  procps unixodbc unixodbc-dev uuid uuid-dev xmlstarlet pkg-config make patch \
-  libtool libncurses-dev libpqxx-dev libicu-dev libjansson-dev python3-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    mkdir -p ${TMPDIR} && chmod 777 ${TMPDIR}
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder \
+    apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends \
+        build-essential autoconf binutils-dev curl file libcurl4-openssl-dev \
+        libedit-dev libgsm1-dev libicu-dev libjansson-dev libncurses-dev libogg-dev \
+        libpopt-dev libpqxx-dev libresample1-dev libspandsp-dev libspeex-dev \
+        libspeexdsp-dev libsqlite3-dev libssl-dev libtool libvorbis-dev libxml2-dev \
+        libxslt1-dev make odbcinst patch pkg-config portaudio19-dev procps \
+        python3-dev unixodbc unixodbc-dev uuid uuid-dev xmlstarlet libsrtp0-dev \
+    && apt-get clean \
+    && mkdir -p ${TMPDIR} && chmod 777 ${TMPDIR}
 
 
 WORKDIR /usr/src/asterisk
 
 # Download and extract Asterisk source
-RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-11.25.3.tar.gz | \
-    tar --strip-components=1 -xz
+RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-11.25.3.tar.gz \
+    | tar --strip-components=1 -xz
 
 
-# Configure Asterisk build
+# Configure Asterisk build (skip for very old versions that don't have configure script)
 RUN ./configure
 
 # Generate menuselect configuration
 RUN make menuselect/menuselect menuselect-tree menuselect.makeopts
 
 # Optimize build configuration for smaller image
-RUN sed -i 's/HAVE_XML2 = yes/HAVE_XML2 = no/' makeopts && \
-    sed -i 's/HAVE_XMLSTARLET = yes/HAVE_XMLSTARLET = no/' makeopts
+RUN sed -i 's/HAVE_XML2 = yes/HAVE_XML2 = no/' makeopts \
+    && sed -i 's/HAVE_XMLSTARLET = yes/HAVE_XMLSTARLET = no/' makeopts
 
 # Copy and execute build script
 COPY build.sh /usr/src/asterisk/build.sh
@@ -84,36 +79,43 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
 
 # Install only runtime dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-  curl libcurl3 libedit2 libgsm1 libogg0 libpopt0 libresample1 libspandsp2 \
-  libspeex1 libspeexdsp1 libsqlite3-0 libsrtp0 libssl1.0.0 libvorbis0a libxml2 \
-  libxslt1.1 odbcinst portaudio19-dev procps unixodbc uuid libncurses5 \
-  libpqxx-4.0 libicu52 libjansson4 python3 binutils && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        binutils curl libedit2 libgsm1 libjansson4 libogg0 libpopt0 libresample1 \
+        libspandsp2 libspeex1 libspeexdsp1 libsqlite3-0 libvorbis0a libxml2 \
+        libxslt1.1 odbcinst portaudio19-dev procps python3 unixodbc uuid libcurl3 \
+        libssl1.0.0 libsrtp0 libncurses5 libpqxx-4.0 libicu52 \
+    && apt-get clean
 
 # Create asterisk user and required directories
 RUN useradd --uid 1000 --system --user-group \
     --home-dir /home/asterisk --create-home \
-    asterisk && \
-    mkdir -p \
-    /var/run/asterisk \
-    /var/log/asterisk \
-    /var/spool/asterisk/monitor \
-    /var/spool/asterisk/outgoing \
-    /var/spool/asterisk/tmp \
-    /var/spool/asterisk/voicemail \
-    /var/spool/asterisk/fax \
-    /var/lib/asterisk/keys \
-    /var/lib/asterisk/phoneprov \
-    /var/lib/asterisk/sounds \
-    /var/lib/asterisk/docs
+    asterisk \
+    && mkdir -p \
+        /var/run/asterisk \
+        /var/log/asterisk \
+        /var/spool/asterisk/monitor \
+        /var/spool/asterisk/outgoing \
+        /var/spool/asterisk/tmp \
+        /var/spool/asterisk/voicemail \
+        /var/spool/asterisk/fax \
+        /var/lib/asterisk/keys \
+        /var/lib/asterisk/phoneprov \
+        /var/lib/asterisk/sounds \
+        /var/lib/asterisk/docs
 
 # ==============================================================================
 # STAGE 3: Final Production Image
 # ==============================================================================
 FROM asterisk-runtime AS asterisk-production
+
+LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
+LABEL org.opencontainers.image.title="Asterisk PBX"
+LABEL org.opencontainers.image.description="Production Asterisk PBX 11.25.3"
+LABEL org.opencontainers.image.version="11.25.3"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
+LABEL org.opencontainers.image.vendor="Andrius Kairiukstis <k@andrius.mobi>"
 
 # Copy Asterisk binaries and configurations from builder
 COPY --from=asterisk-builder /usr/sbin/asterisk /usr/sbin/asterisk
@@ -132,20 +134,18 @@ RUN chmod +x /usr/local/bin/healthcheck.sh
 RUN chown -R asterisk:asterisk \
     /etc/asterisk \
     /home/asterisk \
-    /var/run/asterisk \
-    /var/log/asterisk \
-    /var/spool/asterisk \
-    /var/lib/asterisk && \
-    chmod -R 750 /var/spool/asterisk
+    /var/*/asterisk \
+    /usr/lib*/asterisk 2>/dev/null || true \
+    && chmod -R 750 /var/spool/asterisk
 
 # Runtime verification
 RUN asterisk -V || (echo "Error: Unable to run asterisk -V" && exit 1)
 
 # Configure networking
-EXPOSE 5060/udp
-EXPOSE 5060/tcp
-EXPOSE 5061/tcp
-EXPOSE 10000-10099/udp
+# EXPOSE 5060/udp
+# EXPOSE 5060/tcp
+# EXPOSE 5061/tcp
+# EXPOSE 10000-10099/udp
 
 # Define volumes for persistent data
 VOLUME ["/etc/asterisk", "/var/lib/asterisk", "/var/log/asterisk", "/var/spool/asterisk"]

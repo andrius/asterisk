@@ -1,0 +1,9 @@
+{
+  "inputs": {
+    "version": "18.26.4",
+    "distribution": "trixie",
+    "architectures": "amd64",
+    "push": false,
+    "registry": "test.local/asterisk"
+  }
+}

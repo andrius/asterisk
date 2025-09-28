@@ -16,6 +16,11 @@ on:
         required: false
         default: "amd64"
         type: string
+      additional_tags:
+        description: "Additional Docker tags (comma-separated: latest,stable,22.x)"
+        required: false
+        default: ""
+        type: string
       push:
         description: "Push images to registry"
         required: false
@@ -52,6 +57,11 @@ on:
         required: false
         default: "amd64"
         type: string
+      additional_tags:
+        description: "Additional Docker tags (comma-separated: latest,stable,22.x)"
+        required: false
+        default: ""
+        type: string
       push:
         description: "Push images to registry"
         required: false
@@ -81,8 +91,25 @@ jobs:
           echo "Version: ${{ inputs.version }}"
           echo "Distribution: ${{ inputs.distribution }}"
           echo "Architectures: ${{ inputs.architectures }}"
+          echo "Additional Tags: ${{ inputs.additional_tags }}"
           echo "Push: ${{ inputs.push }}"
           echo "Registry: ${{ inputs.registry }}"
+
+      - name: Determine branch and tag suffix
+        id: branch-info
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Branch: $BRANCH_NAME"
+
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "is_main_branch=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+            echo "✅ Building from main branch - using standard tags"
+          else
+            echo "is_main_branch=false" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-dev" >> $GITHUB_OUTPUT
+            echo "🔧 Building from non-main branch ($BRANCH_NAME) - adding '-dev' suffix to tags"
+          fi
 
       - name: Validate configuration file
         id: validate-config
@@ -141,15 +168,28 @@ jobs:
           version = '${{ inputs.version }}'
           distribution = '${{ inputs.distribution }}'
           architectures = '${{ inputs.architectures }}'
+          additional_tags = '${{ inputs.additional_tags }}'
           registry = '${{ inputs.registry }}'
+          tag_suffix = '${{ steps.branch-info.outputs.tag_suffix }}'
+          git_sha = '${{ github.sha }}'
+          short_sha = git_sha[:7]
 
-          primary_tag = f'{registry}:{version}_{config[\"base\"][\"os\"]}-{distribution}'
-          tags = [primary_tag]
+          primary_tag = f'{registry}:{version}_{config[\"base\"][\"os\"]}-{distribution}{tag_suffix}'
+          sha_tag = f'{registry}:{version}_{config[\"base\"][\"os\"]}-{distribution}-{short_sha}'
+          tags = [primary_tag, sha_tag]
 
+          # Add additional tags from inputs (highest priority)
+          if additional_tags:
+              for tag in additional_tags.split(','):
+                  tag = tag.strip()
+                  if tag:
+                      tags.append(f'{registry}:{tag}{tag_suffix}')
+
+          # Add tags from config file (lower priority)
           if 'docker' in config and 'tags' in config['docker']:
               for tag in config['docker']['tags'][:3]:
                   if tag != f'{version}_{config[\"base\"][\"os\"]}-{distribution}':
-                      tags.append(f'{registry}:{tag}')
+                      tags.append(f'{registry}:{tag}{tag_suffix}')
 
           print(f'tags={','.join(tags)}')
           print(f'version={version}')
@@ -276,12 +316,21 @@ jobs:
           echo "## Single Image Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- 🎯 **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌿 **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🖥️ **Distribution**: ${{ inputs.distribution }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🏗️ **Architectures**: ${{ inputs.architectures }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.additional_tags }}" ]; then
+            echo "- 🏷️ **Additional Tags**: ${{ inputs.additional_tags }}" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "- 🚀 **Pushed**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
           echo "- 📋 **Registry**: ${{ inputs.registry }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏷️ **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ **All Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
           echo "- 🏗️ **Config**: ${{ steps.validate-config.outputs.config_file }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.branch-info.outputs.is_main_branch }}" != "true" ]; then
+            echo "- 🔧 **Development Build**: Tags include '-dev' suffix (non-main branch)" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.build-result.outputs.result }}" == "success" ]; then

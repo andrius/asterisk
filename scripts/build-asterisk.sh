@@ -43,6 +43,8 @@ PUSH_IMAGES=false
 FORCE_CONFIG=false
 PARALLEL_BUILDS=false
 VERBOSE=false
+SKIP_FORMAT_DOCKERFILE=false
+GIT_BUILD=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -70,6 +72,8 @@ Options:
   --dry-run            Show what would be built without building
   --force-config       Regenerate configs even if they exist
   --parallel           Build multiple configs simultaneously
+  --skip-format-dockerfile  Skip dockerfmt formatting (default: format enabled)
+  --git                Build from git repository instead of release
   --verbose            Enable verbose output
   --help, -h           Show this help message
 
@@ -81,6 +85,8 @@ Examples:
   $0 22.5.2 --push --registry myuser/asterisk
   $0 22.5.2 --push --registry ghcr.io/myuser/asterisk
   $0 23.0.0-rc1 --dry-run             # Preview what would be built
+  $0 --git trixie                     # Build from git with Debian Trixie
+  $0 --git trixie --push              # Build and push git version
 
 Matrix Resolution:
   - Versions in latest-asterisk-builds.yml: Use exact OS matrix (preserves customizations)
@@ -108,14 +114,18 @@ log() {
 validate_version() {
     local version="$1"
 
-    # Allow versions like: 22.5.2, 23.0.0-rc1, 1.8.32.3, 13.21-cert6
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?(-[a-zA-Z0-9]+)?$ ]]; then
+    # Allow git versions (git-XXXXXX) and regular versions
+    if [[ "$version" =~ ^git-[a-fA-F0-9]+$ ]]; then
+        # Git version format: git-<sha>
+        return 0
+    elif [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(\.[0-9]+)?(-[a-zA-Z0-9]+)?$ ]]; then
+        # Regular version format: major.minor[.patch][.subpatch][-suffix]
+        return 0
+    else
         log ERROR "Invalid version format: $version"
-        log ERROR "Expected format: major.minor[.patch][.subpatch][-suffix] (e.g., 22.5.2, 23.0.0-rc1, 1.8.32.3, 13.21-cert6)"
+        log ERROR "Expected format: major.minor[.patch][.subpatch][-suffix] (e.g., 22.5.2, 23.0.0-rc1) or git-<sha> (e.g., git-ff80666)"
         return 1
     fi
-
-    return 0
 }
 
 # Function to check prerequisites
@@ -183,8 +193,16 @@ while [[ $# -gt 0 ]]; do
             PARALLEL_BUILDS=true
             shift
             ;;
+        --skip-format-dockerfile)
+            SKIP_FORMAT_DOCKERFILE=true
+            shift
+            ;;
         --verbose)
             VERBOSE=true
+            shift
+            ;;
+        --git)
+            GIT_BUILD=true
             shift
             ;;
         *)
@@ -197,19 +215,46 @@ done
 # Restore positional parameters
 set -- "${POSITIONAL_ARGS[@]}"
 
-# Validate arguments
-if [[ $# -lt 1 ]]; then
-    log ERROR "Version argument is required"
-    usage
-fi
+# Handle git builds differently
+if [[ "$GIT_BUILD" == true ]]; then
+    # For git builds, first arg is distribution, second is arch
+    DISTRIBUTION="${1:-trixie}"
+    ARCH_FILTER="${2:-amd64}"
 
-VERSION="$1"
-OS_FILTER="${2:-}"
-ARCH_FILTER="${3:-}"
+    # Get git SHA from repository
+    if ! command -v git >/dev/null 2>&1; then
+        log ERROR "Git is required for --git builds but not found in PATH"
+        exit 1
+    fi
 
-# Validate version
-if ! validate_version "$VERSION"; then
-    exit 1
+    log INFO "Fetching latest git SHA from Asterisk repository..."
+    GIT_SHA=$(git ls-remote https://github.com/asterisk/asterisk.git HEAD | cut -f1 | cut -c1-7)
+    if [[ -z "$GIT_SHA" ]]; then
+        log ERROR "Failed to fetch git SHA from Asterisk repository"
+        exit 1
+    fi
+
+    VERSION="git-$GIT_SHA"
+    OS_FILTER="debian"
+
+    log INFO "Building git version: $VERSION (SHA: $GIT_SHA)"
+    log INFO "Distribution: $DISTRIBUTION"
+    log INFO "Architecture: $ARCH_FILTER"
+else
+    # Validate arguments for release builds
+    if [[ $# -lt 1 ]]; then
+        log ERROR "Version argument is required"
+        usage
+    fi
+
+    VERSION="$1"
+    OS_FILTER="${2:-}"
+    ARCH_FILTER="${3:-}"
+
+    # Validate version
+    if ! validate_version "$VERSION"; then
+        exit 1
+    fi
 fi
 
 # Check prerequisites
@@ -302,6 +347,10 @@ try:
     log_debug(f"Using custom OS matrix for version $version")
     os_matrix = version_data['os_matrix']
 
+    # Extract additional_tags from version data
+    additional_tags = version_data.get('additional_tags', '')
+    log_debug(f"Additional tags for version $version: {additional_tags}")
+
     # Handle different os_matrix formats (list or single entry)
     if isinstance(os_matrix, list):
         matrix_list = os_matrix
@@ -336,6 +385,7 @@ try:
                 'distribution': distribution,
                 'architectures': filtered_architectures,  # Changed: now array of architectures
                 'template': template,  # Include template field
+                'additional_tags': additional_tags,  # Include additional_tags
                 'source': 'custom_matrix'
             })
 
@@ -348,7 +398,8 @@ try:
         # Convert architectures array to comma-separated string
         architectures_str = ','.join(build['architectures'])
         template_str = build['template']  # May be empty string
-        print(f"{build['os']}:{build['distribution']}:{architectures_str}:{template_str}:{build['source']}")
+        additional_tags_str = build['additional_tags']  # May be empty string
+        print(f"{build['os']}:{build['distribution']}:{architectures_str}:{template_str}:{build['source']}:{additional_tags_str}")
 
     # Count total architecture combinations for logging
     total_arch_combinations = sum(len(build['architectures']) for build in builds)
@@ -384,19 +435,27 @@ log INFO "Parsing build matrix from $LATEST_BUILDS_FILE..."
 # Export verbose flag for Python scripts
 export VERBOSE="$VERBOSE"
 
-# Get build matrix and capture it properly
-{
-    exec 3< <(get_build_matrix "$VERSION" "$OS_FILTER" "$ARCH_FILTER" 2>&1)
-    BUILD_TARGETS=()
-    while IFS= read -r line <&3; do
-        # Only capture lines that look like build targets (contain colons)
-        # Format: os:distribution:architectures:template:source (5 fields, 4 colons)
-        if [[ "$line" =~ ^[^:]+:[^:]+:[^:]+:[^:]*:[^:]+$ ]]; then
-            BUILD_TARGETS+=("$line")
-        fi
-    done
-    exec 3<&-
-} 2>&1
+# Handle git builds with special matrix
+if [[ "$GIT_BUILD" == true ]]; then
+    log INFO "Creating git build matrix..."
+    # For git builds, create a simple build target
+    BUILD_TARGETS=("debian:$DISTRIBUTION:$ARCH_FILTER:git-dev:git:")
+    log INFO "Git build target: debian:$DISTRIBUTION:$ARCH_FILTER:git-dev:git:"
+else
+    # Get build matrix and capture it properly
+    {
+        exec 3< <(get_build_matrix "$VERSION" "$OS_FILTER" "$ARCH_FILTER" 2>&1)
+        BUILD_TARGETS=()
+        while IFS= read -r line <&3; do
+            # Only capture lines that look like build targets (contain colons)
+            # Format: os:distribution:architectures:template:source:additional_tags (6 fields, 5 colons)
+            if [[ "$line" =~ ^[^:]+:[^:]+:[^:]+:[^:]*:[^:]+:[^:]*$ ]]; then
+                BUILD_TARGETS+=("$line")
+            fi
+        done
+        exec 3<&-
+    } 2>&1
+fi
 
 if [[ ${#BUILD_TARGETS[@]} -eq 0 ]]; then
     log ERROR "No build targets found"
@@ -406,12 +465,16 @@ fi
 # Display build targets
 log INFO "Build targets:"
 for target in "${BUILD_TARGETS[@]}"; do
-    IFS=':' read -r os distribution architectures template source <<< "$target"
+    IFS=':' read -r os distribution architectures template source additional_tags <<< "$target"
     template_info=""
     if [[ -n "$template" ]]; then
         template_info=" [template: $template]"
     fi
-    log INFO "  → $os/$distribution ($architectures)$template_info [from: $source]"
+    tags_info=""
+    if [[ -n "$additional_tags" ]]; then
+        tags_info=" [additional_tags: $additional_tags]"
+    fi
+    log INFO "  → $os/$distribution ($architectures)$template_info$tags_info [from: $source]"
 done
 
 if [[ "$DRY_RUN" == true ]]; then
@@ -426,8 +489,67 @@ ensure_config() {
     local distribution="$3"
     local template="$4"  # Optional template name
 
+    # Handle git builds with special config generation
+    if [[ "$GIT_BUILD" == true ]]; then
+        # For git builds, use consistent git-master-{distribution} config name
+        local generated_config="${PROJECT_DIR}/configs/generated/asterisk-git-master-${distribution}.yml"
+
+        log DEBUG "Creating git build config: $generated_config" >&2
+
+        # Always regenerate git configs to get latest git SHA
+        log INFO "Generating git config for $version ($os/$distribution)" >&2
+
+        # Ensure configs/generated directory exists
+        mkdir -p "${PROJECT_DIR}/configs/generated"
+
+        # Generate git config using the git-dev template
+        if ! python3 -c "
+import sys
+import os
+import yaml
+from jinja2 import Environment, FileSystemLoader
+
+# Read git-dev template
+template_path = '${PROJECT_DIR}/templates/variants/git-dev.yml.template'
+try:
+    with open(template_path, 'r') as f:
+        template_content = f.read()
+except FileNotFoundError:
+    print(f'Error: Git template not found: {template_path}', file=sys.stderr)
+    sys.exit(1)
+
+# Replace template variables
+config_content = template_content.replace('{{VERSION}}', '${version}')
+config_content = config_content.replace('{{DISTRIBUTION}}', '${distribution}')
+config_content = config_content.replace('{{GIT_SHA}}', '${GIT_SHA}')
+
+# Write config file
+with open('${generated_config}', 'w') as f:
+    f.write(config_content)
+
+print('Git config generated successfully')
+" >&2; then
+            log ERROR "Failed to generate git config from template" >&2
+            return 1
+        fi
+
+        if [[ ! -f "$generated_config" ]]; then
+            log ERROR "Git config generation failed: $generated_config" >&2
+            return 1
+        fi
+
+        log SUCCESS "Generated git config: $generated_config" >&2
+        echo "$generated_config"
+        return 0
+    fi
+
     # Only use modern generated config format (using actual naming pattern)
-    local generated_config="${PROJECT_DIR}/configs/generated/asterisk-${version}-${distribution}.yml"
+    # For git builds, use consistent git-master-{distribution} config name
+    if [[ "$version" =~ ^git- ]]; then
+        local generated_config="${PROJECT_DIR}/configs/generated/asterisk-git-master-${distribution}.yml"
+    else
+        local generated_config="${PROJECT_DIR}/configs/generated/asterisk-${version}-${distribution}.yml"
+    fi
 
     log DEBUG "Checking for generated config: $generated_config" >&2
 
@@ -609,7 +731,10 @@ config['build'] = build_config
 config['asterisk'] = asterisk_config
 
 # Determine build characteristics from version
-major_version = int(version.split('.')[0])
+if version.startswith('git-'):
+    major_version = 99  # Git versions are always modern
+else:
+    major_version = int(version.split('.')[0])
 
 # Set up Jinja2 environment
 templates_dir = Path('${PROJECT_DIR}/templates')
@@ -660,7 +785,12 @@ generate_dockerfile() {
     local distribution="$4"
 
     # Create version-specific directory
-    local version_tag="${version}-${distribution}"
+    # For git builds, use consistent git-master-{distribution} directory
+    if [[ "$version" =~ ^git- ]]; then
+        local version_tag="git-master-${distribution}"
+    else
+        local version_tag="${version}-${distribution}"
+    fi
     local build_dir="${PROJECT_DIR}/asterisk/${version_tag}"
     local dockerfile_path="${build_dir}/Dockerfile"
     local healthcheck_path="${build_dir}/healthcheck.sh"
@@ -674,11 +804,13 @@ generate_dockerfile() {
     log INFO "Generating Dockerfile and healthcheck.sh for: $version_tag" >&2
 
     # Generate Dockerfile (without extension)
-    log DEBUG "Running: python3 ${SCRIPT_DIR}/generate-dockerfile.py $config_file --output $dockerfile_path --templates-dir ${PROJECT_DIR}/templates/dockerfile" >&2
-    if ! python3 "${SCRIPT_DIR}/generate-dockerfile.py" \
-        "$config_file" \
-        --output "$dockerfile_path" \
-        --templates-dir "${PROJECT_DIR}/templates/dockerfile" >&2; then
+    local dockerfile_args=("$config_file" --output "$dockerfile_path" --templates-dir "${PROJECT_DIR}/templates/dockerfile")
+    if [[ "$SKIP_FORMAT_DOCKERFILE" == true ]]; then
+        dockerfile_args+=(--skip-format-dockerfile)
+    fi
+
+    log DEBUG "Running: python3 ${SCRIPT_DIR}/generate-dockerfile.py ${dockerfile_args[*]}" >&2
+    if ! python3 "${SCRIPT_DIR}/generate-dockerfile.py" "${dockerfile_args[@]}" >&2; then
         log ERROR "Failed to generate Dockerfile from $config_file" >&2
         return 1
     fi
@@ -724,6 +856,7 @@ build_image() {
     local os="$3"
     local distribution="$4"
     local architectures="$5"  # Now comma-separated list: "amd64,arm64"
+    local additional_tags="$6"  # Comma-separated list of additional tags
 
     # Generate primary image tag (no arch-specific tags for multi-arch manifests)
     local primary_tag="${version}_${os}-${distribution}"
@@ -748,6 +881,25 @@ build_image() {
     build_args+=("--platform" "$platforms")         # Multi-platform support
     build_args+=("--tag" "$primary_tag")
 
+    # Add additional tags if specified
+    if [[ -n "$additional_tags" ]]; then
+        log DEBUG "Processing additional tags: $additional_tags"
+        IFS=',' read -ra tags_array <<< "$additional_tags"
+        for tag in "${tags_array[@]}"; do
+            # Trim whitespace
+            tag=$(echo "$tag" | xargs)
+            if [[ -n "$tag" ]]; then
+                if [[ -n "$DEFAULT_REGISTRY" ]]; then
+                    full_tag="${DEFAULT_REGISTRY}:${tag}"
+                else
+                    full_tag="$tag"
+                fi
+                build_args+=("--tag" "$full_tag")
+                log DEBUG "Added additional tag: $full_tag"
+            fi
+        done
+    fi
+
     if [[ "$PUSH_IMAGES" == true ]]; then
         build_args+=("--push")
     else
@@ -764,7 +916,23 @@ build_image() {
     # Add build context (version-specific directory)
     build_args+=("$build_dir")
 
-    log INFO "Building multi-arch image: $primary_tag ($platforms)"
+    # Show all tags that will be built
+    local all_tags="$primary_tag"
+    if [[ -n "$additional_tags" ]]; then
+        IFS=',' read -ra tags_array <<< "$additional_tags"
+        for tag in "${tags_array[@]}"; do
+            tag=$(echo "$tag" | xargs)
+            if [[ -n "$tag" ]]; then
+                if [[ -n "$DEFAULT_REGISTRY" ]]; then
+                    all_tags="$all_tags, ${DEFAULT_REGISTRY}:${tag}"
+                else
+                    all_tags="$all_tags, $tag"
+                fi
+            fi
+        done
+    fi
+
+    log INFO "Building multi-arch image with tags: $all_tags ($platforms)"
     log DEBUG "Docker build command: docker buildx build ${build_args[*]}"
 
     # Execute build
@@ -773,10 +941,10 @@ build_image() {
         return 1
     fi
 
-    log SUCCESS "Built multi-arch image: $primary_tag ($platforms)"
+    log SUCCESS "Built multi-arch image with tags: $all_tags ($platforms)"
 
     if [[ "$PUSH_IMAGES" == true ]]; then
-        log SUCCESS "Pushed multi-arch image: $primary_tag"
+        log SUCCESS "Pushed multi-arch image with tags: $all_tags"
     fi
 
     return 0
@@ -822,11 +990,15 @@ FAILED_BUILDS=()
 
 # Process each build target
 for target in "${BUILD_TARGETS[@]}"; do
-    IFS=':' read -r os distribution architectures template source <<< "$target"
+    IFS=':' read -r os distribution architectures template source additional_tags <<< "$target"
 
     log INFO ""
     log INFO "=========================================="
-    log INFO "Processing: $VERSION ($os/$distribution [$architectures])"
+    if [[ -n "$additional_tags" ]]; then
+        log INFO "Processing: $VERSION ($os/$distribution [$architectures]) +tags: $additional_tags"
+    else
+        log INFO "Processing: $VERSION ($os/$distribution [$architectures])"
+    fi
     log INFO "=========================================="
 
     # Generate/find config (config is per distribution, not per architecture)
@@ -846,7 +1018,7 @@ for target in "${BUILD_TARGETS[@]}"; do
     fi
 
     # Build multi-arch image
-    if build_image "$build_dir" "$VERSION" "$os" "$distribution" "$architectures"; then
+    if build_image "$build_dir" "$VERSION" "$os" "$distribution" "$architectures" "$additional_tags"; then
         SUCCESSFUL_BUILDS+=("$target")
         log SUCCESS "Build completed: $target"
     else
@@ -870,8 +1042,12 @@ if [[ ${#SUCCESSFUL_BUILDS[@]} -gt 0 ]]; then
     log INFO ""
     log INFO "Successful builds:"
     for build in "${SUCCESSFUL_BUILDS[@]}"; do
-        IFS=':' read -r os distribution architectures template source <<< "$build"
-        log SUCCESS "  ✓ $VERSION ($os/$distribution [$architectures])"
+        IFS=':' read -r os distribution architectures template source additional_tags <<< "$build"
+        if [[ -n "$additional_tags" ]]; then
+            log SUCCESS "  ✓ $VERSION ($os/$distribution [$architectures]) +tags: $additional_tags"
+        else
+            log SUCCESS "  ✓ $VERSION ($os/$distribution [$architectures])"
+        fi
     done
 fi
 
@@ -879,7 +1055,7 @@ if [[ ${#FAILED_BUILDS[@]} -gt 0 ]]; then
     log INFO ""
     log ERROR "Failed builds:"
     for build in "${FAILED_BUILDS[@]}"; do
-        IFS=':' read -r os distribution architectures template source reason <<< "$build"
+        IFS=':' read -r os distribution architectures template source additional_tags reason <<< "$build"
         log ERROR "  ✗ $VERSION ($os/$distribution [$architectures]) - $reason"
     done
 fi
