@@ -122,6 +122,41 @@ class DockerfileGenerator:
     def _build_packages_without_ca(self, packages: List[str]) -> List[str]:
         return [pkg for pkg in packages if pkg != 'ca-certificates']
 
+    def _convert_yaml_menuselect_to_commands(self, menuselect_config: Dict[str, Any]) -> List[str]:
+        """Convert YAML menuselect configuration to command strings"""
+        commands = []
+
+        # Standard menuselect options
+        commands.append("menuselect/menuselect --disable BUILD_NATIVE menuselect.makeopts")
+        commands.append("menuselect/menuselect --enable BETTER_BACKTRACES menuselect.makeopts")
+
+        # Disable sound/music categories
+        commands.append("menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS menuselect.makeopts")
+        commands.append("menuselect/menuselect --disable-category MENUSELECT_MOH menuselect.makeopts")
+        commands.append("menuselect/menuselect --disable-category MENUSELECT_EXTRA_SOUNDS menuselect.makeopts")
+
+        # Enable applications (support both 'apps' and 'enable_apps' keys)
+        for app in menuselect_config.get('apps', menuselect_config.get('enable_apps', [])):
+            commands.append(f"menuselect/menuselect --enable {app} menuselect.makeopts")
+
+        # Enable channels (support both 'channels' and 'enable_channels' keys)
+        for chan in menuselect_config.get('channels', menuselect_config.get('enable_channels', [])):
+            commands.append(f"menuselect/menuselect --enable {chan} menuselect.makeopts")
+
+        # Enable resources/drivers (support both 'drivers' and 'enable_resources' keys)
+        for res in menuselect_config.get('drivers', menuselect_config.get('enable_resources', [])):
+            commands.append(f"menuselect/menuselect --enable {res} menuselect.makeopts")
+
+        # Disable specified modules
+        for mod in menuselect_config.get('disable_modules', []):
+            commands.append(f"menuselect/menuselect --disable {mod} menuselect.makeopts")
+
+        # Handle exclude list (from old format)
+        for mod in menuselect_config.get('exclude', []):
+            commands.append(f"menuselect/menuselect --disable {mod} menuselect.makeopts")
+
+        return commands
+
     def _format_dockerfile(self, dockerfile_content: str) -> str:
         """Format Dockerfile content using dockerfmt"""
         try:
@@ -206,10 +241,18 @@ class DockerfileGenerator:
                 runtime_packages = stages.get("runtime", {}).get("packages", [])
                 build_packages = builder_packages
 
-            # Generate menuselect configuration
-            menuselect_generator = MenuSelectGenerator(version)
-            menuselect_config = menuselect_generator.generate_config(features)
-            menuselect_commands = menuselect_generator.generate_menuselect_commands(menuselect_config)
+            # Generate menuselect commands
+            # Priority: Use YAML menuselect config if available, otherwise generate from features
+            yaml_menuselect = asterisk_config.get("menuselect", {})
+            if yaml_menuselect and any(yaml_menuselect.get(k) for k in ['apps', 'channels', 'drivers', 'enable_apps', 'enable_channels', 'enable_resources']):
+                # Use YAML-based menuselect configuration
+                menuselect_commands = self._convert_yaml_menuselect_to_commands(yaml_menuselect)
+                menuselect_config = None  # Not needed when using YAML directly
+            else:
+                # Fall back to MenuSelectGenerator for legacy configs
+                menuselect_generator = MenuSelectGenerator(version)
+                menuselect_config = menuselect_generator.generate_config(features)
+                menuselect_commands = menuselect_generator.generate_menuselect_commands(menuselect_config)
 
             # Get configure options from config
             configure_options = asterisk_config.get("menuselect", {}).get("configure_options", [])

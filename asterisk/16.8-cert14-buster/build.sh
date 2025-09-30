@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk build script
-# Generated from template for 17.9.4
+# Generated from template for 16.8-cert14
 # Contains menuselect configuration and build commands
 
 set -euo pipefail
@@ -23,7 +23,7 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-log "Starting Asterisk 17.9.4 build process..."
+log "Starting Asterisk 16.8-cert14 build process..."
 
 # Set build parallelization (use Docker ARG or default)
 NPROC=$(nproc)
@@ -104,4 +104,4 @@ log "Stripping binaries to reduce image size..."
 find /usr/sbin /usr/lib/asterisk -type f -executable \
     -exec strip --strip-unneeded {} + 2>/dev/null || true
 
-log "Asterisk 17.9.4 build completed successfully!"
+log "Asterisk 16.8-cert14 build completed successfully!"

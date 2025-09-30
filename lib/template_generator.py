@@ -221,6 +221,55 @@ class DRYTemplateGenerator:
 
         return addons_mapping.get(major_version, asterisk_version)
 
+    def _apply_version_overrides(self, config: Dict[str, Any], version: str) -> Dict[str, Any]:
+        """Apply version-specific overrides to configuration"""
+        import re
+
+        # Parse version to determine major version
+        if version == 'git' or version.startswith('git-'):
+            major = 99  # Treat git as latest
+        else:
+            base_version = version.split('-cert')[0]
+            match = re.match(r'^(\d+)\.(\d+)', base_version)
+            if match:
+                major = int(match.group(1))
+            else:
+                return config  # Can't parse, skip overrides
+
+        # Only apply overrides to modern versions (12+)
+        if major < 12:
+            return config
+
+        # Ensure asterisk.menuselect structure exists
+        if "asterisk" not in config:
+            config["asterisk"] = {}
+        if "menuselect" not in config["asterisk"]:
+            config["asterisk"]["menuselect"] = {}
+        if "channels" not in config["asterisk"]["menuselect"]:
+            config["asterisk"]["menuselect"]["channels"] = []
+        if "exclude" not in config["asterisk"]["menuselect"]:
+            config["asterisk"]["menuselect"]["exclude"] = []
+
+        channels = config["asterisk"]["menuselect"]["channels"]
+        exclude = config["asterisk"]["menuselect"]["exclude"]
+
+        # v21+: Explicitly disable chan_sip (removed from Asterisk)
+        if major >= 21:
+            if "chan_sip" not in exclude:
+                exclude.append("chan_sip")
+
+        # v23+ and git: Add chan_websocket (mandatory)
+        if major >= 23:
+            if "chan_websocket" not in channels:
+                channels.append("chan_websocket")
+
+            # Update websockets feature flag
+            if "features" not in config:
+                config["features"] = {}
+            config["features"]["websockets"] = True
+
+        return config
+
     def generate_config(self, version: str, distribution: str = None, variant: str = None) -> Dict[str, Any]:
         """Generate complete configuration using DRY template system"""
 
@@ -266,6 +315,9 @@ class DRYTemplateGenerator:
 
         # Substitute variables
         config = self._substitute_variables(config, context)
+
+        # Apply version-specific overrides
+        config = self._apply_version_overrides(config, version)
 
         return config
 

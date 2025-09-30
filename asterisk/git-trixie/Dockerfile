@@ -1,5 +1,5 @@
 # Git-based Development Asterisk Docker build
-# Asterisk git-ff80666 on Debian trixie
+# Asterisk git-None on Debian trixie
 # Generated from YAML configuration - DO NOT EDIT MANUALLY
 
 # ==============================================================================
@@ -9,12 +9,12 @@ FROM debian:trixie AS asterisk-builder
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Builder (Git Development)"
-LABEL org.opencontainers.image.description="Build stage for Asterisk git-ff80666"
-LABEL org.opencontainers.image.version="git-ff80666"
+LABEL org.opencontainers.image.description="Build stage for Asterisk git-unknown"
+LABEL org.opencontainers.image.version="git-unknown"
 LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
 
 # Build arguments
-ARG GIT_SHA=ff80666
+ARG GIT_SHA=unknown
 ARG JOBS=8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder-$TARGETARC
     apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && apt-get install -y --no-install-recommends \
-        build-essential \autoconf \binutils-dev \curl \file \git \libcurl4-openssl-dev \libedit-dev \libgsm1-dev \libicu-dev \libjansson-dev \libncurses-dev \libogg-dev \libpopt-dev \libpqxx-dev \libresample1-dev \libspandsp-dev \libspeex-dev \libspeexdsp-dev \libsqlite3-dev \libssl-dev \libsrtp2-dev \libtool \libvorbis-dev \libxml2-dev \libxslt1-dev \make \odbcinst \patch \pkg-config \portaudio19-dev \procps \python3-dev \unixodbc \unixodbc-dev \uuid \uuid-dev \xmlstarlet \
+        build-essential \autoconf \binutils-dev \curl \file \libcurl4-openssl-dev \libedit-dev \libgsm1-dev \libicu-dev \libjansson-dev \libncurses-dev \libogg-dev \libpopt-dev \libpqxx-dev \libresample1-dev \libspandsp-dev \libspeex-dev \libspeexdsp-dev \libsqlite3-dev \libssl-dev \libtool \libvorbis-dev \libxml2-dev \libxslt1-dev \make \odbcinst \patch \pkg-config \portaudio19-dev \procps \python3-dev \unixodbc \unixodbc-dev \uuid \uuid-dev \xmlstarlet \libsrtp2-dev \git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -73,12 +73,12 @@ FROM debian:trixie AS asterisk-runtime
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX (Git Development)"
-LABEL org.opencontainers.image.description="Asterisk git-ff80666 on Debian trixie"
-LABEL org.opencontainers.image.version="git-ff80666"
+LABEL org.opencontainers.image.description="Asterisk git-unknown on Debian trixie"
+LABEL org.opencontainers.image.version="git-unknown"
 LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
 
 # Runtime environment
-ARG GIT_SHA=ff80666
+ARG GIT_SHA=unknown
 ARG TARGETARCH
 ENV GIT_SHA=${GIT_SHA}
 
@@ -87,7 +87,7 @@ ENV GIT_SHA=${GIT_SHA}
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        binutils \curl \libcurl4t64 \libedit2 \libgsm1 \libicu76 \libjansson4 \libncurses6 \libogg0 \libpopt0 \libpqxx-7.10 \libresample1 \libspandsp2t64 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libssl3t64 \libsrtp2-1 \libvorbis0a \libxml2 \libxslt1.1 \odbcinst \procps \python3 \unixodbc \uuid \
+        binutils \curl \libedit2 \libgsm1 \libjansson4 \libogg0 \libpopt0 \libresample1 \libspandsp2 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxml2 \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu76 \libspandsp2t64 \
     && apt-get clean
 
 # Create asterisk user and required directories

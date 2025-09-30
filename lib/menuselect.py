@@ -225,6 +225,10 @@ class MenuSelectGenerator:
         """Check if version supports WebSocket channels (23+, mandatory)"""
         return self.major >= 23
 
+    def _version_requires_pjsip_only(self) -> bool:
+        """Check if version requires PJSIP only - chan_sip removed (21+)"""
+        return self.major >= 21
+
     def _version_supports_ari(self) -> bool:
         """Check if version supports ARI (12+)"""
         return self.major >= 12
@@ -236,15 +240,24 @@ class MenuSelectGenerator:
         enable_modules = []
         disable_modules = list(self.EXCLUDE_MODULES)
 
-        # Channel modules
+        # Channel modules - version-specific selection
         if self.is_legacy:
+            # v1.2-v1.8: Legacy SIP only
             enable_modules.extend(self.CHANNEL_MODULES["legacy"])
+        elif self._version_requires_pjsip_only():
+            # v21+: PJSIP only, explicitly disable chan_sip
+            enable_modules.extend([m for m in self.CHANNEL_MODULES["modern"] if m != "chan_websocket"])
+            disable_modules.append("chan_sip")
+        elif self._version_supports_pjsip():
+            # v12-v20: Both PJSIP and SIP available
+            enable_modules.extend([m for m in self.CHANNEL_MODULES["modern"] if m != "chan_websocket"])
         else:
-            enable_modules.extend(self.CHANNEL_MODULES["modern"])
+            # v10-v11: SIP only (transitional period before PJSIP)
+            enable_modules.extend(self.CHANNEL_MODULES["legacy"])
 
-        # Remove WebSocket channels if not supported
-        if not self._version_supports_websocket():
-            enable_modules = [m for m in enable_modules if m != "chan_websocket"]
+        # Add WebSocket channels for v23+ (mandatory)
+        if self._version_supports_websocket():
+            enable_modules.append("chan_websocket")
 
         # Application modules
         enable_modules.extend(self.APPLICATION_MODULES["core"])

@@ -121,11 +121,12 @@ latest_builds:
           - "amd64"
 
   - version: "18.9-cert17"
-    os_matrix:
-      - os: "debian"
-        distribution: "bookworm"
-        architectures:
-          - "amd64"
+    # # Disabled build, having issues with
+    # os_matrix:
+    #   - os: "debian"
+    #     distribution: "bookworm"
+    #     architectures:
+    #       - "amd64"
 
   - version: "19.8.1"
     os_matrix:

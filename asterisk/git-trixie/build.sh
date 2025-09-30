@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk build script
-# Generated from template for 17.9.4
+# Generated from template for git
 # Contains menuselect configuration and build commands
 
 set -euo pipefail
@@ -23,7 +23,7 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-log "Starting Asterisk 17.9.4 build process..."
+log "Starting Asterisk git build process..."
 
 # Set build parallelization (use Docker ARG or default)
 NPROC=$(nproc)
@@ -70,6 +70,7 @@ menuselect/menuselect --enable chan_pjsip menuselect.makeopts || warn "Module no
 menuselect/menuselect --enable chan_iax2 menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_iax2 menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --enable chan_local menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_local menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --enable chan_bridge_media menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_bridge_media menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
+menuselect/menuselect --enable chan_websocket menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable chan_websocket menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 
 # Enable resource modules
 menuselect/menuselect --enable res_musiconhold menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --enable res_musiconhold menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
@@ -85,6 +86,7 @@ menuselect/menuselect --enable res_crypto menuselect.makeopts || warn "Module no
 menuselect/menuselect --disable chan_dahdi menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --disable chan_dahdi menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --disable chan_misdn menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --disable chan_misdn menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 menuselect/menuselect --disable app_festival menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --disable app_festival menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
+menuselect/menuselect --disable chan_sip menuselect.makeopts || warn "Module not found: $(echo 'menuselect/menuselect --disable chan_sip menuselect.makeopts' | grep -o '[a-z_]*' | tail -1)"
 
 
 log "Module configuration completed"
@@ -104,4 +106,4 @@ log "Stripping binaries to reduce image size..."
 find /usr/sbin /usr/lib/asterisk -type f -executable \
     -exec strip --strip-unneeded {} + 2>/dev/null || true
 
-log "Asterisk 17.9.4 build completed successfully!"
+log "Asterisk git build completed successfully!"

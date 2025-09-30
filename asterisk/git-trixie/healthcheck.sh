@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk health check script
-# Generated from template for 18.26.4
+# Generated from template for git
 
 set -euo pipefail
 

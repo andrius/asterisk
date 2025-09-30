@@ -480,11 +480,6 @@ for target in "${BUILD_TARGETS[@]}"; do
     log INFO "  → $os/$distribution ($architectures)$template_info$tags_info [from: $source]"
 done
 
-if [[ "$DRY_RUN" == true ]]; then
-    log INFO "DRY RUN - Would build ${#BUILD_TARGETS[@]} targets"
-    exit 0
-fi
-
 # Function to ensure generated config exists
 ensure_config() {
     local version="$1"
@@ -523,30 +518,27 @@ ensure_config() {
         # Ensure configs/generated directory exists
         mkdir -p "${PROJECT_DIR}/configs/generated"
 
-        # Generate git config using the git-dev template
+        # Generate git config using DRYTemplateGenerator for proper version overrides
         if ! python3 -c "
 import sys
 import os
+sys.path.insert(0, os.path.join('${PROJECT_DIR}', 'lib'))
+
+from template_generator import DRYTemplateGenerator
 import yaml
-from jinja2 import Environment, FileSystemLoader
 
-# Read git-dev template
-template_path = '${PROJECT_DIR}/templates/variants/git-dev.yml.template'
-try:
-    with open(template_path, 'r') as f:
-        template_content = f.read()
-except FileNotFoundError:
-    print(f'Error: Git template not found: {template_path}', file=sys.stderr)
-    sys.exit(1)
+# Initialize generator
+generator = DRYTemplateGenerator('${PROJECT_DIR}/templates')
 
-# Replace template variables
-config_content = template_content.replace('{{VERSION}}', '${version}')
-config_content = config_content.replace('{{DISTRIBUTION}}', '${distribution}')
-config_content = config_content.replace('{{GIT_SHA}}', '${GIT_SHA}')
+# Generate config with version overrides
+config = generator.generate_config('${version}', '${distribution}', 'git-dev')
 
-# Write config file
-with open('${generated_config}', 'w') as f:
-    f.write(config_content)
+# Add git-specific metadata
+config['asterisk']['source']['git_sha'] = '${GIT_SHA}'
+config['asterisk']['source']['git_ref'] = 'master'
+
+# Save config
+generator.save_config(config, '${generated_config}')
 
 print('Git config generated successfully')
 " >&2; then
@@ -1046,6 +1038,13 @@ for target in "${BUILD_TARGETS[@]}"; do
     if [[ $? -ne 0 ]]; then
         log ERROR "Failed to generate Dockerfile for $target"
         FAILED_BUILDS+=("$target:dockerfile_generation")
+        continue
+    fi
+
+    # Skip Docker build in dry-run mode (but files are already generated)
+    if [[ "$DRY_RUN" == true ]]; then
+        log INFO "DRY RUN - Skipping Docker build for $target (files generated in $build_dir)"
+        SUCCESSFUL_BUILDS+=("$target")
         continue
     fi
 

@@ -135,7 +135,6 @@ asterisk:
 
 docker:
   tags:
-    - "testing-{{GIT_SHA}}"
     - "testing"
   registry: "docker.io"
   repository: "asterisk"

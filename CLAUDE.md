@@ -75,6 +75,21 @@ scripts/build-asterisk.sh
 - 1.8.x-11.x → `asterisk10` (pre-PJSIP transitional)
 - 12.x+ → `modern` (PJSIP, WebRTC, ARI)
 
+**Version-Specific Override System** (lib/template_generator.py:224):
+
+The `_apply_version_overrides()` method automatically enforces version-specific module requirements:
+
+- **v21+ enforcement**: Adds `chan_sip` to exclude list (removed per https://www.asterisk.org/asterisk-21-module-removal/)
+- **v23+/git enforcement**: Adds `chan_websocket` to channels list + sets `websockets: true` feature flag
+- **Integration point**: Called at line 270 in `generate_config()` after template merge
+- **Scope**: Applies to all modern versions (12+), legacy versions (1.2-11.x) skip overrides
+- **Automatic application**: Works for ANY config generation:
+  - `./scripts/regenerate-all-configs.sh` → applies to all 24 versions
+  - `./scripts/build-asterisk.sh VERSION --force-config` → applies to specific version
+  - Git config generation in build-asterisk.sh (lines 521-547)
+
+This ensures build scripts are version-specific and compliant with Asterisk requirements, automatically generating unique menuselect commands per version.
+
 ### GitHub Actions Integration
 
 **Per-Release Branch Strategy**:

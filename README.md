@@ -111,6 +111,7 @@ When building, both version-specific tags (`22.5.2_debian-trixie`) and semantic 
 
 - **DRY Template System**
 - **Automatic Variant Detection**: Smart selection based on Asterisk version patterns
+- **Version-Specific Module Selection**: Automatic enforcement of chan_sip removal (v21+) and chan_websocket inclusion (v23+)
 - **Multi-Stage Builds**: Optimized images (unpacked image size is about 232MB)
 - **Daily Release Discovery**: Automated detection and configuration of new Asterisk releases
 - **Comprehensive Support**: All Asterisk versions from 1.2.x through 23.x with appropriate OS distributions
@@ -152,6 +153,33 @@ templates/
 | 1.2.x - 1.6.x | `legacy-addons` | Separate addons, chan_sip only    |
 | 1.8.x - 11.x  | `asterisk10`    | Pre-PJSIP, chan_sip, transitional |
 | 12.x+         | `modern`        | PJSIP, WebRTC, ARI, full features |
+
+### Version-Specific Requirements
+
+The build system automatically enforces version-specific module requirements during configuration generation (see `lib/template_generator.py:224` - `_apply_version_overrides()` method):
+
+**Asterisk 21+ (PJSIP-only requirement)**:
+- Automatically adds `chan_sip` to the exclude list
+- As per [official deprecation](https://www.asterisk.org/asterisk-21-module-removal/), chan_sip was removed in Asterisk 21
+- Only `chan_pjsip` is available for SIP communications
+- Example: `asterisk/21.10.2-trixie/build.sh:88` contains `menuselect --disable chan_sip`
+
+**Asterisk 23+ and git (WebSocket requirement)**:
+- Automatically adds `chan_websocket` to the channels list
+- Sets `features.websockets = true` in configuration
+- Includes full WebSocket stack: `chan_websocket`, `res_http_websocket`, `res_pjsip_transport_websocket`
+- Example: `asterisk/23.0.0-rc2-trixie/build.sh:73` contains `menuselect --enable chan_websocket`
+
+These overrides are applied automatically during ANY config generation:
+- `./scripts/regenerate-all-configs.sh` - applies to all 24 versions
+- `./scripts/build-asterisk.sh VERSION --force-config` - applies to specific version
+- Configuration happens at template merge time (before Dockerfile generation)
+
+**Implementation Details**:
+- Only applies to modern versions (Asterisk 12+)
+- Git builds treated as latest (version 99 for comparison)
+- Integrates seamlessly with DRY template system
+- Preserves user customizations in templates while enforcing mandatory requirements
 
 ### Project Structure
 

@@ -1,20 +1,20 @@
 # Multi-stage optimized Asterisk Docker build
-# Asterisk 18.9-cert17 on Debian trixie
+# Asterisk 16.8-cert14 on Debian buster
 # Generated from YAML configuration - DO NOT EDIT MANUALLY
 
 # ==============================================================================
 # STAGE 1: Build Environment
 # ==============================================================================
-FROM debian:trixie AS asterisk-builder
+FROM debian/eol:buster AS asterisk-builder
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Builder"
-LABEL org.opencontainers.image.description="Build stage for Asterisk 18.9-cert17"
-LABEL org.opencontainers.image.version="18.9-cert17"
+LABEL org.opencontainers.image.description="Build stage for Asterisk 16.8-cert14"
+LABEL org.opencontainers.image.version="16.8-cert14"
 LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
 
 # Build arguments
-ARG ASTERISK_VERSION=18.9-cert17
+ARG ASTERISK_VERSION=16.8-cert14
 ARG JOBS=8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
@@ -49,7 +49,7 @@ RUN apt-get update \
 WORKDIR /usr/src/asterisk
 
 # Download and extract Asterisk source
-RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-18.9-cert17.tar.gz \
+RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-16.8-cert14.tar.gz \
     | tar --strip-components=1 -xz
 
 
@@ -70,11 +70,11 @@ RUN chmod +x build.sh && ./build.sh
 # ==============================================================================
 # STAGE 2: Runtime Environment
 # ==============================================================================
-FROM debian:trixie AS asterisk-runtime
+FROM debian/eol:buster AS asterisk-runtime
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Runtime"
-LABEL org.opencontainers.image.description="Runtime environment for Asterisk 18.9-cert17"
+LABEL org.opencontainers.image.description="Runtime environment for Asterisk 16.8-cert14"
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
@@ -85,8 +85,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         binutils curl libedit2 libgsm1 libjansson4 libogg0 libpopt0 libresample1 \
         libspandsp2 libspeex1 libspeexdsp1 libsqlite3-0 libvorbis0a libxml2 \
-        libxslt1.1 odbcinst portaudio19-dev procps python3 unixodbc uuid libcurl4t64 \
-        libssl3t64 libsrtp2-1 libncurses6 libpqxx-7.10 libicu76 \
+        libxslt1.1 odbcinst portaudio19-dev procps python3 unixodbc uuid libcurl4 \
+        libssl1.1 libsrtp2-1 libncurses6 libpqxx-6.2 libicu63 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -114,8 +114,8 @@ FROM asterisk-runtime AS asterisk-production
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX"
-LABEL org.opencontainers.image.description="Production Asterisk PBX 18.9-cert17"
-LABEL org.opencontainers.image.version="18.9-cert17"
+LABEL org.opencontainers.image.description="Production Asterisk PBX 16.8-cert14"
+LABEL org.opencontainers.image.version="16.8-cert14"
 LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
 LABEL org.opencontainers.image.vendor="Andrius Kairiukstis <k@andrius.mobi>"
 
@@ -150,7 +150,7 @@ RUN asterisk -V || (echo "Error: Unable to run asterisk -V" && exit 1)
 # EXPOSE 10000-10099/udp
 
 # Define volumes for persistent data
-VOLUME ["/var/lib/asterisk/sounds", "/var/lib/asterisk/keys", "/var/lib/asterisk/phoneprov", "/var/spool/asterisk", "/var/log/asterisk", "/etc/asterisk"]
+VOLUME ["/etc/asterisk", "/var/lib/asterisk", "/var/log/asterisk", "/var/spool/asterisk"]
 
 # Add health check
 HEALTHCHECK --interval=30s \

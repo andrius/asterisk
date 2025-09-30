@@ -21,6 +21,7 @@ asterisk:
     - chan_iax2
     - chan_local
     - chan_bridge_media
+    - chan_websocket
     drivers:
     - res_musiconhold
     - res_pjsip
@@ -34,6 +35,7 @@ asterisk:
     - chan_dahdi
     - chan_misdn
     - app_festival
+    - chan_sip
   opus_codec: null
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
@@ -68,7 +70,7 @@ features:
   pjsip: true
   recordings: true
   tls: true
-  websockets: false
+  websockets: true
 packages:
   build:
   - build-essential
