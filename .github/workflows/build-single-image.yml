@@ -86,7 +86,6 @@ jobs:
       platform_count: ${{ steps.prepare-matrix.outputs.platform_count }}
       base_tags: ${{ steps.meta.outputs.base_tags }}
       final_tags: ${{ steps.meta.outputs.final_tags }}
-      temp_tag_prefix: ${{ steps.meta.outputs.temp_tag_prefix }}
 
     steps:
       - name: Checkout repository
@@ -100,6 +99,24 @@ jobs:
           echo "Additional Tags: ${{ inputs.additional_tags }}"
           echo "Push: ${{ inputs.push }}"
           echo "Registry: ${{ inputs.registry }}"
+
+      - name: Validate architectures
+        run: |
+          ARCHITECTURES="${{ inputs.architectures }}"
+          echo "Validating architectures: $ARCHITECTURES"
+
+          IFS=',' read -ra ARCH_ARRAY <<< "$ARCHITECTURES"
+          for arch in "${ARCH_ARRAY[@]}"; do
+            arch=$(echo "$arch" | xargs)  # trim whitespace
+            if [[ "$arch" != "amd64" && "$arch" != "arm64" ]]; then
+              echo "❌ ERROR: Unsupported architecture: $arch"
+              echo ""
+              echo "Only amd64 and arm64 are supported."
+              echo "Provided: $ARCHITECTURES"
+              exit 1
+            fi
+          done
+          echo "✅ All architectures valid"
 
       - name: Determine branch and tag suffix
         id: branch-info
@@ -160,6 +177,71 @@ jobs:
           username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || vars.DOCKER_USERNAME }}
           password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
 
+      - name: Prepare platforms matrix
+        id: prepare-matrix
+        run: |
+          ARCHITECTURES="${{ inputs.architectures }}"
+          echo "Input architectures: $ARCHITECTURES"
+
+          # Create matrix with platform-runner mapping using Python
+          python3 -c "
+          import json
+          import os
+
+          architectures = '$ARCHITECTURES'.split(',')
+          matrix_include = []
+
+          for arch in architectures:
+              arch = arch.strip()
+              if arch:
+                  platform = f'linux/{arch}'
+
+                  # Map platform to native runner
+                  if arch == 'amd64':
+                      runner = 'ubuntu-latest'
+                  elif arch == 'arm64':
+                      runner = 'ubuntu-24.04-arm'
+                  else:
+                      runner = 'ubuntu-latest'  # Fallback
+
+                  matrix_include.append({
+                      'platform': platform,
+                      'runner': runner
+                  })
+
+          platforms_matrix = {'include': matrix_include}
+          platform_count = len(matrix_include)
+          is_multi_platform = 'true' if platform_count > 1 else 'false'
+
+          print(f'platforms_matrix={json.dumps(platforms_matrix)}')
+          print(f'is_multi_platform={is_multi_platform}')
+          print(f'platform_count={platform_count}')
+
+          print(f'Generated matrix: {json.dumps(platforms_matrix)}', file=os.sys.stderr)
+          print(f'Multi-platform build: {is_multi_platform}', file=os.sys.stderr)
+          print(f'Platform count: {platform_count}', file=os.sys.stderr)
+          " | tee -a $GITHUB_OUTPUT
+
+      - name: Validate multi-platform requirements
+        if: steps.prepare-matrix.outputs.is_multi_platform == 'true'
+        run: |
+          if [[ "${{ inputs.push }}" != "true" ]]; then
+            echo "❌ ERROR: Multi-platform builds require push=true"
+            echo ""
+            echo "Docker's push-by-digest strategy requires pushing images to registry"
+            echo "to create multi-platform manifests with 'docker buildx imagetools create'"
+            echo ""
+            echo "Options:"
+            echo "1. Set push=true to enable multi-platform build"
+            echo "2. Use single architecture (e.g., architectures=amd64) for local builds"
+            echo ""
+            echo "Current settings:"
+            echo "- Architectures: ${{ inputs.architectures }}"
+            echo "- Push: ${{ inputs.push }}"
+            exit 1
+          fi
+          echo "✅ Multi-platform validation passed - push enabled"
+
       - name: Extract metadata and prepare tags
         id: meta
         working-directory: .
@@ -185,33 +267,34 @@ jobs:
           with open(config_file, 'r') as f:
               config = yaml.safe_load(f)
 
-          # Generate base tags (without architecture suffix)
+          # Generate base tags (without architecture suffix) using set for deduplication
+          base_tags_set = set()
           primary_tag = f\"{version}_{config['base']['os']}-{distribution}{tag_suffix}\"
           sha_tag = f\"{version}_{config['base']['os']}-{distribution}-{short_sha}{tag_suffix}\"
-          base_tags = [primary_tag, sha_tag]
+          base_tags_set.add(primary_tag)
+          base_tags_set.add(sha_tag)
 
           # Add additional tags from inputs (highest priority)
           if additional_tags:
               for tag in additional_tags.split(','):
                   tag = tag.strip()
                   if tag:
-                      base_tags.append(f\"{tag}{tag_suffix}\")
+                      base_tags_set.add(f\"{tag}{tag_suffix}\")
 
           # Add tags from config file (lower priority)
           if 'docker' in config and 'tags' in config['docker']:
               for tag in config['docker']['tags'][:3]:
                   if tag != f\"{version}_{config['base']['os']}-{distribution}\":
-                      base_tags.append(f\"{tag}{tag_suffix}\")
+                      base_tags_set.add(f\"{tag}{tag_suffix}\")
+
+          # Convert to sorted list for consistent output
+          base_tags = sorted(list(base_tags_set))
 
           # Generate final tags with registry prefix
           final_tags = [f\"{registry}:{tag}\" for tag in base_tags]
 
-          # Generate unique temp tag prefix for multi-platform builds
-          temp_prefix = f\"{registry}:temp-{short_sha}\"
-
           print(f\"base_tags={','.join(base_tags)}\")
           print(f\"final_tags={','.join(final_tags)}\")
-          print(f\"temp_tag_prefix={temp_prefix}\")
           print(f\"version={version}\")
           print(f\"description=Asterisk {version} on {config['base']['os'].title()} {config['base']['distribution']}\")
           print(f\"os_type={config['base']['os']}\")
@@ -293,70 +376,16 @@ jobs:
           chmod +x healthcheck.sh
           echo "✅ Generated healthcheck script"
 
-      - name: Prepare platforms matrix
-        id: prepare-matrix
-        run: |
-          ARCHITECTURES="${{ inputs.architectures }}"
-          echo "Input architectures: $ARCHITECTURES"
-
-          # Create matrix with platform-runner mapping using Python
-          python3 -c "
-          import json
-          import os
-
-          architectures = '$ARCHITECTURES'.split(',')
-          matrix_include = []
-
-          for arch in architectures:
-              arch = arch.strip()
-              if arch:
-                  platform = f'linux/{arch}'
-
-                  # Map platform to native runner
-                  if arch == 'amd64':
-                      runner = 'ubuntu-latest'
-                  elif arch == 'arm64':
-                      runner = 'ubuntu-24.04-arm'
-                  else:
-                      runner = 'ubuntu-latest'  # Fallback
-
-                  matrix_include.append({
-                      'platform': platform,
-                      'runner': runner
-                  })
-
-          platforms_matrix = {'include': matrix_include}
-          platform_count = len(matrix_include)
-          is_multi_platform = 'true' if platform_count > 1 else 'false'
-
-          print(f'platforms_matrix={json.dumps(platforms_matrix)}')
-          print(f'is_multi_platform={is_multi_platform}')
-          print(f'platform_count={platform_count}')
-
-          print(f'Generated matrix: {json.dumps(platforms_matrix)}', file=os.sys.stderr)
-          print(f'Multi-platform build: {is_multi_platform}', file=os.sys.stderr)
-          print(f'Platform count: {platform_count}', file=os.sys.stderr)
-          " | tee -a $GITHUB_OUTPUT
-
-      - name: Validate multi-platform requirements
-        if: steps.prepare-matrix.outputs.is_multi_platform == 'true'
-        run: |
-          if [[ "${{ inputs.push }}" != "true" ]]; then
-            echo "❌ ERROR: Multi-platform builds require push=true"
-            echo ""
-            echo "Docker's push-by-digest strategy requires pushing images to registry"
-            echo "to create multi-platform manifests with 'docker buildx imagetools create'"
-            echo ""
-            echo "Options:"
-            echo "1. Set push=true to enable multi-platform build"
-            echo "2. Use single architecture (e.g., architectures=amd64) for local builds"
-            echo ""
-            echo "Current settings:"
-            echo "- Architectures: ${{ inputs.architectures }}"
-            echo "- Push: ${{ inputs.push }}"
-            exit 1
-          fi
-          echo "✅ Multi-platform validation passed - push enabled"
+      - name: Upload generated files
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files-${{ inputs.version }}-${{ inputs.distribution }}
+          path: |
+            Dockerfile
+            build.sh
+            healthcheck.sh
+          retention-days: 1
+          if-no-files-found: error
 
   build:
     name: "Platform ${{ matrix.platform }}"
@@ -366,7 +395,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate-and-prepare.outputs.platforms_matrix) }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 150
+    timeout-minutes: 180
 
     steps:
       - name: Checkout repository
@@ -392,52 +421,17 @@ jobs:
           username: ${{ startsWith(inputs.registry, 'ghcr.io') && github.actor || vars.DOCKER_USERNAME }}
           password: ${{ startsWith(inputs.registry, 'ghcr.io') && secrets.GITHUB_TOKEN || secrets.DOCKER_PASSWORD }}
 
-      - name: Generate Dockerfile
-        working-directory: .
+      - name: Download generated files
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files-${{ inputs.version }}-${{ inputs.distribution }}
+          path: .
+
+      - name: Verify generated files
         run: |
-          python3 scripts/generate-dockerfile.py \
-            "${{ needs.validate-and-prepare.outputs.config_file }}" \
-            --output "Dockerfile" \
-            --templates-dir "${GITHUB_WORKSPACE}/templates/dockerfile"
-
-          echo "✅ Generated Dockerfile for ${{ matrix.platform }}"
-
-      - name: Generate build and healthcheck scripts
-        working-directory: .
-        run: |
-          # Generate build script
-          python3 -c "
-          import sys
-          import traceback
-          sys.path.insert(0, 'lib')
-          try:
-              from dockerfile_generator import DockerfileGenerator
-              generator = DockerfileGenerator('templates')
-              generator.generate_build_script('${{ needs.validate-and-prepare.outputs.config_file }}', 'build.sh')
-              print('Generated build.sh script')
-          except Exception as e:
-              print(f'Error generating build script: {e}')
-              traceback.print_exc()
-              sys.exit(1)
-          "
-          chmod +x build.sh
-
-          # Generate healthcheck script
-          python3 -c "
-          import yaml
-          from jinja2 import Environment, FileSystemLoader
-          with open('${{ needs.validate-and-prepare.outputs.config_file }}', 'r') as f:
-              config = yaml.safe_load(f)
-          env = Environment(loader=FileSystemLoader('templates/partials'))
-          template = env.get_template('healthcheck.sh.j2')
-          content = template.render(
-              config=config,
-              is_legacy=config.get('metadata', {}).get('tags', []) and 'legacy' in config['metadata']['tags']
-          )
-          with open('healthcheck.sh', 'w') as f:
-              f.write(content)
-          "
-          chmod +x healthcheck.sh
+          ls -la Dockerfile build.sh healthcheck.sh
+          chmod +x build.sh healthcheck.sh
+          echo "✅ Using pre-generated build files for ${{ matrix.platform }}"
 
       - name: Prepare build configuration
         id: build-config
@@ -512,7 +506,11 @@ jobs:
 
   merge:
     needs: [validate-and-prepare, build]
-    if: always() && needs.validate-and-prepare.outputs.is_multi_platform == 'true' && needs.build.result == 'success'
+    if: |
+      !cancelled() &&
+      needs.validate-and-prepare.result == 'success' &&
+      needs.validate-and-prepare.outputs.is_multi_platform == 'true' &&
+      needs.build.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       image_tags: ${{ needs.validate-and-prepare.outputs.final_tags }}
@@ -535,7 +533,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests-${{ inputs.version }}-${{ inputs.distribution }}-*
           merge-multiple: true
 
       - name: Prepare digest list
@@ -565,6 +563,26 @@ jobs:
 
           echo "Complete digest list: $DIGEST_LIST"
           echo "digest_images=$DIGEST_LIST" >> $GITHUB_OUTPUT
+
+      - name: Validate digest count
+        run: |
+          EXPECTED_COUNT="${{ needs.validate-and-prepare.outputs.platform_count }}"
+          DIGEST_LIST="${{ steps.digest-list.outputs.digest_images }}"
+          ACTUAL_COUNT=$(echo "$DIGEST_LIST" | wc -w)
+
+          echo "Expected digests: $EXPECTED_COUNT"
+          echo "Actual digests: $ACTUAL_COUNT"
+
+          if [[ "$ACTUAL_COUNT" != "$EXPECTED_COUNT" ]]; then
+            echo "❌ ERROR: Digest count mismatch!"
+            echo "Expected $EXPECTED_COUNT platform(s), but found $ACTUAL_COUNT digest(s)"
+            echo ""
+            echo "This indicates one or more platform builds failed to upload digests."
+            echo "Check the build job logs for failures."
+            exit 1
+          fi
+
+          echo "✅ All expected digests present"
 
       - name: Create multi-platform manifests
         run: |
