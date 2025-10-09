@@ -2,7 +2,9 @@ name: Build All Asterisk Docker Images (Matrix)
 
 on:
   schedule:
-    - cron: "0 1 * * 1" # Weekly on Monday at 01:00 UTC
+    # Run weekly on Friday at 08:00 UTC
+    - cron: "0 8 * * 5"
+
   workflow_dispatch:
     inputs:
       push:
@@ -41,9 +43,6 @@ on:
           - "buster"
           - "jessie"
           - "stretch"
-
-env:
-  REGISTRY: ${{ inputs.registry || 'andrius/asterisk' }}
 
 jobs:
   validate-branch:
@@ -193,7 +192,9 @@ jobs:
       distribution: ${{ matrix.distribution }}
       architectures: ${{ matrix.architectures }}
       additional_tags: ${{ matrix.additional_tags || '' }}
-      push: ${{ inputs.push }}
+      # Always push on scheduled runs (required for multi-platform builds)
+      # For manual runs, respect user input (default: true)
+      push: ${{ github.event_name == 'schedule' || inputs.push != false }}
       registry: ${{ inputs.registry || 'andrius/asterisk' }}
     secrets: inherit
 
@@ -241,9 +242,9 @@ jobs:
           echo "### Build Information" >> $GITHUB_STEP_SUMMARY
           echo "- 📅 **Build Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
           echo "- 🌿 **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 📋 **Registry**: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🚀 **Push Enabled**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚡ **Max Parallel**: ${{ inputs.max_parallel || '5' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 **Registry**: ${{ inputs.registry || 'andrius/asterisk' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **Push Enabled**: ${{ inputs.push != false }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Max Parallel**: ${{ inputs.max_parallel || '25' }}" >> $GITHUB_STEP_SUMMARY
 
           if [ -n "${{ inputs.filter_version }}" ]; then
             echo "- 🎯 **Version Filter**: ${{ inputs.filter_version }}" >> $GITHUB_STEP_SUMMARY
@@ -297,9 +298,9 @@ jobs:
           # Action items
           echo "### Action Items" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ inputs.push }}" == "true" ]; then
+          if [ "${{ inputs.push != false }}" == "true" ]; then
             if [ "${{ needs.build-matrix.result }}" == "success" ]; then
-              echo "- ✅ Images have been pushed to **${{ env.REGISTRY }}**" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ Images have been pushed to **${{ inputs.registry || 'andrius/asterisk' }}**" >> $GITHUB_STEP_SUMMARY
               echo "- 🔍 Check [Docker Hub](https://hub.docker.com/r/andrius/asterisk/tags) for published images" >> $GITHUB_STEP_SUMMARY
             else
               echo "- ⚠️ Some images may not have been pushed due to build failures" >> $GITHUB_STEP_SUMMARY
