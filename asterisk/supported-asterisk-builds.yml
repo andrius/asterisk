@@ -184,6 +184,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+  - version: "20.16.0"
 metadata:
   generated_at: "2025-09-29T20:27:29Z"
   supported_os:
