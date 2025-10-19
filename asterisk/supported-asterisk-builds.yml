@@ -2,6 +2,16 @@
 # Generated on 2025-09-22 19:44:54 UTC
 
 latest_builds:
+  - version: "git"
+    additional_tags: "testing,git-latest,development"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        template: "git-dev"
+        architectures:
+          - "amd64"
+          - "arm64"
+
   - version: "1.2.40"
     os_matrix:
       - os: "debian"
@@ -174,17 +184,6 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-  - version: "git"
-    additional_tags: "testing,git-latest,development"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        template: "git-dev"
-        architectures:
-          - "amd64"
-          - "arm64"
-
-  - version: "20.16.0"
 metadata:
   generated_at: "2025-09-29T20:27:29Z"
   supported_os:
