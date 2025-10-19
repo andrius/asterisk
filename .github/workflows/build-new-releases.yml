@@ -1,0 +1,235 @@
+name: Build New Asterisk Releases (PR)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'asterisk/supported-asterisk-builds.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-new-releases:
+    runs-on: ubuntu-latest
+    outputs:
+      new_versions: ${{ steps.extract-versions.outputs.new_versions }}
+      has_new_versions: ${{ steps.extract-versions.outputs.has_new_versions }}
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract new versions
+        id: extract-versions
+        run: |
+          echo "🔍 Detecting new Asterisk versions in PR..."
+
+          # Fetch base branch for comparison
+          git fetch origin ${{ github.base_ref }}
+
+          # Get diff of supported-asterisk-builds.yml
+          NEW_VERSIONS=$(git diff origin/${{ github.base_ref }}...HEAD -- asterisk/supported-asterisk-builds.yml | \
+            grep '^+.*version:' | \
+            sed 's/^+.*version: *"\([^"]*\)".*/\1/' | \
+            grep -v '^$' | \
+            tr '\n' ' ' | \
+            sed 's/ $//')
+
+          if [ -z "$NEW_VERSIONS" ]; then
+            echo "has_new_versions=false" >> $GITHUB_OUTPUT
+            echo "new_versions=" >> $GITHUB_OUTPUT
+            echo "📋 No new versions detected in this PR"
+          else
+            echo "has_new_versions=true" >> $GITHUB_OUTPUT
+            echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
+            echo "🎉 New versions detected: $NEW_VERSIONS"
+          fi
+
+      - name: Comment on PR
+        if: steps.extract-versions.outputs.has_new_versions == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newVersions = '${{ steps.extract-versions.outputs.new_versions }}'.split(' ');
+            const body = `## 🎆 New Asterisk Releases Detected
+
+            This PR adds the following new versions:
+            ${newVersions.map(v => `- \`${v}\``).join('\n')}
+
+            🔨 Building and pushing Docker images with \`-dev\` suffix for validation...
+
+            **Note**: Images are pushed to registry with \`-dev\` tags (e.g., \`latest-dev\`, \`stable-dev\`) to distinguish from production builds.
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  prepare-matrix:
+    needs: detect-new-releases
+    if: needs.detect-new-releases.outputs.has_new_versions == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+      total_builds: ${{ steps.generate-matrix.outputs.total_builds }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml
+
+      - name: Generate build matrix for new versions only
+        id: generate-matrix
+        run: |
+          python3 -c "
+          import yaml
+          import json
+          import sys
+
+          try:
+              with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
+                  data = yaml.safe_load(f)
+
+              matrix = {'include': []}
+              new_versions_str = '${{ needs.detect-new-releases.outputs.new_versions }}'
+              new_versions = [v.strip() for v in new_versions_str.split() if v.strip()]
+
+              print(f'🎯 Filtering for new versions: {new_versions}', file=sys.stderr)
+
+              total_configs = 0
+
+              for build in data.get('latest_builds', []):
+                  version = build.get('version')
+                  if not version:
+                      continue
+
+                  # Only process new versions
+                  if version not in new_versions:
+                      continue
+
+                  if 'os_matrix' not in build:
+                      print(f'⏭️  Skipping {version} (no os_matrix - disabled)', file=sys.stderr)
+                      continue
+
+                  os_matrix = build['os_matrix']
+                  additional_tags = build.get('additional_tags', '')
+
+                  if isinstance(os_matrix, dict):
+                      os_matrix = [os_matrix]
+
+                  for matrix_entry in os_matrix:
+                      os_name = matrix_entry.get('os', 'debian')
+                      distribution = matrix_entry.get('distribution', 'trixie')
+                      architectures = matrix_entry.get('architectures', ['amd64'])
+
+                      architectures_str = ','.join(architectures)
+                      matrix_item = {
+                          'version': version,
+                          'distribution': distribution,
+                          'architectures': architectures_str,
+                          'os': os_name
+                      }
+
+                      # Add additional_tags if present
+                      if additional_tags:
+                          matrix_item['additional_tags'] = additional_tags
+
+                      matrix['include'].append(matrix_item)
+                      total_configs += 1
+
+                      tags_info = f' +tags: {additional_tags}' if additional_tags else ''
+                      print(f'✅ Added: {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
+
+              if total_configs == 0:
+                  print('❌ No buildable configurations found for new versions!', file=sys.stderr)
+                  sys.exit(1)
+
+              print(f'📊 Generated {total_configs} build configurations for new versions', file=sys.stderr)
+              print('matrix=' + json.dumps(matrix))
+              print('total_builds=' + str(total_configs))
+
+          except Exception as e:
+              print(f'❌ ERROR: Failed to parse YAML: {e}', file=sys.stderr)
+              sys.exit(1)
+          " | tee -a $GITHUB_OUTPUT
+
+  build-matrix:
+    needs: [detect-new-releases, prepare-matrix]
+    if: needs.detect-new-releases.outputs.has_new_versions == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 5
+
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      version: ${{ matrix.version }}
+      distribution: ${{ matrix.distribution }}
+      architectures: ${{ matrix.architectures }}
+      additional_tags: ${{ matrix.additional_tags || '' }}
+      push: true  # Enable multi-platform builds with -dev suffix
+      registry: 'andrius/asterisk'
+    secrets: inherit
+
+  report-results:
+    needs: [detect-new-releases, prepare-matrix, build-matrix]
+    runs-on: ubuntu-latest
+    if: always() && needs.detect-new-releases.outputs.has_new_versions == 'true'
+
+    steps:
+      - name: Comment build results on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newVersions = '${{ needs.detect-new-releases.outputs.new_versions }}'.split(' ');
+            const totalBuilds = '${{ needs.prepare-matrix.outputs.total_builds }}';
+            const buildResult = '${{ needs.build-matrix.result }}';
+
+            let status = '';
+            let emoji = '';
+
+            if (buildResult === 'success') {
+              status = 'All builds passed';
+              emoji = '✅';
+            } else if (buildResult === 'failure') {
+              status = 'Some builds failed';
+              emoji = '❌';
+            } else {
+              status = 'Builds cancelled or skipped';
+              emoji = '⚠️';
+            }
+
+            const body = `## ${emoji} Build Results for New Releases
+
+            **Status**: ${status}
+            **Versions**: ${newVersions.map(v => \`\\\`${v}\\\`\`).join(', ')}
+            **Total configurations**: ${totalBuilds}
+
+            ${buildResult === 'success' ?
+              '✅ All Docker images built and pushed successfully with \`-dev\` suffix! Safe to merge.' :
+              '❌ Build failures detected. Please review the workflow logs before merging.'}
+
+            **Note**: Images are pushed to registry with \`-dev\` tags for validation. Production tags will be created after merging to main.
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

@@ -590,28 +590,19 @@ print('Git config generated successfully')
     # Ensure configs/generated directory exists
     mkdir -p "${PROJECT_DIR}/configs/generated"
 
-    # Generate config from template
-    if [[ -n "$template" ]]; then
-        log INFO "Generating config from template '$template' for $version ($os/$distribution)" >&2
-        template_args=("--template" "$template")
-    else
-        log INFO "Generating config from template for $version ($os/$distribution)" >&2
-        template_args=()
-    fi
+    # Generate config using the reusable config generation script
+    log INFO "Generating config for $version ($os/$distribution)" >&2
 
-    if ! python3 "${SCRIPT_DIR}/generate-config.py" \
-        "$version" \
-        "$distribution" \
-        --templates-dir "${PROJECT_DIR}/templates" \
-        --output-dir "${PROJECT_DIR}/configs/generated" \
-        "${template_args[@]}" >&2; then
+    # Prepare arguments for config generation script
+    local gen_args=("--versions" "$version")
+    [[ "$FORCE_CONFIG" == true ]] && gen_args+=("--force")
+    [[ "$VERBOSE" == true ]] && gen_args+=("--verbose")
+
+    # Export environment variables for the script
+    export PROJECT_DIR SCRIPT_DIR FORCE VERBOSE
+
+    if ! "${SCRIPT_DIR}/generate-configs-from-yaml.sh" "${gen_args[@]}" >&2; then
         log ERROR "Failed to generate config from template" >&2
-        log ERROR "Available templates:" >&2
-        if ls "${PROJECT_DIR}/templates/"*.yml.template >/dev/null 2>&1; then
-            ls "${PROJECT_DIR}/templates/"*.yml.template | sed 's|.*/||' | sed 's/^/  - /' >&2
-        else
-            log ERROR "  No templates found" >&2
-        fi
         return 1
     fi
 
