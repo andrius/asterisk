@@ -1,0 +1,37 @@
+# Default Build Matrix Configuration
+# Used by discover-latest-versions.sh when adding new Asterisk versions
+#
+# This file defines the default os_matrix configuration that will be applied
+# to newly discovered Asterisk versions.
+
+# Default matrix for modern Asterisk versions
+# Applied to all newly discovered versions unless overridden
+default_matrix:
+  os: "debian"
+  distribution: "trixie"
+  architectures:
+    - "amd64"
+    - "arm64"
+
+# Version-specific overrides (future enhancement)
+# Use these to customize the build matrix for specific version patterns
+version_overrides:
+  # Example: Certified versions could use a different distribution
+  # certified:
+  #   os: "debian"
+  #   distribution: "bookworm"
+  #   architectures:
+  #     - "amd64"
+
+  # Example: Pre-release versions (rc, beta, alpha) could build only amd64
+  # prerelease:
+  #   os: "debian"
+  #   distribution: "trixie"
+  #   architectures:
+  #     - "amd64"
+
+# Notes:
+# - This configuration is applied during version discovery (--updates-only mode)
+# - Existing versions in supported-asterisk-builds.yml are never modified
+# - Manual customizations in supported-asterisk-builds.yml take precedence
+# - Legacy versions (< 12) are not auto-discovered and require manual configuration
