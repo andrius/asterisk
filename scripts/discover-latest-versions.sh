@@ -392,6 +392,24 @@ is_new_version() {
   return 0 # New
 }
 
+# Function to load default build matrix from config
+load_default_matrix() {
+  local config_file="${PROJECT_DIR}/config/default-build-matrix.yml"
+
+  if [[ ! -f "$config_file" ]]; then
+    echo "ERROR: Default build matrix config not found: $config_file" >&2
+    return 1
+  fi
+
+  # Extract default matrix values using basic parsing
+  # This avoids requiring yq or python dependencies
+  local os=$(grep -A10 "^default_matrix:" "$config_file" | grep "^  os:" | sed 's/.*: *"\([^"]*\)".*/\1/')
+  local dist=$(grep -A10 "^default_matrix:" "$config_file" | grep "^  distribution:" | sed 's/.*: *"\([^"]*\)".*/\1/')
+  local archs=$(grep -A10 "^default_matrix:" "$config_file" | grep -A5 "architectures:" | grep '    - "' | sed 's/.*"\([^"]*\)".*/\1/' | tr '\n' ' ')
+
+  echo "$os|$dist|$archs"
+}
+
 # Function to generate YAML output
 generate_yaml_output() {
   local output_file="$1"
@@ -436,6 +454,17 @@ generate_yaml_output() {
   if [[ "$updates_only" == "true" && -f "$output_file" ]]; then
     # Preserve existing file structure and append new versions only
     if [[ ${#new_versions[@]} -gt 0 ]]; then
+      # Load default build matrix
+      local default_matrix=$(load_default_matrix)
+      if [[ $? -ne 0 ]]; then
+        echo "ERROR: Failed to load default build matrix. Aborting." >&2
+        exit 1
+      fi
+
+      IFS='|' read -r default_os default_dist default_archs <<<"$default_matrix"
+      local -a archs_array
+      read -ra archs_array <<<"$default_archs"
+
       # Find where to insert new versions (before metadata section)
       local temp_file=$(mktemp)
       local in_metadata=false
@@ -447,11 +476,18 @@ generate_yaml_output() {
           in_metadata=true
           metadata_started=true
 
-          # Insert new versions before metadata
+          # Insert new versions with full os_matrix before metadata
           for version in "${new_versions[@]}"; do
             echo "  - version: \"$version\""
+            echo "    os_matrix:"
+            echo "      - os: \"$default_os\""
+            echo "        distribution: \"$default_dist\""
+            echo "        architectures:"
+            for arch in "${archs_array[@]}"; do
+              echo "          - \"$arch\""
+            done
+            echo ""
           done
-          echo ""
         fi
 
         # Print the line (whether it's existing content or metadata)
@@ -462,6 +498,14 @@ generate_yaml_output() {
       if [[ "$metadata_started" == false ]]; then
         for version in "${new_versions[@]}"; do
           echo "  - version: \"$version\""
+          echo "    os_matrix:"
+          echo "      - os: \"$default_os\""
+          echo "        distribution: \"$default_dist\""
+          echo "        architectures:"
+          for arch in "${archs_array[@]}"; do
+            echo "          - \"$arch\""
+          done
+          echo ""
         done >>"$temp_file"
       fi
 
