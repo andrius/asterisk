@@ -102,140 +102,157 @@ jobs:
             fi
           fi
 
-      - name: Process individual releases
+      - name: Cleanup existing PR and branch
         if: steps.extract-versions.outputs.has_new_versions == 'true'
+        run: |
+          BRANCH_NAME="asterisk-new-releases"
+
+          echo "🔍 Checking for existing branch: $BRANCH_NAME"
+
+          # Check if branch exists remotely
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "📌 Found existing branch $BRANCH_NAME"
+
+            # Get PR number for this branch
+            PR_NUMBER=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number' || echo "")
+
+            if [ -n "$PR_NUMBER" ]; then
+              echo "🔒 Closing existing PR #$PR_NUMBER"
+              gh pr close "$PR_NUMBER" --delete-branch --comment "🔄 Auto-closed: Creating new consolidated PR with latest releases"
+            else
+              echo "⚠️ No open PR found, deleting branch only"
+              git push origin --delete "$BRANCH_NAME" || echo "⚠️ Could not delete remote branch"
+            fi
+          else
+            echo "✅ No existing branch found, proceeding with fresh PR"
+          fi
+
+          # Clean up local branch if it exists
+          if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+            echo "🧹 Cleaning up local branch"
+            git branch -D "$BRANCH_NAME" || true
+          fi
+
+      - name: Create consolidated PR
+        if: steps.extract-versions.outputs.has_new_versions == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Helper function to add single version to YAML
-          add_version_to_yaml() {
-            local version="$1"
-            local yaml_file="asterisk/supported-asterisk-builds.yml"
-            local temp_file=$(mktemp)
-
-            # Create a simple YAML entry for the version (will be added to current structure)
-            awk -v ver="$version" '
-            /^latest_builds:/ { print; in_builds=1; next }
-            in_builds && /^  - version:/ {
-              if (!inserted && ver < $3) {
-                print "  - version: \"" ver "\""
-                inserted=1
-              }
-              print
-              next
-            }
-            in_builds && /^[^ ]/ {
-              if (!inserted) {
-                print "  - version: \"" ver "\""
-              }
-              in_builds=0
-            }
-            { print }
-            END {
-              if (in_builds && !inserted) {
-                print "  - version: \"" ver "\""
-              }
-            }' "$yaml_file" > "$temp_file"
-
-            mv "$temp_file" "$yaml_file"
-          }
-
-          # Helper function to create PR for individual version
-          create_version_pr() {
-            local version="$1"
-            local branch_name="asterisk-$version"
-
-            # Determine version type for PR description
-            local version_type="Stable Release"
-            case "$version" in
-              *-rc*) version_type="Release Candidate" ;;
-              *-beta*) version_type="Beta Release" ;;
-              *-cert*) version_type="Certified Release" ;;
-            esac
-
-            local major_version=$(echo "$version" | cut -d. -f1)
-
-            PR_TITLE="🎆 Add Asterisk $version ($version_type)"
-            PR_BODY="## 🎆 New Asterisk Release: $version\n\n### 📋 Release Information\n- **Version**: $version\n- **Type**: $version_type\n- **Major Branch**: $major_version\n- **Branch**: $branch_name\n\n### ✅ Changes Made\n- ✨ Added $version to supported-asterisk-builds.yml\n- 📦 Updated release lists for consistency\n- 🎯 Ready for build system integration\n\n### 🎨 Review Checklist\n- [ ] Verify $version is legitimate Asterisk release\n- [ ] Check version follows semantic versioning\n- [ ] Confirm $version_type is appropriate for building\n- [ ] Review if special build configurations needed\n\n### 🚀 Next Steps\nAfter merging this PR:\n- Build system will support $version\n- Can trigger builds via build-images workflow\n- Version will be available in build matrix\n\n### 🤖 Automation Details\n- **Branch**: $branch_name\n- **Workflow**: ${{ github.workflow }}\n- **Run ID**: ${{ github.run_id }}\n- **Auto-generated**: $(date '+%Y-%m-%d %H:%M:%S UTC')"
-
-            # Create PR via GitHub API
-            curl -X POST \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls" \
-              -d "{\"title\": \"$PR_TITLE\", \"head\": \"$branch_name\", \"base\": \"main\", \"body\": \"$PR_BODY\", \"maintainer_can_modify\": true}" || {
-                echo "❌ Failed to create PR for $version via API"
-                echo "Branch $branch_name has been pushed with changes"
-                return 1
-              }
-
-            echo "✅ Successfully created PR for Asterisk $version"
-          }
-
-          # Process each new version individually
+          BRANCH_NAME="asterisk-new-releases"
           NEW_VERSIONS="${{ steps.extract-versions.outputs.new_versions }}"
-          PROCESSED_COUNT=0
-          SKIPPED_COUNT=0
+          GIT_SHA_CHANGED="${{ steps.extract-versions.outputs.git_sha_changed }}"
+          NEW_GIT_SHA="${{ steps.extract-versions.outputs.new_git_sha }}"
 
-          echo "🔍 Processing new versions: $NEW_VERSIONS"
+          echo "🔄 Creating consolidated PR for all changes"
+          echo "Branch: $BRANCH_NAME"
 
-          for version in $NEW_VERSIONS; do
-            BRANCH_NAME="asterisk-$version"
+          # Create clean branch from main
+          git checkout -b "$BRANCH_NAME"
 
-            echo ""
-            echo "🔄 Processing version: $version"
-            echo "Branch name: $BRANCH_NAME"
+          # Add all modified files (already generated by previous steps)
+          git add asterisk/asterisk-releases.txt
+          git add asterisk/asterisk-certified-releases.txt
+          git add asterisk/asterisk-releases.yml
+          git add asterisk/asterisk-certified-releases.yml
+          git add asterisk/supported-asterisk-builds.yml
 
-            # Check if branch exists locally or remotely (collision detection)
-            if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" || \
-               git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-              echo "⏭️ Skipping $version - branch $BRANCH_NAME already exists"
-              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
-              continue
-            fi
+          # Build commit message
+          COMMIT_MSG="Asterisk releases update"
 
-            echo "✅ Branch $BRANCH_NAME available - creating PR for $version"
+          if [ -n "$NEW_VERSIONS" ]; then
+            VERSION_COUNT=$(echo "$NEW_VERSIONS" | wc -w)
+            COMMIT_MSG="$COMMIT_MSG - ✨ Added $VERSION_COUNT version(s): $NEW_VERSIONS"
+          fi
 
-            # Create clean branch from main
-            git checkout main
-            git checkout -b "$BRANCH_NAME"
+          if [ "$GIT_SHA_CHANGED" == "true" ]; then
+            COMMIT_MSG="$COMMIT_MSG - 🔄 Updated git SHA: $NEW_GIT_SHA"
+          fi
 
-            # Reset supported-asterisk-builds.yml to main state
-            git checkout main -- asterisk/supported-asterisk-builds.yml
+          COMMIT_MSG="$COMMIT_MSG - Auto-generated by: ${{ github.workflow }} (${{ github.run_id }})"
 
-            # Add ONLY this version to supported-asterisk-builds.yml
-            add_version_to_yaml "$version"
+          # Create consolidated commit
+          git commit -m "$COMMIT_MSG"
 
-            # Also update release lists to be complete
-            git add asterisk/asterisk-releases.txt
-            git add asterisk/asterisk-certified-releases.txt
-            git add asterisk/asterisk-releases.yml
-            git add asterisk/asterisk-certified-releases.yml
-            git add asterisk/supported-asterisk-builds.yml
+          # Push branch
+          git push -u origin "$BRANCH_NAME"
 
-            # Create version-specific commit
-            git commit -m "🎆 Add Asterisk $version support - ✨ Added to builds, 📦 Updated lists, 🎯 Branch: $BRANCH_NAME - Auto-generated by: ${{ github.workflow }} (${{ github.run_id }})"
+          # Build PR title
+          PR_TITLE="New Asterisk Releases Update"
+          if [ -n "$NEW_VERSIONS" ]; then
+            PR_TITLE="$PR_TITLE: $NEW_VERSIONS"
+          fi
 
-            # Push branch
-            git push -u origin "$BRANCH_NAME"
+          # Build PR body
+          PR_BODY="## Asterisk Releases Update\n\n"
 
-            # Create version-specific PR
-            if create_version_pr "$version"; then
-              PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
-            else
-              echo "⚠️ Failed to create PR for $version, but branch pushed"
-            fi
-          done
+          if [ -n "$NEW_VERSIONS" ]; then
+            PR_BODY="${PR_BODY}### 📦 New Versions Detected\n\n"
 
-          echo ""
-          echo "📊 Summary:"
-          echo "  - New versions found: $(echo $NEW_VERSIONS | wc -w)"
-          echo "  - PRs created: $PROCESSED_COUNT"
-          echo "  - Skipped (branch exists): $SKIPPED_COUNT"
-          echo ""
+            # Categorize versions
+            STABLE=""
+            RC=""
+            BETA=""
+            CERT=""
+
+            for version in $NEW_VERSIONS; do
+              case "$version" in
+                *-rc*) RC="$RC- $version (Release Candidate)\n" ;;
+                *-beta*) BETA="$BETA- $version (Beta Release)\n" ;;
+                *-cert*) CERT="$CERT- $version (Certified Release)\n" ;;
+                *) STABLE="$STABLE- $version (Stable Release)\n" ;;
+              esac
+            done
+
+            [ -n "$STABLE" ] && PR_BODY="${PR_BODY}**Stable Releases:**\n$STABLE\n"
+            [ -n "$RC" ] && PR_BODY="${PR_BODY}**Release Candidates:**\n$RC\n"
+            [ -n "$BETA" ] && PR_BODY="${PR_BODY}**Beta Releases:**\n$BETA\n"
+            [ -n "$CERT" ] && PR_BODY="${PR_BODY}**Certified Releases:**\n$CERT\n"
+          fi
+
+          if [ "$GIT_SHA_CHANGED" == "true" ]; then
+            PR_BODY="${PR_BODY}### 🔄 Git Development Version\n\n"
+            PR_BODY="${PR_BODY}- **New SHA**: \`$NEW_GIT_SHA\`\n\n"
+          fi
+
+          PR_BODY="${PR_BODY}### ✅ Changes Made\n\n"
+          PR_BODY="${PR_BODY}- ✨ Updated supported-asterisk-builds.yml with new versions\n"
+          PR_BODY="${PR_BODY}- 📦 Refreshed release lists (TXT and YAML formats)\n"
+          PR_BODY="${PR_BODY}- 🎯 Ready for build system integration\n\n"
+
+          PR_BODY="${PR_BODY}### 🎨 Review Checklist\n\n"
+          PR_BODY="${PR_BODY}- [ ] Verify all versions are legitimate Asterisk releases\n"
+          PR_BODY="${PR_BODY}- [ ] Check versions follow semantic versioning\n"
+          PR_BODY="${PR_BODY}- [ ] Confirm release types are appropriate for building\n"
+          PR_BODY="${PR_BODY}- [ ] Review if special build configurations needed\n\n"
+
+          PR_BODY="${PR_BODY}### 🚀 Next Steps\n\n"
+          PR_BODY="${PR_BODY}After merging this PR:\n"
+          PR_BODY="${PR_BODY}- Build system will support new versions\n"
+          PR_BODY="${PR_BODY}- Can trigger builds via build-images workflow\n"
+          PR_BODY="${PR_BODY}- Versions will be available in build matrix\n\n"
+
+          PR_BODY="${PR_BODY}### 🤖 Automation Details\n\n"
+          PR_BODY="${PR_BODY}- **Branch**: $BRANCH_NAME\n"
+          PR_BODY="${PR_BODY}- **Workflow**: ${{ github.workflow }}\n"
+          PR_BODY="${PR_BODY}- **Run ID**: ${{ github.run_id }}\n"
+          PR_BODY="${PR_BODY}- **Generated**: $(date '+%Y-%m-%d %H:%M:%S UTC')\n"
+
+          # Create PR via gh CLI
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$(printf '%b' "$PR_BODY")" \
+            --base main \
+            --head "$BRANCH_NAME" || {
+              echo "❌ Failed to create PR via gh CLI"
+              echo "Branch $BRANCH_NAME has been pushed with changes"
+              exit 1
+            }
+
+          echo "✅ Successfully created consolidated PR"
 
           # Return to main branch
           git checkout main
@@ -266,17 +283,11 @@ jobs:
 
           # Action taken
           if [ "${{ steps.extract-versions.outputs.has_new_versions }}" == "true" ]; then
-            echo "### 🎆 New Releases Found!" >> $GITHUB_STEP_SUMMARY
-            echo "- 🔀 **Action**: Created individual Pull Requests per release" >> $GITHUB_STEP_SUMMARY
-            echo "- 🎯 **Impact**: New buildable Asterisk versions detected" >> $GITHUB_STEP_SUMMARY
-            echo "- 📊 **Versions**: ${{ steps.extract-versions.outputs.new_versions }}" >> $GITHUB_STEP_SUMMARY
-            echo "- ⚙️ **Next**: Review and merge individual PRs to enable building" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.extract-versions.outputs.git_sha_changed }}" == "true" ]; then
-            echo "### 🔄 Git SHA Updated!" >> $GITHUB_STEP_SUMMARY
-            echo "- 🔀 **Action**: Created Pull Request for git SHA update" >> $GITHUB_STEP_SUMMARY
-            echo "- 🎯 **Impact**: Git development version updated" >> $GITHUB_STEP_SUMMARY
-            echo "- 📊 **New SHA**: ${{ steps.extract-versions.outputs.new_git_sha }}" >> $GITHUB_STEP_SUMMARY
-            echo "- ⚙️ **Next**: Review and merge git update PR" >> $GITHUB_STEP_SUMMARY
+            echo "### Asterisk Updates Detected" >> $GITHUB_STEP_SUMMARY
+            echo "- 🔀 **Action**: Created consolidated Pull Request" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎯 **Branch**: asterisk-new-releases" >> $GITHUB_STEP_SUMMARY
+            echo "- 📦 **New Versions**: ${{ steps.extract-versions.outputs.new_versions }}" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚙️ **Next**: Review and merge the consolidated PR to enable building" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.extract-versions.outputs.release_lists_updated }}" == "true" ]; then
             echo "### 📝 Release Lists Updated" >> $GITHUB_STEP_SUMMARY
             echo "- 🔀 **Action**: Committed release metadata updates to main" >> $GITHUB_STEP_SUMMARY
