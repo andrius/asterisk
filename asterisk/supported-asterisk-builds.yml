@@ -130,59 +130,12 @@ latest_builds:
         architectures:
           - "amd64"
 
-  - version: "18.9-cert17"
-    # # Disabled build, having issues with
-    # os_matrix:
-    #   - os: "debian"
-    #     distribution: "bookworm"
-    #     architectures:
-    #       - "amd64"
-
   - version: "19.8.1"
     os_matrix:
       - os: "debian"
         distribution: "bookworm"
         architectures:
           - "amd64"
-
-  - version: "20.15.2"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-
-  - version: "20.7-cert7"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-
-  - version: "21.10.2"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-
-  - version: "22.5.2"
-    additional_tags: "latest,stable,22"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
-
-  - version: "23.0.0-rc2"
-    additional_tags: "23-rc"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
 
   - version: "20.16.0"
     os_matrix:
@@ -191,6 +144,13 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+
+  - version: "20.7-cert7"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
 
   - version: "21.11.0"
     os_matrix:
@@ -201,6 +161,7 @@ latest_builds:
           - "arm64"
 
   - version: "22.6.0"
+    additional_tags: "latest,stable,22"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -209,6 +170,7 @@ latest_builds:
           - "arm64"
 
   - version: "23.0.0"
+    additional_tags: "23"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
