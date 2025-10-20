@@ -53,6 +53,7 @@ runs:
         import json
         import sys
         import re
+        import os
 
         # Input parameters
         version_pattern = r'${{ inputs.version-pattern }}'
@@ -144,20 +145,24 @@ runs:
                         print(f'     - {build["version"]}', file=sys.stderr)
             # Return empty matrix to skip build
             matrix = {'include': []}
-            print(f'matrix={json.dumps(matrix)}')
-            print(f'total=0')
-            print(f'total_builds=0')
-            print(f'buildable_versions=')
+            output_file = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
+            with open(output_file, 'a') as f:
+                f.write(f'matrix={json.dumps(matrix)}\n')
+                f.write(f'total=0\n')
+                f.write(f'total_builds=0\n')
+                f.write(f'buildable_versions=\n')
             sys.exit(0)
 
         # Generate matrix
         matrix = {'include': target_versions}
 
         # Output for GitHub Actions
-        print(f'matrix={json.dumps(matrix)}')
-        print(f'total={len(buildable_versions)}')
-        print(f'total_builds={total_configs}')
-        print(f'buildable_versions={", ".join(buildable_versions)}')
+        output_file = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
+        with open(output_file, 'a') as f:
+            f.write(f'matrix={json.dumps(matrix)}\n')
+            f.write(f'total={len(buildable_versions)}\n')
+            f.write(f'total_builds={total_configs}\n')
+            f.write(f'buildable_versions={", ".join(buildable_versions)}\n')
 
         # Summary
         print(f'', file=sys.stderr)

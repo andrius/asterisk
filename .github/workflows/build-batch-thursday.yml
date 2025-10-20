@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
-      total: ${{ steps.generate.outputs.total }}
+      total_builds: ${{ steps.generate.outputs.total_builds }}
+      buildable_versions: ${{ steps.generate.outputs.buildable_versions }}
 
     steps:
       - name: Checkout repository
@@ -37,7 +38,7 @@ jobs:
 
   build-matrix:
     needs: prepare-matrix
-    if: needs.prepare-matrix.outputs.total != '0'
+    if: needs.prepare-matrix.outputs.total_builds > 0
     strategy:
       matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
       fail-fast: false
@@ -49,6 +50,8 @@ jobs:
       distribution: ${{ matrix.distribution }}
       architectures: ${{ matrix.architectures }}
       additional_tags: ${{ matrix.additional_tags || '' }}
-      push: ${{ inputs.push != false }}
+      # Always push on scheduled runs (required for multi-platform builds)
+      # For manual runs, respect user input (default: true)
+      push: ${{ github.event_name == 'schedule' || inputs.push != false }}
       registry: "andrius/asterisk"
     secrets: inherit
