@@ -23,6 +23,24 @@ docker run --rm -p 5060:5060/udp 22.5.2_debian-trixie
 
 Complete examples available in [`examples/`](examples/) directory. Legacy code preserved in [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy).
 
+## 📢 Stay Updated
+
+Get notified about new Asterisk releases and Docker image updates:
+
+### Automated Announcements
+- 🤖 **Telegram**: [Join @asterisk_docker](https://t.me/asterisk_docker) - Instant release notifications
+- 🐘 **Mastodon**: [@andrius_kai@mastodon.social](https://mastodon.social/@andrius_kai) - Federated updates
+
+### Follow for Updates
+- 🐦 **X/Twitter**: [@andrius_kai](https://x.com/andrius_kai) - Release announcements and project news
+- 🧵 **Threads**: [@andrius_kai](https://threads.net/@andrius_kai) - Updates and discussions
+
+### Container Registries
+- 🐳 **Docker Hub**: [andrius/asterisk](https://hub.docker.com/r/andrius/asterisk) - Primary registry
+- 📦 **GitHub Container Registry**: [ghcr.io/andrius/asterisk](https://github.com/andrius/asterisk/pkgs/container/asterisk) - Alternative registry
+
+New releases are automatically announced on Telegram and Mastodon when builds complete successfully.
+
 ## Supported Versions
 
 All 24 Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (not tracked in git).
@@ -290,9 +308,19 @@ The basic example includes:
 - **`discover-releases.yml`**: Daily release discovery at 8:00 PM UTC
 - **`build-images.yml`**: Automated multi-platform builds
 
-## Support
+## Support & Community
 
-- **Docker Hub**: [andrius/asterisk](https://hub.docker.com/r/andrius/asterisk)
-- **Issues**: [Report via GitHub Issues](https://github.com/andrius/asterisk/issues)
-- **Documentation**: Available in repository (README.md, README-cicd.md, README-tests.md)
-- **Legacy Reference**: See [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy)
+### Get Help
+- 📋 **Issues**: [Report bugs via GitHub Issues](https://github.com/andrius/asterisk/issues)
+- 📚 **Documentation**: README.md, README-cicd.md, README-tests.md in repository
+- 🏛️ **Legacy Reference**: See [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy)
+
+### Follow & Connect
+- 🤖 **Telegram**: [Join @asterisk_docker](https://t.me/asterisk_docker) - Automated release announcements
+- 🐘 **Mastodon**: [@andrius_kai@mastodon.social](https://mastodon.social/@andrius_kai)
+- 🐦 **X/Twitter**: [@andrius_kai](https://x.com/andrius_kai)
+- 🧵 **Threads**: [@andrius_kai](https://threads.net/@andrius_kai)
+
+### Container Images
+- 🐳 **Docker Hub**: [andrius/asterisk](https://hub.docker.com/r/andrius/asterisk)
+- 📦 **GitHub Container Registry**: [ghcr.io/andrius/asterisk](https://github.com/andrius/asterisk/pkgs/container/asterisk)
