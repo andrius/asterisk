@@ -1,0 +1,71 @@
+name: Test Social Media Announcements
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_versions:
+        description: "Test version string (e.g., '22.6.0 23.0.0')"
+        required: true
+        default: "22.6.0-test 23.0.0-test"
+
+jobs:
+  test-announce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare test announcement
+        id: message
+        run: |
+          NEW_VERSIONS="${{ inputs.test_versions }}"
+          VERSION_LIST=$(echo "$NEW_VERSIONS" | tr ' ' '\n' | sed 's/^/- /' | tr '\n' ' ')
+
+          MESSAGE="🎆 New Asterisk Docker Images Released!
+
+          Versions:
+          ${VERSION_LIST}
+
+          Available on:
+          - Docker Hub: docker.io/andrius/asterisk
+          - GitHub Container Registry: ghcr.io/andrius/asterisk
+
+          Pull with: docker pull andrius/asterisk:VERSION
+
+          GitHub: https://github.com/${{ github.repository }}
+          "
+
+          # Telegram format (escape special characters)
+          TELEGRAM_MESSAGE=$(echo "$MESSAGE" | sed 's/[_*[\]()~`>#+=|{}.!-]/\\&/g')
+
+          # Mastodon format (plain text)
+          MASTODON_MESSAGE="$MESSAGE"
+
+          echo "telegram_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$TELEGRAM_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "mastodon_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$MASTODON_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Test Telegram announcement
+        if: vars.TELEGRAM_CHAT_ID != ''
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ vars.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🧪 TEST ANNOUNCEMENT
+
+            ${{ steps.message.outputs.telegram_message }}
+          format: markdown
+
+      - name: Test Mastodon announcement
+        if: vars.MASTODON_URL != ''
+        uses: cbrgm/mastodon-github-action@v2.1.8
+        with:
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          url: ${{ vars.MASTODON_URL }}
+          message: |
+            🧪 TEST ANNOUNCEMENT
+
+            ${{ steps.message.outputs.mastodon_message }}

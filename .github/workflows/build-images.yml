@@ -1,9 +1,14 @@
 name: Build All Asterisk Docker Images (Matrix)
 
 on:
-  schedule:
-    # Run weekly on Friday at 08:00 UTC
-    - cron: "0 8 * * 5"
+  push:
+    branches:
+      - main
+    paths:
+      - 'asterisk/supported-asterisk-builds.yml'
+      - 'configs/generated/**'
+      - '.github/workflows/build-images.yml'
+      - '.github/workflows/build-single-image.yml'
 
   workflow_dispatch:
     inputs:
@@ -74,99 +79,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.13"
-
-      - name: Install Python dependencies
-        run: |
-          pip install --user pyyaml
-
-      - name: Generate build matrix from supported-asterisk-builds.yml
+      - name: Generate build matrix
         id: generate-matrix
-        working-directory: .
-        run: |
-          python3 -c "
-          import yaml
-          import json
-          import sys
-
-          try:
-              with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
-                  data = yaml.safe_load(f)
-
-              matrix = {'include': []}
-              buildable_versions = []
-              total_configs = 0
-              filter_version = '${{ inputs.filter_version }}'
-              filter_distribution = '${{ inputs.filter_distribution }}'
-
-              for build in data.get('latest_builds', []):
-                  version = build.get('version')
-                  if not version:
-                      continue
-
-                  if filter_version and version != filter_version:
-                      continue
-
-                  if 'os_matrix' not in build:
-                      print(f'⏭️  Skipping {version} (no os_matrix - disabled)', file=sys.stderr)
-                      continue
-
-                  buildable_versions.append(version)
-                  os_matrix = build['os_matrix']
-                  additional_tags = build.get('additional_tags', '')
-
-                  if isinstance(os_matrix, dict):
-                      os_matrix = [os_matrix]
-
-                  for matrix_entry in os_matrix:
-                      os_name = matrix_entry.get('os', 'debian')
-                      distribution = matrix_entry.get('distribution', 'trixie')
-                      architectures = matrix_entry.get('architectures', ['amd64'])
-
-                      if filter_distribution and distribution != filter_distribution:
-                          continue
-
-                      architectures_str = ','.join(architectures)
-                      matrix_item = {
-                          'version': version,
-                          'distribution': distribution,
-                          'architectures': architectures_str,
-                          'os': os_name
-                      }
-
-                      # Add additional_tags if present
-                      if additional_tags:
-                          matrix_item['additional_tags'] = additional_tags
-
-                      matrix['include'].append(matrix_item)
-                      total_configs += 1
-
-                      tags_info = f' +tags: {additional_tags}' if additional_tags else ''
-                      print(f'✅ Added: {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
-
-              if total_configs == 0:
-                  print('❌ No buildable configurations found!', file=sys.stderr)
-                  if filter_version:
-                      print(f'Version filter: {filter_version}', file=sys.stderr)
-                      print('Available buildable versions:', file=sys.stderr)
-                      for build in data.get('latest_builds', []):
-                          if 'os_matrix' in build:
-                              print(f'  - {build['version']}', file=sys.stderr)
-                  sys.exit(1)
-
-              print(f'📊 Generated {total_configs} build configurations', file=sys.stderr)
-              print(f'🎯 Buildable versions: {', '.join(buildable_versions)}', file=sys.stderr)
-              print('matrix=' + json.dumps(matrix))
-              print('total_builds=' + str(total_configs))
-              print('buildable_versions=' + ', '.join(buildable_versions))
-
-          except Exception as e:
-              print(f'❌ ERROR: Failed to parse YAML: {e}', file=sys.stderr)
-              sys.exit(1)
-          " | tee -a $GITHUB_OUTPUT
+        uses: ./.github/actions/generate-build-matrix
+        with:
+          version-pattern: ".*"
+          batch-name: "All Asterisk Versions"
+          filter-version: ${{ inputs.filter_version }}
+          filter-distribution: ${{ inputs.filter_distribution }}
 
       - name: Display build matrix
         run: |

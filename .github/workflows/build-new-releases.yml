@@ -1,4 +1,4 @@
-name: Build New Asterisk Releases (PR)
+name: Build New Asterisk Releases
 
 on:
   pull_request:
@@ -6,9 +6,16 @@ on:
     paths:
       - 'asterisk/supported-asterisk-builds.yml'
 
+  push:
+    branches:
+      - main
+    paths:
+      - 'asterisk/supported-asterisk-builds.yml'
+
 permissions:
   contents: read
   pull-requests: write
+  packages: write
 
 jobs:
   detect-new-releases:
@@ -26,13 +33,19 @@ jobs:
       - name: Extract new versions
         id: extract-versions
         run: |
-          echo "🔍 Detecting new Asterisk versions in PR..."
-
-          # Fetch base branch for comparison
-          git fetch origin ${{ github.base_ref }}
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "🔍 Detecting new Asterisk versions in PR..."
+            # Fetch base branch for comparison
+            git fetch origin ${{ github.base_ref }}
+            COMPARE_REF="origin/${{ github.base_ref }}"
+          else
+            echo "🔍 Detecting new Asterisk versions in push to main..."
+            # Compare with previous commit
+            COMPARE_REF="HEAD^"
+          fi
 
           # Get diff of supported-asterisk-builds.yml
-          NEW_VERSIONS=$(git diff origin/${{ github.base_ref }}...HEAD -- asterisk/supported-asterisk-builds.yml | \
+          NEW_VERSIONS=$(git diff $COMPARE_REF...HEAD -- asterisk/supported-asterisk-builds.yml | \
             grep '^+.*version:' | \
             sed 's/^+.*version: *"\([^"]*\)".*/\1/' | \
             grep -v '^$' | \
@@ -42,7 +55,7 @@ jobs:
           if [ -z "$NEW_VERSIONS" ]; then
             echo "has_new_versions=false" >> $GITHUB_OUTPUT
             echo "new_versions=" >> $GITHUB_OUTPUT
-            echo "📋 No new versions detected in this PR"
+            echo "📋 No new versions detected"
           else
             echo "has_new_versions=true" >> $GITHUB_OUTPUT
             echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
@@ -50,7 +63,7 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: steps.extract-versions.outputs.has_new_versions == 'true'
+        if: github.event_name == 'pull_request' && steps.extract-versions.outputs.has_new_versions == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -182,14 +195,14 @@ jobs:
       distribution: ${{ matrix.distribution }}
       architectures: ${{ matrix.architectures }}
       additional_tags: ${{ matrix.additional_tags || '' }}
-      push: true  # Enable multi-platform builds with -dev suffix
+      push: true  # Always push for multi-platform builds (PR = -dev suffix, main = production)
       registry: 'andrius/asterisk'
     secrets: inherit
 
   report-results:
     needs: [detect-new-releases, prepare-matrix, build-matrix]
     runs-on: ubuntu-latest
-    if: always() && needs.detect-new-releases.outputs.has_new_versions == 'true'
+    if: always() && github.event_name == 'pull_request' && needs.detect-new-releases.outputs.has_new_versions == 'true'
 
     steps:
       - name: Comment build results on PR
@@ -233,3 +246,60 @@ jobs:
               issue_number: context.issue.number,
               body: body
             });
+
+  announce-releases:
+    needs: [detect-new-releases, prepare-matrix, build-matrix]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-new-releases.outputs.has_new_versions == 'true' && needs.build-matrix.result == 'success'
+
+    steps:
+      - name: Prepare announcement message
+        id: message
+        run: |
+          NEW_VERSIONS="${{ needs.detect-new-releases.outputs.new_versions }}"
+          VERSION_LIST=$(echo "$NEW_VERSIONS" | tr ' ' '\n' | sed 's/^/- /' | tr '\n' ' ')
+
+          MESSAGE="🎆 New Asterisk Docker Images Released!
+
+          Versions:
+          ${VERSION_LIST}
+
+          Available on:
+          - Docker Hub: docker.io/andrius/asterisk
+          - GitHub Container Registry: ghcr.io/andrius/asterisk
+
+          Pull with: docker pull andrius/asterisk:VERSION
+
+          GitHub: https://github.com/${{ github.repository }}
+          "
+
+          # Format for Telegram (escape special characters)
+          TELEGRAM_MESSAGE=$(echo "$MESSAGE" | sed 's/[_*[\]()~`>#+=|{}.!-]/\\&/g')
+
+          # Format for Mastodon (plain text)
+          MASTODON_MESSAGE="$MESSAGE"
+
+          echo "telegram_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$TELEGRAM_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "mastodon_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$MASTODON_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Announce on Telegram
+        if: vars.TELEGRAM_CHAT_ID != ''
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ vars.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: ${{ steps.message.outputs.telegram_message }}
+          format: markdown
+
+      - name: Announce on Mastodon
+        if: vars.MASTODON_URL != ''
+        uses: cbrgm/mastodon-github-action@v2.1.8
+        with:
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          url: ${{ vars.MASTODON_URL }}
+          message: ${{ steps.message.outputs.mastodon_message }}

@@ -1,0 +1,54 @@
+name: Build Batch - Monday (Legacy 1.x-10.x)
+
+on:
+  schedule:
+    # Run every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push images to registries"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+      total: ${{ steps.generate.outputs.total }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate build matrix
+        id: generate
+        uses: ./.github/actions/generate-build-matrix
+        with:
+          version-pattern: '^(1\.[2468]\.|10\.)'
+          batch-name: "Monday - Legacy 1.x-10.x"
+
+  build-matrix:
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.total != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 20
+
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      version: ${{ matrix.version }}
+      distribution: ${{ matrix.distribution }}
+      architectures: ${{ matrix.architectures }}
+      additional_tags: ${{ matrix.additional_tags || '' }}
+      push: ${{ inputs.push != false }}
+      registry: "andrius/asterisk"
+    secrets: inherit

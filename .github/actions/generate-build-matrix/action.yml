@@ -1,0 +1,166 @@
+name: Generate Build Matrix
+description: Generate build matrix from supported-asterisk-builds.yml filtered by version pattern
+
+inputs:
+  version-pattern:
+    description: 'Regex pattern to match versions (e.g., "^(1\.[2468]\.|10\.)" for Monday batch). Use ".*" to match all versions.'
+    required: false
+    default: ".*"
+  batch-name:
+    description: 'Human-readable batch name for logging (e.g., "Monday - Legacy 1.x-10.x")'
+    required: true
+  filter-version:
+    description: 'Exact version to filter (optional, takes precedence over version-pattern)'
+    required: false
+    default: ""
+  filter-distribution:
+    description: 'Distribution to filter (optional, e.g., "trixie", "bookworm")'
+    required: false
+    default: ""
+
+outputs:
+  matrix:
+    description: 'JSON matrix for workflow strategy'
+    value: ${{ steps.generate.outputs.matrix }}
+  total:
+    description: 'Total number of versions in matrix'
+    value: ${{ steps.generate.outputs.total }}
+  total_builds:
+    description: 'Total number of build configurations'
+    value: ${{ steps.generate.outputs.total_builds }}
+  buildable_versions:
+    description: 'Comma-separated list of buildable versions'
+    value: ${{ steps.generate.outputs.buildable_versions }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.13"
+
+    - name: Install Python dependencies
+      shell: bash
+      run: pip install --user pyyaml
+
+    - name: Generate build matrix
+      id: generate
+      shell: bash
+      run: |
+        python3 << 'PYTHON_EOF'
+        import yaml
+        import json
+        import sys
+        import re
+
+        # Input parameters
+        version_pattern = r'${{ inputs.version-pattern }}'
+        batch_name = '${{ inputs.batch-name }}'
+        filter_version = '${{ inputs.filter-version }}'
+        filter_distribution = '${{ inputs.filter-distribution }}'
+
+        print(f'🔍 Generating matrix for: {batch_name}', file=sys.stderr)
+        if filter_version:
+            print(f'📋 Filtering by exact version: {filter_version}', file=sys.stderr)
+        else:
+            print(f'📋 Version pattern: {version_pattern}', file=sys.stderr)
+        if filter_distribution:
+            print(f'📋 Filtering by distribution: {filter_distribution}', file=sys.stderr)
+
+        # Load supported builds
+        try:
+            with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
+                data = yaml.safe_load(f)
+        except Exception as e:
+            print(f'❌ ERROR: Failed to load YAML: {e}', file=sys.stderr)
+            sys.exit(1)
+
+        # Filter versions
+        target_versions = []
+        buildable_versions = []
+        pattern_re = re.compile(version_pattern) if not filter_version else None
+        total_configs = 0
+
+        for build in data.get('latest_builds', []):
+            version = build.get('version')
+
+            # Skip if no version or no os_matrix (disabled)
+            if not version or 'os_matrix' not in build:
+                continue
+
+            # Apply version filters
+            if filter_version:
+                # Exact version match takes precedence
+                if version != filter_version:
+                    continue
+            elif not pattern_re.search(version):
+                # Pattern match
+                continue
+
+            buildable_versions.append(version)
+            os_matrix = build['os_matrix']
+            additional_tags = build.get('additional_tags', '')
+
+            # Normalize os_matrix to list
+            if isinstance(os_matrix, dict):
+                os_matrix = [os_matrix]
+
+            # Process each matrix entry
+            for matrix_entry in os_matrix:
+                os_name = matrix_entry.get('os', 'debian')
+                distribution = matrix_entry.get('distribution', 'trixie')
+                architectures = matrix_entry.get('architectures', ['amd64'])
+
+                # Apply distribution filter
+                if filter_distribution and distribution != filter_distribution:
+                    continue
+
+                architectures_str = ','.join(architectures)
+                matrix_item = {
+                    'version': version,
+                    'distribution': distribution,
+                    'architectures': architectures_str,
+                    'os': os_name
+                }
+
+                # Add additional_tags if present
+                if additional_tags:
+                    matrix_item['additional_tags'] = additional_tags
+
+                target_versions.append(matrix_item)
+                total_configs += 1
+
+                tags_info = f' +tags: {additional_tags}' if additional_tags else ''
+                print(f'  ✅ {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
+
+        if not target_versions:
+            print(f'⚠️  No configurations found matching filters', file=sys.stderr)
+            if filter_version:
+                print(f'   Version filter: {filter_version}', file=sys.stderr)
+                print(f'   Available versions:', file=sys.stderr)
+                for build in data.get('latest_builds', []):
+                    if 'os_matrix' in build:
+                        print(f'     - {build["version"]}', file=sys.stderr)
+            # Return empty matrix to skip build
+            matrix = {'include': []}
+            print(f'matrix={json.dumps(matrix)}')
+            print(f'total=0')
+            print(f'total_builds=0')
+            print(f'buildable_versions=')
+            sys.exit(0)
+
+        # Generate matrix
+        matrix = {'include': target_versions}
+
+        # Output for GitHub Actions
+        print(f'matrix={json.dumps(matrix)}')
+        print(f'total={len(buildable_versions)}')
+        print(f'total_builds={total_configs}')
+        print(f'buildable_versions={", ".join(buildable_versions)}')
+
+        # Summary
+        print(f'', file=sys.stderr)
+        print(f'📊 {batch_name}: {total_configs} build configuration(s) from {len(buildable_versions)} version(s)', file=sys.stderr)
+        print(f'🎯 Versions: {", ".join(buildable_versions)}', file=sys.stderr)
+        PYTHON_EOF
