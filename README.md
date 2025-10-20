@@ -28,14 +28,17 @@ Complete examples available in [`examples/`](examples/) directory. Legacy code p
 Get notified about new Asterisk releases and Docker image updates:
 
 ### Automated Announcements
-- 🤖 **Telegram**: [Join @asterisk_docker](https://t.me/asterisk_docker) - Instant release notifications
-- 🐘 **Mastodon**: [@andrius_kai@mastodon.social](https://mastodon.social/@andrius_kai) - Federated updates
+
+- **Telegram**: [Join @asterisk_docker](https://t.me/asterisk_docker) - Instant release notifications
+- **Mastodon**: [@andrius_kai@mastodon.social](https://mastodon.social/@andrius_kai) - Federated updates
 
 ### Follow for Updates
-- 🐦 **X/Twitter**: [@andrius_kai](https://x.com/andrius_kai) - Release announcements and project news
-- 🧵 **Threads**: [@andrius_kai](https://threads.net/@andrius_kai) - Updates and discussions
+
+- **X/Twitter**: [@andrius_kai](https://x.com/andrius_kai) - Release announcements and project news
+- **Threads**: [@andrius_kai](https://threads.net/@andrius_kai) - Updates and discussions
 
 ### Container Registries
+
 - 🐳 **Docker Hub**: [andrius/asterisk](https://hub.docker.com/r/andrius/asterisk) - Primary registry
 - 📦 **GitHub Container Registry**: [ghcr.io/andrius/asterisk](https://github.com/andrius/asterisk/pkgs/container/asterisk) - Alternative registry
 
@@ -43,34 +46,33 @@ New releases are automatically announced on Telegram and Mastodon when builds co
 
 ## Supported Versions
 
-All 24 Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (not tracked in git).
+All supported Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (not tracked in git).
 
-| Version         | Type              | Distribution | Architectures | Additional Tags                  |
-| --------------- | ----------------- | ------------ | ------------- | -------------------------------- |
-| **git**         | Development       | Trixie       | amd64, arm64  | `testing,git-latest,development` |
-| **23.0.0-rc2**  | Release Candidate | Trixie       | amd64, arm64  | `23-rc`                          |
-| **22.5.2**      | Current Stable    | Trixie       | amd64, arm64  | `latest,stable,22`               |
-| **21.10.2**     | LTS               | Trixie       | amd64         | -                                |
-| **20.15.2**     | Previous Stable   | Trixie       | amd64         | -                                |
-| **20.7-cert7**  | Certified         | Trixie       | amd64         | -                                |
-| **19.8.1**      | Legacy Stable     | Bookworm     | amd64         | -                                |
-| **18.26.4**     | LTS               | Trixie       | amd64         | -                                |
-| **18.9-cert17** | LTS Certified     | Bookworm     | amd64         | -                                |
-| **17.9.4**      | Legacy            | Bookworm     | amd64         | -                                |
-| **16.30.1**     | Legacy LTS        | Bookworm     | amd64         | -                                |
-| **16.8-cert14** | LTS Certified     | Bookworm     | amd64         | -                                |
-| **15.7.4**      | Legacy            | Buster       | amd64         | -                                |
-| **14.7.8**      | Legacy            | Buster       | amd64         | -                                |
-| **13.38.3**     | Legacy LTS        | Buster       | amd64         | -                                |
-| **13.21-cert6** | LTS Certified     | Buster       | amd64         | -                                |
-| **12.8.2**      | Legacy            | Jessie       | amd64         | -                                |
-| **11.25.3**     | Legacy LTS        | Jessie       | amd64         | -                                |
-| **11.6-cert18** | LTS Certified     | Jessie       | amd64         | -                                |
-| **10.12.4**     | Legacy            | Jessie       | amd64         | -                                |
-| **1.8.32.3**    | Historical        | Jessie       | amd64         | -                                |
-| **1.6.2.24**    | Historical        | Jessie       | amd64         | -                                |
-| **1.4.44**      | Historical        | Jessie       | amd64         | -                                |
-| **1.2.40**      | Historical        | Stretch      | amd64         | -                                |
+| Version | Tags | Distribution | Architectures |
+| ------- | ---- | ------------ | ------------- |
+| **git** | `testing,git-latest,development` | Trixie | amd64, arm64 |
+| **23.0.0** | 23 | Trixie | amd64, arm64 |
+| **22.6.0** | `latest,stable,22` | Trixie | amd64, arm64 |
+| **21.11.0** | - | Trixie | amd64, arm64 |
+| **20.16.0** | - | Trixie | amd64, arm64 |
+| **20.7-cert7** | - | Trixie | amd64 |
+| **19.8.1** | - | Bookworm | amd64 |
+| **18.26.4** | - | Trixie | amd64 |
+| **17.9.4** | - | Bookworm | amd64 |
+| **16.30.1** | - | Bookworm | amd64 |
+| **16.8-cert14** | - | Buster | amd64 |
+| **15.7.4** | - | Buster | amd64 |
+| **14.7.8** | - | Buster | amd64 |
+| **13.38.3** | - | Buster | amd64 |
+| **13.21-cert6** | - | Buster | amd64 |
+| **12.8.2** | - | Jessie | amd64 |
+| **11.25.3** | - | Jessie | amd64 |
+| **11.6-cert18** | - | Jessie | amd64 |
+| **10.12.4** | - | Jessie | amd64 |
+| **1.8.32.3** | - | Jessie | amd64 |
+| **1.6.2.24** | - | Jessie | amd64 |
+| **1.4.44** | - | Jessie | amd64 |
+| **1.2.40** | - | Stretch | amd64 |
 
 ## Additional Tags
 
@@ -177,23 +179,27 @@ templates/
 The build system automatically enforces version-specific module requirements during configuration generation (see `lib/template_generator.py:224` - `_apply_version_overrides()` method):
 
 **Asterisk 21+ (PJSIP-only requirement)**:
+
 - Automatically adds `chan_sip` to the exclude list
 - As per [official deprecation](https://www.asterisk.org/asterisk-21-module-removal/), chan_sip was removed in Asterisk 21
 - Only `chan_pjsip` is available for SIP communications
 - Example: `asterisk/21.10.2-trixie/build.sh:88` contains `menuselect --disable chan_sip`
 
 **Asterisk 23+ and git (WebSocket requirement)**:
+
 - Automatically adds `chan_websocket` to the channels list
 - Sets `features.websockets = true` in configuration
 - Includes full WebSocket stack: `chan_websocket`, `res_http_websocket`, `res_pjsip_transport_websocket`
 - Example: `asterisk/23.0.0-rc2-trixie/build.sh:73` contains `menuselect --enable chan_websocket`
 
 These overrides are applied automatically during ANY config generation:
+
 - `./scripts/regenerate-all-configs.sh` - applies to all 24 versions
 - `./scripts/build-asterisk.sh VERSION --force-config` - applies to specific version
 - Configuration happens at template merge time (before Dockerfile generation)
 
 **Implementation Details**:
+
 - Only applies to modern versions (Asterisk 12+)
 - Git builds treated as latest (version 99 for comparison)
 - Integrates seamlessly with DRY template system
@@ -311,16 +317,19 @@ The basic example includes:
 ## Support & Community
 
 ### Get Help
+
 - 📋 **Issues**: [Report bugs via GitHub Issues](https://github.com/andrius/asterisk/issues)
 - 📚 **Documentation**: README.md, README-cicd.md, README-tests.md in repository
 - 🏛️ **Legacy Reference**: See [`legacy` branch](https://github.com/andrius/asterisk/tree/legacy)
 
 ### Follow & Connect
+
 - 🤖 **Telegram**: [Join @asterisk_docker](https://t.me/asterisk_docker) - Automated release announcements
 - 🐘 **Mastodon**: [@andrius_kai@mastodon.social](https://mastodon.social/@andrius_kai)
 - 🐦 **X/Twitter**: [@andrius_kai](https://x.com/andrius_kai)
 - 🧵 **Threads**: [@andrius_kai](https://threads.net/@andrius_kai)
 
 ### Container Images
+
 - 🐳 **Docker Hub**: [andrius/asterisk](https://hub.docker.com/r/andrius/asterisk)
 - 📦 **GitHub Container Registry**: [ghcr.io/andrius/asterisk](https://github.com/andrius/asterisk/pkgs/container/asterisk)

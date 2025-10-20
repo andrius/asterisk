@@ -1,0 +1,77 @@
+name: Update README Versions Table
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'asterisk/supported-asterisk-builds.yml'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --user pyyaml
+
+      - name: Run update script
+        run: |
+          python3 scripts/update-readme-versions.py
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet README.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "✅ No changes to README.md"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "📝 README.md has been updated"
+            echo ""
+            echo "Changes:"
+            git diff README.md | head -50
+          fi
+
+      - name: Commit and push changes
+        if: steps.check-changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add README.md
+
+          git commit -m "docs: update supported versions table from YAML
+
+          Auto-generated from asterisk/supported-asterisk-builds.yml"
+
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.check-changes.outputs.changed }}" == "true" ]]; then
+            echo "✅ **README.md updated and pushed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The Supported Versions table has been synchronized with \`asterisk/supported-asterisk-builds.yml\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️  **No changes needed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "README.md is already up to date" >> $GITHUB_STEP_SUMMARY
+          fi
