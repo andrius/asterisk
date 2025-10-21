@@ -61,25 +61,33 @@ jobs:
           # Generate supported builds YAML from discovered versions
           ./scripts/discover-latest-versions.sh --output-yaml --updates-only
 
-      - name: Generate config files for new versions
+      - name: Generate config files and Dockerfiles for new versions
         id: generate-configs
         run: |
           # Check if there are any changes to supported-asterisk-builds.yml
           if git diff --quiet HEAD -- asterisk/supported-asterisk-builds.yml; then
-            echo "📋 No new versions detected, skipping config generation"
+            echo "📋 No new versions detected, skipping generation"
             echo "configs_generated=false" >> $GITHUB_OUTPUT
           else
             # Extract new versions from git diff
             NEW_VERSIONS=$(git diff HEAD -- asterisk/supported-asterisk-builds.yml | grep '^+.*version:' | sed 's/^+.*version: "\(.*\)"/\1/' | tr '\n' ' ' | sed 's/ $//')
 
             if [ -n "$NEW_VERSIONS" ]; then
-              echo "🔧 Generating config files for new versions: $NEW_VERSIONS"
+              echo "🔧 Generating configs and Dockerfiles for new versions: $NEW_VERSIONS"
 
-              # Generate configs for new versions only
-              ./scripts/generate-configs-from-yaml.sh --versions "$NEW_VERSIONS" --force
+              # Generate configs and Dockerfiles for each new version using build-asterisk.sh
+              # This ensures consistency with the DRY template system
+              for version in $NEW_VERSIONS; do
+                echo "📦 Generating for version: $version"
+                if ./scripts/build-asterisk.sh "$version" --force-config --dry-run; then
+                  echo "✅ Successfully generated for: $version"
+                else
+                  echo "⚠️ Failed to generate for: $version"
+                fi
+              done
 
               echo "configs_generated=true" >> $GITHUB_OUTPUT
-              echo "✅ Config generation completed"
+              echo "✅ Generation completed for all versions"
             else
               echo "📋 No new versions detected (only metadata changes)"
               echo "configs_generated=false" >> $GITHUB_OUTPUT
@@ -192,6 +200,10 @@ jobs:
           git add asterisk/supported-asterisk-builds.yml
           git add configs/generated/
 
+          # Add generated Dockerfiles and build assets for new versions
+          # This includes asterisk/VERSION-DIST/ directories with Dockerfile, build.sh, healthcheck.sh
+          git add asterisk/*/ 2>/dev/null || echo "No version directories to add"
+
           # Build commit message
           COMMIT_MSG="Asterisk releases update"
 
@@ -253,8 +265,9 @@ jobs:
           PR_BODY="${PR_BODY}### ✅ Changes Made\n\n"
           PR_BODY="${PR_BODY}- ✨ Updated supported-asterisk-builds.yml with new versions\n"
           PR_BODY="${PR_BODY}- 📦 Refreshed release lists (TXT and YAML formats)\n"
-          PR_BODY="${PR_BODY}- 🔧 Generated config files for new versions\n"
-          PR_BODY="${PR_BODY}- 🎯 Ready for build system integration\n\n"
+          PR_BODY="${PR_BODY}- 🔧 Generated YAML config files for new versions\n"
+          PR_BODY="${PR_BODY}- 🐳 Generated Dockerfiles and build scripts (build.sh, healthcheck.sh)\n"
+          PR_BODY="${PR_BODY}- 🎯 Ready for Docker builds - can trigger build-images workflow\n\n"
 
           PR_BODY="${PR_BODY}### 🎨 Review Checklist\n\n"
           PR_BODY="${PR_BODY}- [ ] Verify all versions are legitimate Asterisk releases\n"
