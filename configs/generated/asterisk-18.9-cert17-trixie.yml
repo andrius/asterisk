@@ -5,6 +5,7 @@ asterisk:
   - --with-pjproject-bundled
   - --with-ssl=ssl
   - --with-crypto
+  - --disable-xmldoc
   menuselect:
     apps:
     - app_voicemail

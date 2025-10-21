@@ -228,7 +228,9 @@ class DRYTemplateGenerator:
         # Parse version to determine major version
         if version == 'git' or version.startswith('git-'):
             major = 99  # Treat git as latest
+            is_certified = False
         else:
+            is_certified = '-cert' in version
             base_version = version.split('-cert')[0]
             match = re.match(r'^(\d+)\.(\d+)', base_version)
             if match:
@@ -240,9 +242,19 @@ class DRYTemplateGenerator:
         if major < 12:
             return config
 
-        # Ensure asterisk.menuselect structure exists
+        # Ensure asterisk structure exists
         if "asterisk" not in config:
             config["asterisk"] = {}
+
+        # Certified versions: Disable XML documentation (fixes build errors)
+        # Affects versions like 18.9-cert17 where XML doc generation fails
+        if is_certified and major >= 16:
+            if "configure_options" not in config["asterisk"]:
+                config["asterisk"]["configure_options"] = []
+            if "--disable-xmldoc" not in config["asterisk"]["configure_options"]:
+                config["asterisk"]["configure_options"].append("--disable-xmldoc")
+
+        # Ensure asterisk.menuselect structure exists
         if "menuselect" not in config["asterisk"]:
             config["asterisk"]["menuselect"] = {}
         if "channels" not in config["asterisk"]["menuselect"]:
