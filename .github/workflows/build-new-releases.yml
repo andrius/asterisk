@@ -75,7 +75,7 @@ jobs:
 
             🔨 Building and pushing Docker images with \\\`-dev\\\` suffix for validation...
 
-            **Note**: Images are pushed to registry with \\\`-dev\\\` tags (e.g., \\\`latest-dev\\\`, \\\`stable-dev\\\`) to distinguish from production builds.
+            **Note**: Images are pushed to **GitHub Container Registry only** (\\\`ghcr.io\\\`) with \\\`-dev\\\` tags (e.g., \\\`latest-dev\\\`, \\\`stable-dev\\\`) to avoid consuming Docker Hub quota. Production tags will be created on both registries after merging to main.
             `;
 
             await github.rest.issues.createComment({
@@ -237,7 +237,7 @@ jobs:
               '✅ All Docker images built and pushed successfully with `-dev` suffix! Safe to merge.' :
               '❌ Build failures detected. Please review the workflow logs before merging.'}
 
-            **Note**: Images are pushed to registry with \\\`-dev\\\` tags for validation. Production tags will be created after merging to main.
+            **Note**: Images are pushed to **GitHub Container Registry only** (\\\`ghcr.io\\\`) with \\\`-dev\\\` tags for validation to avoid consuming Docker Hub quota. Production tags will be created on both registries after merging to main.
             `;
 
             await github.rest.issues.createComment({
