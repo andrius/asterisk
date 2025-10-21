@@ -178,12 +178,20 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+  - version: "18.9-cert17"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
 metadata:
-  generated_at: "2025-10-19T20:05:38Z"
+  generated_at: "2025-10-21T20:06:17Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie"]
   supported_architectures: ["amd64", "arm64"]
-  total_versions: 28
+  total_versions: 24
   mode: "manual"
   git_support: true
   git_sha: "5766460"
