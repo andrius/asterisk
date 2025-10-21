@@ -59,7 +59,7 @@ jobs:
         working-directory: .
         run: |
           # Generate supported builds YAML from discovered versions
-          ./scripts/discover-latest-versions.sh --output-yaml --updates-only --include-git
+          ./scripts/discover-latest-versions.sh --output-yaml --updates-only
 
       - name: Generate config files for new versions
         id: generate-configs

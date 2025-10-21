@@ -170,7 +170,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: inputs.push == true
+        if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
         uses: docker/login-action@v3
         with:
           registry: docker.io
@@ -298,10 +298,17 @@ jobs:
           # Convert to sorted list for consistent output
           base_tags = sorted(list(base_tags_set))
 
-          # Generate final tags with both registry prefixes (Docker Hub + ghcr.io)
-          dockerhub_tags = [f\"{registry}:{tag}\" for tag in base_tags]
-          ghcr_tags = [f\"ghcr.io/{registry}:{tag}\" for tag in base_tags]
-          final_tags = dockerhub_tags + ghcr_tags
+          # Generate final tags based on tag_suffix
+          # -dev builds: Only ghcr.io (to avoid Docker Hub quota)
+          # Production builds (main): Both Docker Hub + ghcr.io
+          if tag_suffix:
+              # Development build - only ghcr.io
+              final_tags = [f\"ghcr.io/{registry}:{tag}\" for tag in base_tags]
+          else:
+              # Production build - both registries
+              dockerhub_tags = [f\"{registry}:{tag}\" for tag in base_tags]
+              ghcr_tags = [f\"ghcr.io/{registry}:{tag}\" for tag in base_tags]
+              final_tags = dockerhub_tags + ghcr_tags
 
           print(f\"base_tags={','.join(base_tags)}\")
           print(f\"final_tags={','.join(final_tags)}\")
@@ -424,7 +431,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: inputs.push == true
+        if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
         uses: docker/login-action@v3
         with:
           registry: docker.io
@@ -540,7 +547,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: inputs.push == true
+        if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
         uses: docker/login-action@v3
         with:
           registry: docker.io
