@@ -181,7 +181,7 @@ latest_builds:
   - version: "18.9-cert17"
     os_matrix:
       - os: "debian"
-        distribution: "trixie"
+        distribution: "bookworm"
         architectures:
           - "amd64"
           - "arm64"
