@@ -110,14 +110,36 @@ jobs:
           # Re-run discovery to update local YAML
           ./scripts/discover-latest-versions.sh --git-only --output-yaml
 
+      - name: Generate configs and Dockerfiles for git version
+        run: |
+          echo "🔧 Generating config and Dockerfiles for git version..."
+
+          # Generate config and Dockerfiles using build-asterisk.sh
+          # This ensures consistency with the DRY template system
+          if ./scripts/build-asterisk.sh git --force-config --dry-run; then
+            echo "✅ Successfully generated config and Dockerfiles for git version"
+
+            # Verify files were created
+            if [ -f "asterisk/git-trixie/Dockerfile" ] && [ -f "asterisk/git-trixie/build.sh" ]; then
+              echo "✅ Verified: Dockerfile and build.sh exist"
+            else
+              echo "⚠️ Warning: Some expected files may be missing"
+              ls -la asterisk/git-trixie/ || echo "Directory doesn't exist"
+            fi
+          else
+            echo "⚠️ Config generation completed with warnings"
+          fi
+
       - name: Commit and push if build succeeded
         if: needs.build-git-version.outputs.build_result == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Add the updated YAML
+          # Add the updated YAML and generated files
           git add asterisk/supported-asterisk-builds.yml
+          git add configs/generated/asterisk-git-trixie.yml
+          git add asterisk/git-trixie/
 
           # Create commit
           git commit -m "🔄 Update Asterisk git SHA to ${{ needs.check-git-sha.outputs.new_sha }}
@@ -126,6 +148,11 @@ jobs:
           🐳 Registry: andrius/asterisk
           🏷️  Tags: git-latest, development, testing, git-${{ needs.check-git-sha.outputs.new_sha }}
           📦 Platforms: amd64, arm64
+
+          📝 Files Updated:
+          - asterisk/supported-asterisk-builds.yml (git SHA)
+          - configs/generated/asterisk-git-trixie.yml (config)
+          - asterisk/git-trixie/ (Dockerfile, build.sh, healthcheck.sh)
 
           Previous SHA: ${{ needs.check-git-sha.outputs.current_sha }}
           New SHA: ${{ needs.check-git-sha.outputs.new_sha }}
