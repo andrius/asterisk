@@ -44,7 +44,7 @@ asterisk:
   opus_codec: null
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
-    git_sha: ff80666
+    git_sha: '5766460'
     git_ref: master
   source_type: git
 base:
