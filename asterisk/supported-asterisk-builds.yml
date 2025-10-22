@@ -178,13 +178,14 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+  # Temporally disabled this version until I'd solve compilation issue
   - version: "18.9-cert17"
-    os_matrix:
-      - os: "debian"
-        distribution: "buster"
-        architectures:
-          - "amd64"
-          - "arm64"
+    # os_matrix:
+    #   - os: "debian"
+    #     distribution: "buster"
+    #     architectures:
+    #       - "amd64"
+    #       - "arm64"
 
 metadata:
   generated_at: "2025-10-21T20:57:09Z"
