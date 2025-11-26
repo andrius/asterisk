@@ -50,6 +50,98 @@ def version_sort_key(version):
         return (0, 0, 0, 0)
 
 
+def calculate_version_metrics(builds):
+    """
+    Calculate version statistics from builds data.
+
+    Returns:
+        dict with keys: total, oldest, latest, has_git
+    """
+    # Filter enabled versions (those with os_matrix)
+    enabled = [b for b in builds if b.get('os_matrix')]
+
+    # Separate git from versioned releases
+    versioned = [b['version'] for b in enabled if b.get('version') != 'git']
+    has_git = any(b.get('version') == 'git' for b in enabled)
+
+    # Sort using existing version_sort_key function
+    sorted_versions = sorted(versioned, key=version_sort_key)
+
+    return {
+        'total': len(enabled),
+        'oldest': sorted_versions[0] if sorted_versions else None,
+        'latest': sorted_versions[-1] if sorted_versions else None,
+        'has_git': has_git
+    }
+
+
+def update_readme_intro(readme_path, metrics, dry_run=False):
+    """
+    Update line 3 of README with dynamic version range.
+
+    Expected format:
+    "Production-ready Docker images for Asterisk PBX with advanced DRY
+     template system, supporting N versions from X.X.X to Y.Y.Y plus git
+     development builds."
+    """
+    try:
+        with open(readme_path, 'r') as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        print(f"❌ ERROR: File not found: {readme_path}", file=sys.stderr)
+        return False
+
+    if len(lines) < 3:
+        print("❌ ERROR: README.md has fewer than 3 lines", file=sys.stderr)
+        return False
+
+    # Build new intro text
+    git_suffix = " plus git development builds" if metrics['has_git'] else ""
+    new_text = (
+        f"supporting {metrics['total']} versions "
+        f"from {metrics['oldest']} to {metrics['latest']}{git_suffix}"
+    )
+
+    # Replace on line 3 (index 2)
+    line = lines[2]
+    if 'supporting' in line:
+        # Find and replace the "supporting..." portion
+        start_idx = line.index('supporting')
+
+        # Find the end: look for period after "builds" or "git" or version number
+        # This pattern handles: "supporting X versions from Y to Z plus git development builds."
+        # or "supporting X versions from Y to Z."
+        remaining = line[start_idx:]
+        if 'builds.' in remaining:
+            end_offset = remaining.index('builds.') + len('builds.')
+        elif 'git development builds' in remaining:
+            end_offset = remaining.index('git development builds') + len('git development builds')
+            if '.' in remaining[end_offset:end_offset+2]:
+                end_offset += 1
+        else:
+            # Fallback: find first period
+            end_offset = remaining.index('.') + 1 if '.' in remaining else len(remaining.rstrip())
+
+        end_idx = start_idx + end_offset
+
+        prefix = line[:start_idx]
+        suffix = line[end_idx:] if end_idx < len(line) else '\n'
+
+        lines[2] = f"{prefix}{new_text}.{suffix}"
+
+        if not dry_run:
+            with open(readme_path, 'w') as f:
+                f.writelines(lines)
+            print(f"✅ Updated intro text: {new_text}")
+            return True
+        else:
+            print(f"🔍 Would update intro: {new_text}")
+            return False
+    else:
+        print("⚠️  Warning: Line 3 doesn't contain 'supporting', skipping intro update", file=sys.stderr)
+        return False
+
+
 def load_supported_builds(yaml_path):
     """Load and parse supported-asterisk-builds.yml"""
     try:
@@ -184,13 +276,24 @@ def main():
     builds = load_supported_builds(yaml_path)
     print(f"✅ Found {len(builds)} versions")
 
+    # Calculate version metrics
+    print("📊 Calculating version metrics...")
+    metrics = calculate_version_metrics(builds)
+    print(f"   Total enabled: {metrics['total']}")
+    print(f"   Range: {metrics['oldest']} to {metrics['latest']}")
+
+    # Update intro text
+    print(f"📝 Updating intro text in {readme_path}...")
+    intro_updated = update_readme_intro(readme_path, metrics, dry_run)
+
+    # Generate and update table
     print("📊 Generating markdown table...")
     table = generate_version_table(builds)
 
-    print(f"📝 Updating {readme_path}...")
-    updated = update_readme(readme_path, table, dry_run)
+    print(f"📝 Updating table in {readme_path}...")
+    table_updated = update_readme(readme_path, table, dry_run)
 
-    if updated:
+    if intro_updated or table_updated:
         print("\n✅ README.md updated successfully!")
     elif dry_run:
         print("\n💡 Run without --dry-run to apply changes")

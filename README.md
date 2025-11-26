@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 24 versions from 1.2.40 to 23.0.0-rc2 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 23 versions from 1.2.40 to 23.1.0 plus git development builds.
 
 ## Quick Start
 
@@ -50,33 +50,29 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 
 | Version | Tags | Distribution | Architectures |
 | ------- | ---- | ------------ | ------------- |
-| **git** | `testing,git-latest,development` | Trixie | amd64, arm64 |
-| **23.1.0** | - | Trixie | amd64, arm64 |
-| **23.0.0** | 23 | Trixie | amd64, arm64 |
-| **22.7.0** | - | Trixie | amd64, arm64 |
-| **22.6.0** | `latest,stable,22` | Trixie | amd64, arm64 |
-| **21.12.0** | - | Trixie | amd64, arm64 |
-| **21.11.0** | - | Trixie | amd64, arm64 |
-| **20.17.0** | - | Trixie | amd64, arm64 |
-| **20.16.0** | - | Trixie | amd64, arm64 |
-| **20.7-cert7** | - | Trixie | amd64 |
-| **19.8.1** | - | Bookworm | amd64 |
-| **18.26.4** | - | Trixie | amd64 |
-| **17.9.4** | - | Bookworm | amd64 |
-| **16.30.1** | - | Bookworm | amd64 |
-| **16.8-cert14** | - | Buster | amd64 |
-| **15.7.4** | - | Buster | amd64 |
-| **14.7.8** | - | Buster | amd64 |
-| **13.38.3** | - | Buster | amd64 |
-| **13.21-cert6** | - | Buster | amd64 |
-| **12.8.2** | - | Jessie | amd64 |
-| **11.25.3** | - | Jessie | amd64 |
-| **11.6-cert18** | - | Jessie | amd64 |
-| **10.12.4** | - | Jessie | amd64 |
-| **1.8.32.3** | - | Jessie | amd64 |
-| **1.6.2.24** | - | Jessie | amd64 |
-| **1.4.44** | - | Jessie | amd64 |
-| **1.2.40** | - | Stretch | amd64 |
+| **git** | `testing,dev` | Trixie | amd64, arm64 |
+| **23.1.0** | 23 | Trixie | amd64, arm64 |
+| **22.7.0** | `latest,stable,22` | Trixie | amd64, arm64 |
+| **21.12.0** | 21 | Trixie | amd64, arm64 |
+| **20.17.0** | 20 | Trixie | amd64, arm64 |
+| **20.7-cert7** | 20-cert | Trixie | amd64 |
+| **19.8.1** | 19 | Bookworm | amd64 |
+| **18.26.4** | 18 | Trixie | amd64 |
+| **17.9.4** | 17 | Bookworm | amd64 |
+| **16.30.1** | 16 | Bookworm | amd64 |
+| **16.8-cert14** | 16-cert | Buster | amd64 |
+| **15.7.4** | 15 | Buster | amd64 |
+| **14.7.8** | 14 | Buster | amd64 |
+| **13.38.3** | 13 | Buster | amd64 |
+| **13.21-cert6** | 13-cert | Buster | amd64 |
+| **12.8.2** | 12 | Jessie | amd64 |
+| **11.25.3** | 11 | Jessie | amd64 |
+| **11.6-cert18** | 11-cert | Jessie | amd64 |
+| **10.12.4** | 10 | Jessie | amd64 |
+| **1.8.32.3** | 1.8 | Jessie | amd64 |
+| **1.6.2.24** | 1.6 | Jessie | amd64 |
+| **1.4.44** | 1.4 | Jessie | amd64 |
+| **1.2.40** | 1.2 | Stretch | amd64 |
 
 ## Additional Tags
 

@@ -510,8 +510,6 @@ generate_yaml_output() {
       fi
 
       # Update metadata counts
-      local total_versions=$((${#existing_versions[@]} + ${#new_versions[@]}))
-      sed -i "s/total_versions: [0-9]*/total_versions: $total_versions/" "$temp_file"
       sed -i "s/new_versions_count: [0-9]*/new_versions_count: ${#new_versions[@]}/" "$temp_file"
       sed -i "s/generated_at: \"[^\"]*\"/generated_at: \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"/" "$temp_file"
 
