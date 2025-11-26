@@ -637,6 +637,16 @@ jobs:
         id: digest-list
         run: |
           echo "Collecting digests from artifacts..."
+
+          # Determine registry prefix based on branch type (same as build job)
+          if [[ "${{ steps.branch-info.outputs.tag_suffix }}" != "" ]]; then
+            REGISTRY_PREFIX="ghcr.io/"
+            echo "🔧 Dev build - using ghcr.io for digest references"
+          else
+            REGISTRY_PREFIX=""
+            echo "✅ Production build - using Docker Hub for digest references"
+          fi
+
           DIGEST_LIST=""
 
           # List all digest files
@@ -646,7 +656,7 @@ jobs:
             if [[ -f "$digest_file" ]]; then
               digest_hash=$(basename "$digest_file")
               full_digest="sha256:$digest_hash"
-              image_ref="${{ inputs.registry }}@$full_digest"
+              image_ref="${REGISTRY_PREFIX}${{ inputs.registry }}@$full_digest"
 
               if [[ -n "$DIGEST_LIST" ]]; then
                 DIGEST_LIST="$DIGEST_LIST $image_ref"
