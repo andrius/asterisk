@@ -75,19 +75,87 @@ jobs:
             if [ -n "$NEW_VERSIONS" ]; then
               echo "🔧 Generating configs and Dockerfiles for new versions: $NEW_VERSIONS"
 
-              # Generate configs and Dockerfiles for each new version using build-asterisk.sh
-              # This ensures consistency with the DRY template system
+              # Track generation results
+              GENERATION_FAILED=false
+              FAILED_VERSIONS=()
+              SUCCESSFUL_VERSIONS=()
+
               for version in $NEW_VERSIONS; do
                 echo "📦 Generating for version: $version"
+
                 if ./scripts/build-asterisk.sh "$version" --force-config --dry-run; then
                   echo "✅ Successfully generated for: $version"
+                  SUCCESSFUL_VERSIONS+=("$version")
                 else
-                  echo "⚠️ Failed to generate for: $version"
+                  echo "❌ FAILED to generate for: $version"
+                  FAILED_VERSIONS+=("$version")
+                  GENERATION_FAILED=true
                 fi
               done
 
+              # Report results
+              echo ""
+              echo "=========================================="
+              echo "Generation Summary"
+              echo "=========================================="
+              echo "Total versions: $(echo $NEW_VERSIONS | wc -w)"
+              echo "Successful: ${#SUCCESSFUL_VERSIONS[@]}"
+              echo "Failed: ${#FAILED_VERSIONS[@]}"
+
+              if [ ${#SUCCESSFUL_VERSIONS[@]} -gt 0 ]; then
+                echo "✅ Successful generations:"
+                for v in "${SUCCESSFUL_VERSIONS[@]}"; do echo "  - $v"; done
+              fi
+
+              if [ ${#FAILED_VERSIONS[@]} -gt 0 ]; then
+                echo "❌ Failed generations:"
+                for v in "${FAILED_VERSIONS[@]}"; do echo "  - $v"; done
+              fi
+
+              # CRITICAL: Fail workflow if any generation failed
+              if [ "$GENERATION_FAILED" = true ]; then
+                echo ""
+                echo "❌ Generation failed for ${#FAILED_VERSIONS[@]} version(s)"
+                echo "Aborting workflow - fix errors before creating PR"
+                exit 1
+              fi
+
+              # Validate all expected files exist
+              echo ""
+              echo "=========================================="
+              echo "Validating Generated Files"
+              echo "=========================================="
+
+              MISSING_FILES=()
+              for version in $NEW_VERSIONS; do
+                # Extract distribution from YAML (assume trixie for modern versions)
+                DIST="trixie"
+
+                # Check YAML config
+                [ ! -f "configs/generated/asterisk-${version}-${DIST}.yml" ] && \
+                  MISSING_FILES+=("configs/generated/asterisk-${version}-${DIST}.yml")
+
+                # Check Dockerfile directory and files
+                if [ ! -d "asterisk/${version}-${DIST}" ]; then
+                  MISSING_FILES+=("asterisk/${version}-${DIST}/ (directory missing)")
+                else
+                  for file in Dockerfile build.sh healthcheck.sh; do
+                    [ ! -f "asterisk/${version}-${DIST}/${file}" ] && \
+                      MISSING_FILES+=("asterisk/${version}-${DIST}/${file}")
+                  done
+                fi
+              done
+
+              if [ ${#MISSING_FILES[@]} -gt 0 ]; then
+                echo "❌ Missing expected files:"
+                printf '%s\n' "${MISSING_FILES[@]}"
+                echo ""
+                echo "Generation succeeded but files not found - aborting"
+                exit 1
+              fi
+
+              echo "✅ All expected files validated successfully"
               echo "configs_generated=true" >> $GITHUB_OUTPUT
-              echo "✅ Generation completed for all versions"
             else
               echo "📋 No new versions detected (only metadata changes)"
               echo "configs_generated=false" >> $GITHUB_OUTPUT
