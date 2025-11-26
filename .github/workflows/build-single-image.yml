@@ -493,17 +493,28 @@ jobs:
         run: |
           echo "Building for platform: ${{ matrix.platform }}"
 
+          # Determine registry based on branch type
+          if [[ "${{ steps.branch-info.outputs.tag_suffix }}" != "" ]]; then
+            # Dev build (PR) - use ghcr.io only
+            REGISTRY_PREFIX="ghcr.io/"
+            echo "🔧 Dev build - using GitHub Container Registry"
+          else
+            # Production build (main) - use Docker Hub default
+            REGISTRY_PREFIX=""
+            echo "✅ Production build - using Docker Hub"
+          fi
+
           if [[ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" == "true" ]]; then
             # Multi-platform: Always use push-by-digest strategy
             echo "Multi-platform build - using push-by-digest strategy"
-            echo "image_name=${{ inputs.registry }}" >> $GITHUB_OUTPUT
+            echo "image_name=${REGISTRY_PREFIX}${{ inputs.registry }}" >> $GITHUB_OUTPUT
             echo "use_tags=false" >> $GITHUB_OUTPUT
             echo "push_enabled=true" >> $GITHUB_OUTPUT
           else
             # Single platform: Use final tags directly
             FINAL_TAGS="${{ needs.validate-and-prepare.outputs.final_tags }}"
             echo "Single-platform build - using final tags: $FINAL_TAGS"
-            echo "image_name=${{ inputs.registry }}" >> $GITHUB_OUTPUT
+            echo "image_name=${REGISTRY_PREFIX}${{ inputs.registry }}" >> $GITHUB_OUTPUT
             echo "tags=$FINAL_TAGS" >> $GITHUB_OUTPUT
             echo "use_tags=true" >> $GITHUB_OUTPUT
             echo "push_enabled=${{ inputs.push }}" >> $GITHUB_OUTPUT
