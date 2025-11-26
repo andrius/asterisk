@@ -1,0 +1,70 @@
+name: Validate File Generation
+
+on:
+  pull_request:
+    paths:
+      - 'asterisk/supported-asterisk-builds.yml'
+      - 'configs/generated/**'
+      - 'asterisk/*-*/**'
+
+jobs:
+  validate-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate generation consistency
+        run: |
+          python3 << 'EOF'
+          import yaml
+          import os
+          import sys
+
+          errors = []
+
+          with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
+              data = yaml.safe_load(f)
+
+          for build in data.get('latest_builds', []):
+              version = build.get('version')
+              os_matrix = build.get('os_matrix')
+
+              # Skip intentionally disabled versions
+              if not os_matrix:
+                  print(f"⏭️  Skipping {version} (intentionally disabled)")
+                  continue
+
+              for os_config in os_matrix:
+                  dist = os_config.get('distribution')
+
+                  # Check YAML config
+                  config_file = f'configs/generated/asterisk-{version}-{dist}.yml'
+                  if not os.path.exists(config_file):
+                      errors.append(f"Missing config: {config_file}")
+
+                  # Check Dockerfile directory
+                  dockerfile_dir = f'asterisk/{version}-{dist}'
+                  if not os.path.isdir(dockerfile_dir):
+                      errors.append(f"Missing directory: {dockerfile_dir}/")
+                  else:
+                      for required_file in ['Dockerfile', 'build.sh', 'healthcheck.sh']:
+                          file_path = os.path.join(dockerfile_dir, required_file)
+                          if not os.path.exists(file_path):
+                              errors.append(f"Missing file: {file_path}")
+
+          if errors:
+              print("❌ Validation FAILED - missing generated files:")
+              for error in errors:
+                  print(f"  - {error}")
+              sys.exit(1)
+          else:
+              print("✅ All expected files present and consistent")
+          EOF
