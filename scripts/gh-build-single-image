@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/libs/gh-workflow-utils.sh"
 
 # Script configuration
 readonly WORKFLOW_FILE="build-single-image.yml"
-readonly DEFAULT_REGISTRY="andrius/asterisk"
+readonly DEFAULT_REGISTRY="ghcr.io/andrius/asterisk"
 readonly SUPPORTED_BUILDS_FILE="$SCRIPT_DIR/../asterisk/supported-asterisk-builds.yml"
 
 usage() {

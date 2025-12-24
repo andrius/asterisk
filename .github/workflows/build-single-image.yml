@@ -493,16 +493,11 @@ jobs:
         run: |
           echo "Building for platform: ${{ matrix.platform }}"
 
-          # Determine registry based on branch type
-          if [[ "${{ steps.branch-info.outputs.tag_suffix }}" != "" ]]; then
-            # Dev build (PR) - use ghcr.io only
-            REGISTRY_PREFIX="ghcr.io/"
-            echo "🔧 Dev build - using GitHub Container Registry"
-          else
-            # Production build (main) - use Docker Hub default
-            REGISTRY_PREFIX=""
-            echo "✅ Production build - using Docker Hub"
-          fi
+          # Always use ghcr.io for digest storage (source of truth)
+          # This avoids Docker Hub pull rate limits during manifest creation
+          # Final manifests will be created for both Docker Hub and ghcr.io
+          REGISTRY_PREFIX="ghcr.io/"
+          echo "Using ghcr.io as source of truth for digest storage"
 
           if [[ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" == "true" ]]; then
             # Multi-platform: Always use push-by-digest strategy
@@ -638,14 +633,11 @@ jobs:
         run: |
           echo "Collecting digests from artifacts..."
 
-          # Determine registry prefix based on branch type (same as build job)
-          if [[ "${{ steps.branch-info.outputs.tag_suffix }}" != "" ]]; then
-            REGISTRY_PREFIX="ghcr.io/"
-            echo "🔧 Dev build - using ghcr.io for digest references"
-          else
-            REGISTRY_PREFIX=""
-            echo "✅ Production build - using Docker Hub for digest references"
-          fi
+          # Always use ghcr.io for digest references (source of truth)
+          # This avoids Docker Hub pull rate limits during manifest creation
+          # Digests are stored in ghcr.io, manifests created for both registries
+          REGISTRY_PREFIX="ghcr.io/"
+          echo "Using ghcr.io as source of truth for digest references"
 
           DIGEST_LIST=""
 

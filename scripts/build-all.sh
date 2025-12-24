@@ -11,7 +11,7 @@ LATEST_BUILDS_FILE="${PROJECT_DIR}/asterisk/supported-asterisk-builds.yml"
 BUILD_SCRIPT="${SCRIPT_DIR}/build-asterisk.sh"
 
 # Default values
-DEFAULT_REGISTRY="andrius/asterisk"
+DEFAULT_REGISTRY="ghcr.io/andrius/asterisk"
 DRY_RUN=false
 VERBOSE=false
 PARALLEL=false

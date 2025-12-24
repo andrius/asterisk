@@ -36,7 +36,7 @@ for file in "${required_files[@]}"; do
 done
 
 # Default values
-DEFAULT_REGISTRY=""
+DEFAULT_REGISTRY="ghcr.io/andrius/asterisk"
 DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
 DRY_RUN=false
 PUSH_IMAGES=false
