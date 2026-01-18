@@ -17,7 +17,7 @@ fi
 
 # Validate project structure
 required_dirs=("$PROJECT_DIR/templates" "$PROJECT_DIR/configs" "$PROJECT_DIR/lib")
-required_files=("$LATEST_BUILDS_FILE" "$PROJECT_DIR/CLAUDE.md")
+required_files=("$LATEST_BUILDS_FILE")
 
 for dir in "${required_dirs[@]}"; do
     if [[ ! -d "$dir" ]]; then
