@@ -208,8 +208,16 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+  - version: "20.7-cert8"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
 metadata:
-  generated_at: "2025-11-25T20:06:10Z"
+  generated_at: "2026-01-20T20:25:35Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie"]
   supported_architectures: ["amd64", "arm64"]
