@@ -1,15 +1,6 @@
 name: Build All Asterisk Docker Images (Matrix)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'asterisk/supported-asterisk-builds.yml'
-      - 'configs/generated/**'
-      - '.github/workflows/build-images.yml'
-      - '.github/workflows/build-single-image.yml'
-
   workflow_dispatch:
     inputs:
       push:
