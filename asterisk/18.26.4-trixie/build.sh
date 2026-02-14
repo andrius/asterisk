@@ -99,6 +99,7 @@ log "Installing sample configurations..."
 TMPDIR=${TMPDIR} make samples
 
 
+
 # Strip binaries to reduce size
 log "Stripping binaries to reduce image size..."
 find /usr/sbin /usr/lib/asterisk -type f -executable \

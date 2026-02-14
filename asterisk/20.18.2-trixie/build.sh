@@ -109,6 +109,8 @@ if [ "$ARCH" = "amd64" ]; then
     if curl -fsSL "$OPUS_URL" | tar -xz -C "$OPUS_TMP"; then
         find "$OPUS_TMP" -name "codec_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
         find "$OPUS_TMP" -name "format_ogg_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
+        mkdir -p /var/lib/asterisk/documentation
+        find "$OPUS_TMP" -name "codec_opus_config-en_US.xml" -exec cp -v {} /var/lib/asterisk/documentation/ \;
         rm -rf "$OPUS_TMP"
         log "Opus codec installed successfully"
     else

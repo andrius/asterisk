@@ -83,10 +83,10 @@ ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
 # Install only runtime dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        binutils curl libedit2 libgsm1 libjansson4 libogg0 libpopt0 libresample1 \
-        libspandsp2 libspeex1 libspeexdsp1 libsqlite3-0 libvorbis0a libxml2 \
-        libxslt1.1 odbcinst portaudio19-dev procps python3 unixodbc uuid libcurl4 \
-        libssl1.1 libsrtp2-1 libncurses6 libpqxx-6.2 libicu63 \
+        binutils curl libedit2 libgsm1 libjansson4 libogg0 libopus0 libpopt0 \
+        libresample1 libspandsp2 libspeex1 libspeexdsp1 libsqlite3-0 libvorbis0a \
+        libxml2 libxslt1.1 odbcinst portaudio19-dev procps python3 unixodbc uuid \
+        libcurl4 libssl1.1 libsrtp2-1 libncurses6 libpqxx-6.2 libicu63 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

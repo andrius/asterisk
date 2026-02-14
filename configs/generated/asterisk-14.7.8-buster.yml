@@ -34,7 +34,8 @@ asterisk:
     - chan_dahdi
     - chan_misdn
     - app_festival
-  opus_codec: null
+  opus_codec:
+    enabled: false
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
@@ -130,6 +131,7 @@ packages:
   - libgsm1
   - libjansson4
   - libogg0
+  - libopus0
   - libpopt0
   - libresample1
   - libspandsp2
