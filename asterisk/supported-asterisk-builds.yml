@@ -179,14 +179,13 @@ latest_builds:
   #         - "amd64"
   #         - "arm64"
 
-  - version: "21.12.0"
-    additional_tags: "21"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
+  # - version: "21.12.0"
+  #   os_matrix:
+  #     - os: "debian"
+  #       distribution: "trixie"
+  #       architectures:
+  #         - "amd64"
+  #         - "arm64"
 
   # - version: "22.7.0"
   #   os_matrix:
@@ -204,16 +203,39 @@ latest_builds:
   #         - "amd64"
   #         - "arm64"
 
-  - version: "20.7-cert8"
-    additional_tags: "20-cert"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
+  # - version: "20.7-cert8"
+  #   os_matrix:
+  #     - os: "debian"
+  #       distribution: "trixie"
+  #       architectures:
+  #         - "amd64"
+  #         - "arm64"
 
-  - version: "20.18.0"
+  # - version: "20.18.0"
+  #   os_matrix:
+  #     - os: "debian"
+  #       distribution: "trixie"
+  #       architectures:
+  #         - "amd64"
+  #         - "arm64"
+
+  # - version: "22.8.0"
+  #   os_matrix:
+  #     - os: "debian"
+  #       distribution: "trixie"
+  #       architectures:
+  #         - "amd64"
+  #         - "arm64"
+
+  # - version: "23.2.0"
+  #   os_matrix:
+  #     - os: "debian"
+  #       distribution: "trixie"
+  #       architectures:
+  #         - "amd64"
+  #         - "arm64"
+
+  - version: "20.18.2"
     additional_tags: "20"
     os_matrix:
       - os: "debian"
@@ -222,33 +244,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-  - version: "22.8.0"
-    additional_tags: "latest,stable,22"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
-
-  - version: "23.2.0"
-    additional_tags: "23"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
-
-  - version: "20.18.2"
-    os_matrix:
-      - os: "debian"
-        distribution: "trixie"
-        architectures:
-          - "amd64"
-          - "arm64"
-
   - version: "20.7-cert9"
+    additional_tags: "20-cert"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -257,6 +254,7 @@ latest_builds:
           - "arm64"
 
   - version: "21.12.1"
+    additional_tags: "21"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -265,6 +263,7 @@ latest_builds:
           - "arm64"
 
   - version: "22.8.2"
+    additional_tags: "latest,stable,22"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -273,6 +272,7 @@ latest_builds:
           - "arm64"
 
   - version: "23.2.2"
+    additional_tags: "23"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
