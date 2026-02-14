@@ -280,6 +280,14 @@ class DRYTemplateGenerator:
                 config["features"] = {}
             config["features"]["websockets"] = True
 
+        # v20+: Enable Digium binary Opus codec (x86-64 only, downloaded at build time)
+        if major >= 20:
+            opus_major = min(major, 23)  # Cap at 23 (latest Digium codec available)
+            config["asterisk"]["opus_codec"] = {
+                "enabled": True,
+                "major_version": opus_major,
+            }
+
         return config
 
     def generate_config(self, version: str, distribution: str = None, variant: str = None) -> Dict[str, Any]:

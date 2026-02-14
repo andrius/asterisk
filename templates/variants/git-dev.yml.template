@@ -65,6 +65,7 @@ packages:
     - libjansson4
     - libncurses6
     - libogg0
+    - libopus0
     - libpopt0
     - libpqxx-7.10
     - libresample1

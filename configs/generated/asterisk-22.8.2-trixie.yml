@@ -35,7 +35,9 @@ asterisk:
     - chan_misdn
     - app_festival
     - chan_sip
-  opus_codec: null
+  opus_codec:
+    enabled: true
+    major_version: 22
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
@@ -117,6 +119,7 @@ packages:
   - libgsm1
   - libjansson4
   - libogg0
+  - libopus0
   - libpopt0
   - libresample1
   - libspandsp2

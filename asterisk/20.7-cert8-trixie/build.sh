@@ -98,6 +98,27 @@ TMPDIR=${TMPDIR} make install
 log "Installing sample configurations..."
 TMPDIR=${TMPDIR} make samples
 
+# Download and install Digium Opus codec binary (x86-64 only)
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo "unknown")
+if [ "$ARCH" = "amd64" ]; then
+    OPUS_MAJOR="20"
+    OPUS_URL="https://downloads.digium.com/pub/telephony/codec_opus/asterisk-${OPUS_MAJOR}.0/x86-64/codec_opus-${OPUS_MAJOR}.0-current-x86_64.tar.gz"
+    log "Downloading Digium Opus codec (Asterisk ${OPUS_MAJOR}.0)..."
+    OPUS_TMP="/tmp/codec_opus"
+    mkdir -p "$OPUS_TMP"
+    if curl -fsSL "$OPUS_URL" | tar -xz -C "$OPUS_TMP"; then
+        find "$OPUS_TMP" -name "codec_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
+        find "$OPUS_TMP" -name "format_ogg_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
+        rm -rf "$OPUS_TMP"
+        log "Opus codec installed successfully"
+    else
+        warn "Failed to download Opus codec from $OPUS_URL - Opus transcoding will not be available"
+        rm -rf "$OPUS_TMP"
+    fi
+else
+    log "Skipping Digium Opus codec (x86-64 only, detected: $ARCH)"
+fi
+
 
 # Strip binaries to reduce size
 log "Stripping binaries to reduce image size..."

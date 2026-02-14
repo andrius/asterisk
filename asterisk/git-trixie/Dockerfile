@@ -87,7 +87,7 @@ ENV GIT_SHA=${GIT_SHA}
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        binutils \curl \libedit2 \libgsm1 \libjansson4 \libogg0 \libpopt0 \libresample1 \libspandsp2 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxml2 \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu76 \libspandsp2t64 \
+        binutils \curl \libedit2 \libgsm1 \libjansson4 \libogg0 \libopus0 \libpopt0 \libresample1 \libspandsp2 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxml2 \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu76 \libspandsp2t64 \
     && apt-get clean
 
 # Create asterisk user and required directories

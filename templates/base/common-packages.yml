@@ -50,6 +50,7 @@ common_runtime_packages:
   - libgsm1
   - libjansson4
   - libogg0
+  - libopus0
   - libpopt0
   - libresample1
   - libspandsp2

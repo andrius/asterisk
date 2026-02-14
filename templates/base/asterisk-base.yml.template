@@ -15,7 +15,8 @@ base:
 # 3. variant-specific additions
 
 asterisk:
-  opus_codec: null
+  opus_codec:
+    enabled: false
 
   # Standard menuselect configuration for modern Asterisk (11+)
   menuselect:

@@ -124,6 +124,30 @@ log "Installing sample configurations..."
 make samples
 {% endif %}
 
+{% set opus = config.asterisk.opus_codec | default({}) %}
+{% if opus.enabled | default(false) %}
+# Download and install Digium Opus codec binary (x86-64 only)
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo "unknown")
+if [ "$ARCH" = "amd64" ]; then
+    OPUS_MAJOR="{{ opus.major_version }}"
+    OPUS_URL="https://downloads.digium.com/pub/telephony/codec_opus/asterisk-${OPUS_MAJOR}.0/x86-64/codec_opus-${OPUS_MAJOR}.0-current-x86_64.tar.gz"
+    log "Downloading Digium Opus codec (Asterisk ${OPUS_MAJOR}.0)..."
+    OPUS_TMP="/tmp/codec_opus"
+    mkdir -p "$OPUS_TMP"
+    if curl -fsSL "$OPUS_URL" | tar -xz -C "$OPUS_TMP"; then
+        find "$OPUS_TMP" -name "codec_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
+        find "$OPUS_TMP" -name "format_ogg_opus*.so" -exec cp -v {} /usr/lib/asterisk/modules/ \;
+        rm -rf "$OPUS_TMP"
+        log "Opus codec installed successfully"
+    else
+        warn "Failed to download Opus codec from $OPUS_URL - Opus transcoding will not be available"
+        rm -rf "$OPUS_TMP"
+    fi
+else
+    log "Skipping Digium Opus codec (x86-64 only, detected: $ARCH)"
+fi
+{% endif %}
+
 {% if config.features.hep | default(true) and not is_legacy -%}
 # Configure HEP modules (enable by default)
 log "Configuring HEP modules..."
