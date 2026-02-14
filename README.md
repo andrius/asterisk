@@ -141,6 +141,7 @@ When building, both version-specific tags (`22.5.2_debian-trixie`) and semantic 
 - **Daily Release Discovery**: Automated detection and configuration of new Asterisk releases
 - **Comprehensive Support**: All Asterisk versions from 1.2.x through 23.x with appropriate OS distributions
 - **Modern Features**: PJSIP, WebRTC, ARI, WebSocket transport for compatible versions
+- **Opus Codec Support**: Digium binary Opus codec automatically included for Asterisk 20+ on x86_64 (arm64 supports Opus passthrough)
 
 ## Architecture
 
@@ -196,6 +197,14 @@ The build system automatically enforces version-specific module requirements dur
 - Sets `features.websockets = true` in configuration
 - Includes full WebSocket stack: `chan_websocket`, `res_http_websocket`, `res_pjsip_transport_websocket`
 - Example: `asterisk/23.0.0-rc2-trixie/build.sh:73` contains `menuselect --enable chan_websocket`
+
+**Asterisk 20+ (Opus codec)**:
+
+- Automatically downloads and installs Digium binary Opus codec at build time
+- Provides `codec_opus.so` (transcoding) and `format_ogg_opus.so` (OGG Opus file support)
+- x86_64/amd64 only — Digium does not provide arm64 binaries
+- arm64 images include `res_format_attr_opus.so` for Opus passthrough (no transcoding)
+- Version capped at Asterisk 23 codec URL (latest available from Digium)
 
 These overrides are applied automatically during ANY config generation:
 
