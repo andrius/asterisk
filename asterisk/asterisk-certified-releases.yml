@@ -102,5 +102,8 @@
   - 20.7-cert7
   - 20.7-cert8
   - 20.7-cert9
+22.8:
+  - 22.8-cert1
+  - 22.8-cert1-rc1
 current:
   - current
