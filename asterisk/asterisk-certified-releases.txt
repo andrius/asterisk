@@ -72,6 +72,7 @@ current
 20.7-cert1
 20.7-cert1-rc1
 20.7-cert1-rc2
+20.7-cert10
 20.7-cert2
 20.7-cert3
 20.7-cert4
@@ -82,3 +83,4 @@ current
 20.7-cert9
 22.8-cert1
 22.8-cert1-rc1
+22.8-cert2
