@@ -32,7 +32,8 @@ RUN mkdir -p \
 
 # EOL distribution setup (if needed)
 # Install ca-certificates first, then build dependencies
-RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder-$TARGETARCH \
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-builder-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && apt-get install -y --no-install-recommends \
@@ -41,7 +42,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-builder-$TARGETARC
     && rm -rf /var/lib/apt/lists/*
 
 # Install git (required for git-based builds)
-RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-git-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-git-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-git-$TARGETARCH \
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-git-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-git-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends git \
     && apt-get clean
@@ -59,7 +61,8 @@ COPY build.sh /usr/src/asterisk/build.sh
 RUN chmod +x /usr/src/asterisk/build.sh
 
 # Build Asterisk with git source
-RUN --mount=type=cache,target=/tmp/asterisk_build cd /usr/src/asterisk \
+RUN --mount=type=cache,target=/tmp/asterisk_build \
+    cd /usr/src/asterisk \
     && ./build.sh \
     && make install \
     && make install-logrotate \
@@ -84,7 +87,8 @@ ENV GIT_SHA=${GIT_SHA}
 
 # EOL distribution setup (if needed)
 # Install runtime dependencies
-RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         binutils \curl \libedit2 \libgsm1 \libjansson4 \libogg0 \libopus0 \libpopt0 \libresample1 \libspandsp2 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxml2 \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu76 \libspandsp2t64 \
