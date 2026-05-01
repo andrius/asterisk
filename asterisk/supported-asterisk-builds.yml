@@ -312,8 +312,40 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+  - version: "18.9-cert18"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "20.19.0"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "22.9.0"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+  - version: "23.3.0"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
 metadata:
-  generated_at: "2026-04-07T20:15:18Z"
+  generated_at: "2026-05-01T20:21:01Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie"]
   supported_architectures: ["amd64", "arm64"]
