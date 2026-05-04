@@ -1,13 +1,9 @@
 # Asterisk on Docker Swarm - reference stack
 #
 # Two services, both optional - pick the one that matches your network model:
-#   - asterisk-vip:  swarm overlay/VIP networking (simple, but UDP/SIP behind
-#                    swarm's IPVS load balancer needs careful handling)
-#   - asterisk-host: host networking (simplest path for real SIP/RTP traffic;
+#   - asterisk-vip:  swarm overlay/VIP networking (simple)
+#   - asterisk-host: host networking (recommended for real SIP/RTP traffic;
 #                    binds the node's interfaces directly, single replica only)
-#
-# For the canonical issue-86 reproduction (and the validation we ran), the
-# vip variant alone is enough. For production VoIP use the host variant.
 #
 # Deploy:    docker stack deploy -c stack.yml asterisk
 # Tear down: docker stack rm asterisk
