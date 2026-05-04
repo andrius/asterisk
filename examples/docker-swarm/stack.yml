@@ -1,0 +1,116 @@
+# Asterisk on Docker Swarm - reference stack
+#
+# Two services, both optional - pick the one that matches your network model:
+#   - asterisk-vip:  swarm overlay/VIP networking (simple, but UDP/SIP behind
+#                    swarm's IPVS load balancer needs careful handling)
+#   - asterisk-host: host networking (simplest path for real SIP/RTP traffic;
+#                    binds the node's interfaces directly, single replica only)
+#
+# For the canonical issue-86 reproduction (and the validation we ran), the
+# vip variant alone is enough. For production VoIP use the host variant.
+#
+# Deploy:    docker stack deploy -c stack.yml asterisk
+# Tear down: docker stack rm asterisk
+
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Variant A: overlay networking (default Swarm behaviour)
+  # ---------------------------------------------------------------------------
+  asterisk-vip:
+    image: andrius/asterisk:${ASTERISK_TAG:-latest}
+    environment:
+      # Adapt the in-container `asterisk` user (default 1000:1000) to whatever
+      # owns your bind-mounted volumes on the host. Defaults are 1000:1000 if
+      # left unset. Only effective on Asterisk 10.x+ images.
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+    ports:
+      - target: 5060
+        published: 5060
+        protocol: udp
+        mode: ingress  # swarm IPVS - works for SIP signalling but NAT-rewrites source IP
+      - target: 5060
+        published: 5060
+        protocol: tcp
+        mode: ingress
+      - target: 5061
+        published: 5061
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - asterisk-etc:/etc/asterisk
+      - asterisk-lib:/var/lib/asterisk
+      - asterisk-log:/var/log/asterisk
+      - asterisk-spool:/var/spool/asterisk
+    deploy:
+      replicas: 1                 # Asterisk is stateful; never scale horizontally
+      endpoint_mode: vip
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        window: 120s              # don't churn if the container takes a moment to boot
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: stop-first         # Asterisk doesn't tolerate two instances on the same SIP port
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    # Healthcheck is baked into the image (asterisk-rx + module checks). Override
+    # below ONLY if you need different timing - the defaults already match Swarm.
+    # healthcheck:
+    #   test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   start_period: 30s
+    #   retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Variant B: host networking (recommended for real SIP/RTP)
+  #
+  # Uncomment to use. Notes:
+  #   - max 1 replica per node (binds host ports directly)
+  #   - placement constraint pins it; required for stable IP across restarts
+  #   - skip the `ports:` block - host mode shares the node's network namespace
+  #   - RTP port range (10000-10199 default) is exposed automatically
+  # ---------------------------------------------------------------------------
+  # asterisk-host:
+  #   image: andrius/asterisk:${ASTERISK_TAG:-latest}
+  #   environment:
+  #     PUID: "${PUID:-1000}"
+  #     PGID: "${PGID:-1000}"
+  #   volumes:
+  #     - asterisk-etc:/etc/asterisk
+  #     - asterisk-lib:/var/lib/asterisk
+  #     - asterisk-log:/var/log/asterisk
+  #     - asterisk-spool:/var/spool/asterisk
+  #   deploy:
+  #     mode: global              # one per node, no replica counter
+  #     placement:
+  #       constraints:
+  #         - node.labels.asterisk == true
+  #     restart_policy:
+  #       condition: on-failure
+  #       delay: 10s
+  #       window: 120s
+  #     update_config:
+  #       parallelism: 1
+  #       order: stop-first
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #   network_mode: host
+
+volumes:
+  asterisk-etc:
+  asterisk-lib:
+  asterisk-log:
+  asterisk-spool:
