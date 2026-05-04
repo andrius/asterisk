@@ -203,11 +203,45 @@ latest_builds:
 - **`22`**: Major version tag for Asterisk 22.x series
 - **`23-rc`**: Release candidate tag for pre-releases
 - **`20-cert`**: Certified release tag for certified builds
+- **`experimental`** / **`experimental-git`**: Forky-built images (latest stable + git tip on Debian 14 testing). Refreshed weekly; not for production.
+
+**Per-entry Override**: A matrix entry can override the version-level `additional_tags` so the same Asterisk version on different distributions gets different short aliases. Example:
+
+```yaml
+- version: "23.3.0"
+  additional_tags: "23"            # default - applies to trixie entry
+  os_matrix:
+    - os: "debian"
+      distribution: "trixie"
+      architectures: ["amd64", "arm64"]
+    - os: "debian"
+      distribution: "forky"
+      architectures: ["amd64", "arm64"]
+      additional_tags: "experimental"   # override - forky alone gets :experimental
+```
 
 **Workflow Integration**:
 - Additional tags are extracted during matrix generation
 - Tags flow through build pipeline to Docker buildx
 - Registry prefixing applied automatically for all tags
+
+### 6. Scheduled Batch Builds
+
+**Purpose**: Periodic rebuilds of supported Asterisk versions, split across the week so each batch fits within the GitHub Actions concurrency budget.
+
+| Workflow | Schedule (UTC) | Versions | Filter |
+|---|---|---|---|
+| `build-batch-monday.yml` | Mon 08:00 | Legacy 1.x-10.x | `version-pattern: '^(1\.[2468]\.\|10\.)'` |
+| `build-batch-tuesday.yml` | Tue 08:00 | 11.x-19.x | `version-pattern: '^1[1-9]\.'` |
+| `build-batch-wednesday.yml` | Wed 08:00 | 20.x-23.x | `version-pattern: '^2[0-3]\.'` |
+| `build-batch-thursday.yml` | Thu 08:00 | Certified releases | `version-pattern: 'cert'` |
+| `build-batch-friday.yml` | **Fri 08:00** | **Latest stable + git on Forky** | **`filter-distribution: forky`** |
+| `build-git-daily.yml` | Daily 18:00 | git tip | n/a |
+| `discover-releases.yml` | Daily 20:00 | n/a | scans for new upstream releases |
+
+Each batch workflow shares a common pattern: it calls the reusable `./.github/actions/generate-build-matrix` action with a `version-pattern` (or `filter-distribution` for forky) and then fans out to `build-single-image.yml`. Matrix generation skips deprecated versions automatically.
+
+The Friday/forky batch builds only the latest stable Asterisk minor (currently 23.3.0) and the git tip on Debian Forky (Debian 14, currently testing). It tags those images as `experimental` and `experimental-git` respectively so users opt-in deliberately.
 
 ## 🧪 Testing with nektos/act
 

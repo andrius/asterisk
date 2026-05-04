@@ -122,6 +122,8 @@ For development, use semantic tags like `asterisk:latest` or `asterisk:stable`, 
 - **`23-rc`** - Release candidate tag for Asterisk 23.x pre-releases
 - **`testing`** / **`git-latest`** / **`development`** - Latest git HEAD from Asterisk repository
 - **`20-cert`** - Certified release tag for Asterisk 20.x certified builds
+- **`experimental`** - Latest stable Asterisk built on Debian Forky (Debian 14, currently testing). Refreshed weekly. **Not for production** - Forky's package set is still moving.
+- **`experimental-git`** - Asterisk git tip built on Debian Forky. Same caveats as `experimental`.
 
 ### Usage Examples
 
@@ -173,7 +175,7 @@ When building, both version-specific tags (`22.9.0_debian-trixie`) and semantic 
 The build system uses template inheritance to eliminate duplication:
 
 - **Base Templates**: Common packages and Asterisk configuration (37 build + 21 runtime packages)
-- **Distribution Layer**: OS-specific package versions (libicu76 for Trixie, libicu72 for Bookworm)
+- **Distribution Layer**: OS-specific package versions (libicu78 for Forky, libicu76 for Trixie, libicu72 for Bookworm)
 - **Variant Layer**: Version-specific features (modern, asterisk10, legacy-addons)
 
 ```
@@ -182,6 +184,7 @@ templates/
 │   ├── asterisk-base.yml.template
 │   └── common-packages.yml
 ├── distributions/                 # OS-specific package versions
+│   ├── debian-forky.yml           # libicu78, libxml2-16, libspandsp2t64 (experimental)
 │   ├── debian-trixie.yml          # libicu76, libpqxx-7.10
 │   ├── debian-bookworm.yml        # libicu72, libpqxx-6.4
 │   ├── debian-buster.yml          # libicu63, libpqxx-6.2
