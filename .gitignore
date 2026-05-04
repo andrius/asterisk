@@ -81,3 +81,8 @@ coverage/
 *.bak
 *.backup
 *.orig
+
+# AI state files - local only, never committed
+.ai-secrets.md
+.ai-settings.md
+.ai-local.md
