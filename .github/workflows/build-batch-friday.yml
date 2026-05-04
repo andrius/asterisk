@@ -1,0 +1,58 @@
+name: Build Batch - Friday (Forky Experimental)
+
+on:
+  schedule:
+    # Run every Friday at 08:00 UTC
+    - cron: "0 8 * * 5"
+
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push images to registries"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate.outputs.matrix }}
+      total_builds: ${{ steps.generate.outputs.total_builds }}
+      buildable_versions: ${{ steps.generate.outputs.buildable_versions }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate build matrix
+        id: generate
+        uses: ./.github/actions/generate-build-matrix
+        with:
+          version-pattern: ".*"
+          filter-distribution: "forky"
+          batch-name: "Friday - Forky Experimental"
+
+  build-matrix:
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.total_builds > 0
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 5
+
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      version: ${{ matrix.version }}
+      distribution: ${{ matrix.distribution }}
+      architectures: ${{ matrix.architectures }}
+      additional_tags: ${{ matrix.additional_tags || '' }}
+      # Always push on scheduled runs (required for multi-platform builds)
+      # For manual runs, respect user input (default: true)
+      push: ${{ github.event_name == 'schedule' || inputs.push != false }}
+      registry: "andrius/asterisk"
+    secrets: inherit

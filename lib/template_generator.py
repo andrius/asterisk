@@ -130,6 +130,12 @@ class DRYTemplateGenerator:
         packages["build"].extend(variant_packages.get("build", []))
         packages["runtime"].extend(variant_packages.get("runtime", []))
 
+        # Apply per-distribution exclusions (e.g. forky obsoleted libxml2 -> libxml2-16)
+        build_exclude = set(dist_overrides.get("exclude_build", []))
+        runtime_exclude = set(dist_overrides.get("exclude_runtime", []))
+        packages["build"] = [p for p in packages["build"] if p not in build_exclude]
+        packages["runtime"] = [p for p in packages["runtime"] if p not in runtime_exclude]
+
         # Remove duplicates while preserving order
         packages["build"] = list(dict.fromkeys(packages["build"]))
         packages["runtime"] = list(dict.fromkeys(packages["runtime"]))

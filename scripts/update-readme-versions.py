@@ -175,35 +175,35 @@ def generate_version_table(builds):
         if build.get('deprecated_at'):
             continue
 
-        # Get tags
-        tags = build.get('additional_tags', '-')
+        # Default tags applied unless overridden per matrix entry
+        default_tags = build.get('additional_tags', '-')
 
-        # Get distribution and architectures from first os_matrix entry
         os_matrix = build.get('os_matrix', [])
         if not os_matrix:
             continue
 
         # Handle both list and dict os_matrix formats
         if isinstance(os_matrix, dict):
-            matrix_entry = os_matrix
-        else:
-            matrix_entry = os_matrix[0]
+            os_matrix = [os_matrix]
 
-        distribution = matrix_entry.get('distribution', 'N/A')
-        architectures = matrix_entry.get('architectures', [])
+        # Emit one row per matrix entry so multi-distribution versions
+        # (e.g. forky-experimental in addition to trixie-stable) are visible.
+        for matrix_entry in os_matrix:
+            distribution = matrix_entry.get('distribution', 'N/A')
+            architectures = matrix_entry.get('architectures', [])
+            entry_tags = matrix_entry.get('additional_tags', default_tags)
 
-        # Format architectures as comma-separated string
-        if isinstance(architectures, list):
-            arch_str = ', '.join(architectures)
-        else:
-            arch_str = str(architectures)
+            if isinstance(architectures, list):
+                arch_str = ', '.join(architectures)
+            else:
+                arch_str = str(architectures)
 
-        versions.append({
-            'version': version,
-            'tags': tags,
-            'distribution': distribution.title(),  # Capitalize: trixie → Trixie
-            'architectures': arch_str
-        })
+            versions.append({
+                'version': version,
+                'tags': entry_tags,
+                'distribution': distribution.title(),
+                'architectures': arch_str
+            })
 
     # Sort versions (newest first)
     versions.sort(key=lambda v: version_sort_key(v['version']), reverse=True)

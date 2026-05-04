@@ -33,6 +33,7 @@ on:
         type: choice
         options:
           - ""
+          - "forky"
           - "trixie"
           - "bookworm"
           - "bullseye"

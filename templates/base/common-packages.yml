@@ -81,6 +81,8 @@ distribution_specific_build:
     - libsrtp2-dev
   trixie:
     - libsrtp2-dev
+  forky:
+    - libsrtp2-dev
 
 distribution_specific_runtime:
   jessie:
@@ -118,3 +120,12 @@ distribution_specific_runtime:
     - libncurses6
     - libpqxx-7.10
     - libicu76
+  forky:
+    - libcurl4t64
+    - libssl3t64
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-7.10
+    - libicu78
+    - libxml2-16
+    - libspandsp2t64

@@ -51,7 +51,9 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | Version | Tags | Distribution | Architectures |
 | ------- | ---- | ------------ | ------------- |
 | **git** | `testing,dev` | Trixie | amd64, arm64 |
+| **git** | experimental-git | Forky | amd64, arm64 |
 | **23.3.0** | 23 | Trixie | amd64, arm64 |
+| **23.3.0** | experimental | Forky | amd64, arm64 |
 | **22.9.0** | `latest,stable,22` | Trixie | amd64, arm64 |
 | **22.8-cert2** | 22-cert | Trixie | amd64, arm64 |
 | **21.12.2** | 21 | Trixie | amd64, arm64 |

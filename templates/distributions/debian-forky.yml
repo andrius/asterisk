@@ -1,0 +1,32 @@
+# Debian Forky (14) Distribution Configuration
+# Upcoming/testing distribution - experimental track only
+# https://www.debian.org/releases/forky/
+
+distribution: forky
+
+base:
+  image: "debian:forky"
+
+# No EOL setup needed for current distributions
+
+# Forky-specific package overrides.
+# Forky completes the t64 transition (libcurl4t64, libssl3t64, libspandsp2t64)
+# and replaces some packages with their ABI-versioned successors:
+#   libxml2     -> libxml2-16
+#   libspandsp2 -> libspandsp2t64
+#   libicu76    -> libicu78
+package_overrides:
+  exclude_runtime:
+    - libxml2        # obsoleted on forky; replaced by libxml2-16
+    - libspandsp2    # obsoleted on forky; replaced by libspandsp2t64
+  build:
+    - libsrtp2-dev
+  runtime:
+    - libcurl4t64
+    - libssl3t64
+    - libsrtp2-1
+    - libncurses6
+    - libpqxx-7.10
+    - libicu78
+    - libxml2-16
+    - libspandsp2t64

@@ -11,6 +11,13 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+      - os: "debian"
+        distribution: "forky"
+        template: "git-dev"
+        architectures:
+          - "amd64"
+          - "arm64"
+        additional_tags: "experimental-git"
 
   - version: "1.2.40"
     additional_tags: "1.2"
@@ -382,11 +389,17 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+      - os: "debian"
+        distribution: "forky"
+        architectures:
+          - "amd64"
+          - "arm64"
+        additional_tags: "experimental"
 
 metadata:
   generated_at: "2026-05-03T20:15:48Z"
   supported_os:
-    debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie"]
+    debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie", "forky"]
   supported_architectures: ["amd64", "arm64"]
   mode: "manual"
   git_support: true
