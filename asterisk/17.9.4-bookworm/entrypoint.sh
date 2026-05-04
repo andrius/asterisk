@@ -36,4 +36,24 @@ if [ "$(id -u)" = "0" ]; then
     done
 fi
 
+# Replace the baked-in -W (light-background adjust) with whatever the user
+# supplies via ASTERISK_TERMINAL_OPTS. Use cases (issue #16):
+#   ASTERISK_TERMINAL_OPTS=""    -> drop -W, let the terminal decide
+#   ASTERISK_TERMINAL_OPTS="-B"  -> force black background (dark terminals)
+#   ASTERISK_TERMINAL_OPTS="-n"  -> disable colors entirely (safest in logs)
+#   (unset)                      -> keep -W (existing behaviour)
+if [ -n "${ASTERISK_TERMINAL_OPTS+x}" ]; then
+    new_args=()
+    for arg in "$@"; do
+        if [ "$arg" = "-W" ]; then
+            for opt in $ASTERISK_TERMINAL_OPTS; do
+                new_args+=("$opt")
+            done
+        else
+            new_args+=("$arg")
+        fi
+    done
+    set -- "${new_args[@]}"
+fi
+
 exec "$@"
