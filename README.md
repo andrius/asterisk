@@ -194,6 +194,46 @@ The entrypoint:
 - If you already pin a UID via `--user N:M` (compose `user:`), the entrypoint detects it is non-root and skips chowning, matching the pre-entrypoint behaviour. In that case make sure host volumes are pre-chown'd to the matching UID.
 - Pre-10.x images (1.2.x - 1.8.x) keep the original behaviour: no entrypoint, fixed UID 1000. Pre-chown host volumes (`chown -R 1000:1000 ./asterisk-config`) or use named volumes.
 
+## Config Templating with `envsubst`
+
+`envsubst` (from `gettext-base`) ships in every runtime image, so you can drop `*.conf.template` files into `/etc/asterisk/` and render them from environment variables at container start without rebuilding.
+
+Template (`pjsip.conf.template`):
+
+```ini
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+external_media_address=${EXTERNAL_IP}
+external_signaling_address=${EXTERNAL_IP}
+```
+
+Custom entrypoint that renders templates first, then chains the image's default entrypoint:
+
+```bash
+#!/bin/bash
+set -e
+for tpl in /etc/asterisk/*.template; do
+  [ -e "$tpl" ] || continue
+  envsubst < "$tpl" > "${tpl%.template}"
+done
+exec /usr/local/bin/entrypoint.sh "$@"
+```
+
+Run it:
+
+```bash
+docker run -d \
+  -e EXTERNAL_IP=203.0.113.42 \
+  -v $PWD/pjsip.conf.template:/etc/asterisk/pjsip.conf.template \
+  -v $PWD/render-and-start.sh:/usr/local/bin/render-and-start.sh:ro \
+  --entrypoint /usr/local/bin/render-and-start.sh \
+  andrius/asterisk:23
+```
+
+`envsubst` only substitutes plain `${VAR}` / `$VAR` references - bash parameter expansions (`${VAR%-*}`, `${VAR:-default}`) are not supported. Use `envsubst '${VAR1} ${VAR2}'` to allow-list variables and avoid accidental substitution.
+
 ## Key Features
 
 - **DRY Template System**
@@ -205,6 +245,7 @@ The entrypoint:
 - **Modern Features**: PJSIP, WebRTC, ARI, WebSocket transport for compatible versions
 - **Opus Codec Support**: Digium binary Opus codec automatically included for Asterisk 20+ on x86_64 (arm64 supports Opus passthrough)
 - **PUID/PGID Volume Permissions**: Asterisk 10.x+ images adapt the asterisk user UID/GID at startup so bind-mounted host directories work without manual `chown`
+- **Config Templating**: `envsubst` ships in every runtime image - drop `*.conf.template` files into `/etc/asterisk` and render from env vars without rebuilding
 
 ## Architecture
 

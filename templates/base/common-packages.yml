@@ -47,6 +47,7 @@ common_runtime_packages:
   - binutils
   - ca-certificates
   - curl
+  - gettext-base       # provides envsubst for config templating (issue #138)
   - libedit2
   - libgsm1
   - libjansson4

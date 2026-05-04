@@ -3,10 +3,8 @@ FROM andrius/asterisk:22.5.2_debian-trixie
 # Get root to install additional packages
 USER root
 
-# Install envsubst and curl for template processing and IP detection
-RUN apt-get update && \
-  apt-get install -y --no-install-recommends gettext-base curl && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
+# envsubst (gettext-base) and curl already ship in the base image - no extra
+# install needed. Add any project-specific packages here if you have them.
 
 # Copy entrypoint and config templates
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
