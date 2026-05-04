@@ -400,6 +400,27 @@ jobs:
           chmod +x healthcheck.sh
           echo "✅ Generated healthcheck script"
 
+      - name: Generate entrypoint script (v10+ only)
+        working-directory: .
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ "$VERSION" =~ ^git ]]; then
+            MAJOR=99
+          else
+            MAJOR="${VERSION%%.*}"
+          fi
+
+          if [ "$MAJOR" -ge 10 ]; then
+            sed "s/{{ config\.version }}/${VERSION}/g" \
+              templates/partials/entrypoint.sh.j2 > entrypoint.sh
+            chmod +x entrypoint.sh
+            echo "✅ Generated entrypoint script for v${MAJOR}"
+          else
+            echo "⏭️  Skipped entrypoint script (v${MAJOR} pre-v10)"
+            # Create empty placeholder so artifact upload pattern doesn't fail
+            : > entrypoint.sh.skipped
+          fi
+
       - name: Upload generated files
         uses: actions/upload-artifact@v4
         with:
@@ -408,8 +429,9 @@ jobs:
             Dockerfile
             build.sh
             healthcheck.sh
+            entrypoint.sh
           retention-days: 1
-          if-no-files-found: error
+          if-no-files-found: warn
 
   build:
     name: "Platform ${{ matrix.platform }}"
@@ -486,7 +508,12 @@ jobs:
         run: |
           ls -la Dockerfile build.sh healthcheck.sh
           chmod +x build.sh healthcheck.sh
-          echo "✅ Using pre-generated build files for ${{ matrix.platform }}"
+          if [ -f entrypoint.sh ]; then
+            chmod +x entrypoint.sh
+            echo "✅ Using pre-generated build files (with entrypoint.sh) for ${{ matrix.platform }}"
+          else
+            echo "✅ Using pre-generated build files (no entrypoint.sh - pre-v10) for ${{ matrix.platform }}"
+          fi
 
       - name: Prepare build configuration
         id: build-config
