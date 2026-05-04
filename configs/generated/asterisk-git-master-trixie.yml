@@ -126,6 +126,7 @@ packages:
   - binutils
   - ca-certificates
   - curl
+  - gettext-base
   - libedit2
   - libgsm1
   - libjansson4
