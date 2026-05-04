@@ -90,7 +90,9 @@ check_essential_modules() {
     )
 
     for module in "${required_modules[@]}"; do
-        if ! timeout $TIMEOUT $ASTERISK_CLI "module show like $module" | grep -q "$module" >/dev/null 2>&1; then
+        local module_output
+		module_output=$(timeout $TIMEOUT $ASTERISK_CLI "module show like $module" 2>&1)
+		if ! echo "$module_output" | grep -q "$module"; then
             error "Required module $module not loaded"
             return 1
         fi
