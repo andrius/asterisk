@@ -215,6 +215,34 @@ services:
 
 The entrypoint replaces the `-W` token in the CMD with whatever you supply (space-separated multiple flags allowed). Useful for `docker logs` legibility too - colour escape codes in log output often look broken; `-n` strips them.
 
+## Networking for SIP / UDP
+
+By default Docker uses bridge networking, which NATs the container behind the host's IP. For UDP-based SIP that breaks AOR matching and trunk registration: the upstream side sees `172.x.x.x` as the source and the responses never make it back to the container. Symptoms include "no reply to our critical packet", `Retransmission timeout reached`, and registration that flaps every minute.
+
+**For real SIP traffic, run the container with host networking** so the asterisk process binds the host's interfaces directly:
+
+```bash
+docker run -d --network host andrius/asterisk:23
+```
+
+```yaml
+# compose.yml
+services:
+  asterisk:
+    image: andrius/asterisk:23
+    network_mode: "host"
+```
+
+Host networking is Linux-only (Docker Desktop on Mac/Windows treats it as a no-op). For multi-node Swarm, `examples/docker-swarm/` documents the trade-off between overlay/VIP networking (simple, but rewrites SIP source IPs) and host-mode (recommended).
+
+If you must use bridge networking, you'll need to:
+
+1. Publish 5060/udp + 5060/tcp + 5061/tcp + a sane RTP port range (`-p 10000-10199:10000-10199/udp`).
+2. Set `external_media_address` and `external_signaling_address` in PJSIP transport config (or `externip` / `localnet` for chan_sip).
+3. Match the published RTP range in `rtp.conf` (`rtpstart` / `rtpend`).
+
+Don't publish more than ~1000 UDP ports through Docker's userland-proxy - it will become the bottleneck. Either narrow the RTP range or switch to host networking.
+
 ## Config Templating with `envsubst`
 
 `envsubst` (from `gettext-base`) ships in every runtime image, so you can drop `*.conf.template` files into `/etc/asterisk/` and render them from environment variables at container start without rebuilding.
