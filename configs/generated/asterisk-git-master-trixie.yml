@@ -124,6 +124,7 @@ packages:
   - git
   runtime:
   - binutils
+  - ca-certificates
   - curl
   - libedit2
   - libgsm1

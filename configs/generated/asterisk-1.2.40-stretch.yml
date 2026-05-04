@@ -132,6 +132,7 @@ packages:
     main contrib non-free" >> /etc/apt/sources.list
   runtime:
   - binutils
+  - ca-certificates
   - curl
   - libedit2
   - libgsm1

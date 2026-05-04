@@ -112,6 +112,7 @@ packages:
   - libsrtp2-dev
   runtime:
   - binutils
+  - ca-certificates
   - curl
   - libedit2
   - libgsm1

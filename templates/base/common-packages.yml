@@ -45,6 +45,7 @@ common_build_packages:
 # Common runtime packages (appear in 13/13 templates)
 common_runtime_packages:
   - binutils
+  - ca-certificates
   - curl
   - libedit2
   - libgsm1
