@@ -152,5 +152,4 @@ packages:
   - libicu78
   - libxml2-16
   - libspandsp2t64
-  - libicu76
 version: git

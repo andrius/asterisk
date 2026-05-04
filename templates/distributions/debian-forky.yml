@@ -19,6 +19,7 @@ package_overrides:
   exclude_runtime:
     - libxml2        # obsoleted on forky; replaced by libxml2-16
     - libspandsp2    # obsoleted on forky; replaced by libspandsp2t64
+    - libicu76       # forky bumped to libicu78; libicu76 not in apt repo
   build:
     - libsrtp2-dev
   runtime:
