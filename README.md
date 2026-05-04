@@ -157,6 +157,43 @@ latest_builds:
 
 When building, both version-specific tags (`22.9.0_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
 
+## Volume Permissions (PUID / PGID)
+
+Bind-mounted host directories often have a UID/GID different from the in-container `asterisk` user (default `1000:1000`), which prevents Asterisk from writing to them. Images for Asterisk **10.x and newer** (including `git`) ship an entrypoint that adapts the in-container `asterisk` user to whatever UID/GID you supply via `PUID` / `PGID` environment variables and chowns the runtime directories before Asterisk starts.
+
+```bash
+# Bind-mount host paths, hand the container the host UID/GID
+docker run -d \
+  -e PUID=$(id -u) \
+  -e PGID=$(id -g) \
+  -v $PWD/etc-asterisk:/etc/asterisk \
+  -v $PWD/var-lib-asterisk:/var/lib/asterisk \
+  -v $PWD/var-log-asterisk:/var/log/asterisk \
+  -v $PWD/var-spool-asterisk:/var/spool/asterisk \
+  andrius/asterisk:latest
+```
+
+```yaml
+# compose.yml
+services:
+  asterisk:
+    image: andrius/asterisk:latest
+    environment:
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./etc-asterisk:/etc/asterisk
+      - ./var-lib-asterisk:/var/lib/asterisk
+      - ./var-log-asterisk:/var/log/asterisk
+      - ./var-spool-asterisk:/var/spool/asterisk
+```
+
+The entrypoint:
+
+- Runs as root, calls `groupmod`/`usermod` to set the asterisk uid/gid to `PUID:PGID` (defaults `1000:1000`), then `chown -R` on `/etc/asterisk`, `/home/asterisk`, `/var/lib/asterisk`, `/var/log/asterisk`, `/var/spool/asterisk`, `/var/run/asterisk`. Asterisk then drops privileges itself via its `-U asterisk -p` CMD flags - no `gosu`/`su-exec` needed.
+- If you already pin a UID via `--user N:M` (compose `user:`), the entrypoint detects it is non-root and skips chowning, matching the pre-entrypoint behaviour. In that case make sure host volumes are pre-chown'd to the matching UID.
+- Pre-10.x images (1.2.x - 1.8.x) keep the original behaviour: no entrypoint, fixed UID 1000. Pre-chown host volumes (`chown -R 1000:1000 ./asterisk-config`) or use named volumes.
+
 ## Key Features
 
 - **DRY Template System**
@@ -167,6 +204,7 @@ When building, both version-specific tags (`22.9.0_debian-trixie`) and semantic 
 - **Comprehensive Support**: All Asterisk versions from 1.2.x through 23.x with appropriate OS distributions
 - **Modern Features**: PJSIP, WebRTC, ARI, WebSocket transport for compatible versions
 - **Opus Codec Support**: Digium binary Opus codec automatically included for Asterisk 20+ on x86_64 (arm64 supports Opus passthrough)
+- **PUID/PGID Volume Permissions**: Asterisk 10.x+ images adapt the asterisk user UID/GID at startup so bind-mounted host directories work without manual `chown`
 
 ## Architecture
 

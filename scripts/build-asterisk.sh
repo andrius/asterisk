@@ -872,7 +872,32 @@ generator.generate_build_script('$config_file', '$buildsh_path')
         return 1
     fi
 
-    log SUCCESS "Generated Dockerfile, build.sh, and healthcheck.sh in: asterisk/${version_tag}/" >&2
+    # Generate entrypoint.sh for v10+ (PUID/PGID volume permission handling)
+    local entrypoint_major
+    if [[ "$version" =~ ^git ]]; then
+        entrypoint_major=99
+    else
+        entrypoint_major=$(echo "$version" | cut -d'.' -f1)
+    fi
+    if [[ "$entrypoint_major" -ge 10 ]]; then
+        local entrypoint_path="${build_dir}/entrypoint.sh"
+        log DEBUG "Generating entrypoint.sh for: $version_tag (major=$entrypoint_major)" >&2
+        if ! sed "s/{{ config\.version }}/${version}/g" \
+                "${PROJECT_DIR}/templates/partials/entrypoint.sh.j2" > "$entrypoint_path"; then
+            log ERROR "Failed to generate entrypoint.sh" >&2
+            return 1
+        fi
+        if ! chmod +x "$entrypoint_path"; then
+            log ERROR "Failed to make entrypoint.sh executable" >&2
+            return 1
+        fi
+        log SUCCESS "Generated Dockerfile, build.sh, healthcheck.sh, and entrypoint.sh in: asterisk/${version_tag}/" >&2
+    else
+        # Pre-v10 versions: ensure no stale entrypoint.sh remains from prior runs
+        rm -f "${build_dir}/entrypoint.sh"
+        log SUCCESS "Generated Dockerfile, build.sh, and healthcheck.sh in: asterisk/${version_tag}/" >&2
+    fi
+
     echo "$build_dir"
     return 0
 }

@@ -195,6 +195,13 @@ COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
 {% endif %}
 
+{% set has_entrypoint = major_version >= 10 -%}
+{% if has_entrypoint -%}
+# Copy entrypoint script (PUID/PGID volume permission handling)
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+{% endif %}
+
 # Set proper ownership and permissions
 RUN chown -R {{ user_config.name | default("asterisk") }}:{{ user_config.name | default("asterisk") }} \
     /etc/asterisk \
@@ -225,8 +232,14 @@ HEALTHCHECK --interval={{ docker_config.healthcheck.interval | default("30s") }}
     CMD {{ docker_config.healthcheck.command | default("/usr/local/bin/healthcheck.sh") }}
 {% endif %}
 
+{% if has_entrypoint -%}
+# Entrypoint runs as root, adapts asterisk uid/gid to PUID/PGID, then execs CMD.
+# Asterisk drops privileges itself via `-U asterisk -p` in the CMD below.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+{% else -%}
 # Switch to non-root user
 USER {{ user_config.name | default("asterisk") }}
+{% endif %}
 
 # Set working directory
 WORKDIR {{ user_config.home | default("/home/asterisk") }}

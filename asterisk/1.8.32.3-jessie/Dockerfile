@@ -129,6 +129,7 @@ COPY --from=asterisk-builder /usr/lib/libasterisk*.so* /usr/lib/
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
 
+
 # Set proper ownership and permissions
 RUN chown -R asterisk:asterisk \
     /etc/asterisk \

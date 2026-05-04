@@ -130,6 +130,10 @@ COPY --from=asterisk-builder /usr/lib/libasterisk*.so* /usr/lib/
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
 
+# Copy entrypoint script (PUID/PGID volume permission handling)
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Set proper ownership and permissions
 RUN chown -R asterisk:asterisk \
     /etc/asterisk \
@@ -157,8 +161,9 @@ HEALTHCHECK --interval=30s \
     --retries=3 \
     CMD /usr/local/bin/healthcheck.sh
 
-# Switch to non-root user
-USER asterisk
+# Entrypoint runs as root, adapts asterisk uid/gid to PUID/PGID, then execs CMD.
+# Asterisk drops privileges itself via `-U asterisk -p` in the CMD below.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Set working directory
 WORKDIR /home/asterisk
