@@ -423,13 +423,26 @@ class DockerfileGenerator:
         else:
             template = self.jinja_env.get_template("partials/build.sh.j2")
 
+        # Asterisk's bundled pjproject (and the 'third-party' make target) was
+        # introduced in 13.0; older trees neither understand --with-pjproject-bundled
+        # nor expose a 'third-party' target. Git builds always track latest.
+        version = context.config["version"]
+        if version == "git" or version.startswith("git-"):
+            pjproject_bundled = True
+        else:
+            try:
+                pjproject_bundled = int(version.split(".")[0]) >= 13
+            except (ValueError, IndexError):
+                pjproject_bundled = True
+
         script_content = template.render(
             config=context.config,
             menuselect_commands=context.menuselect_commands,
             configure_options=context.configure_options,
             # Additional context
-            version=context.config["version"],
+            version=version,
             build_opt=context.config.get("build", {}).get("optimization", {}),
+            pjproject_bundled=pjproject_bundled,
             # Features
             **context.config.get("features", {})
         )
