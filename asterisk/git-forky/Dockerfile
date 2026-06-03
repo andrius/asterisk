@@ -91,7 +91,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARC
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        binutils \ca-certificates \curl \gettext-base \libedit2 \libgsm1 \libjansson4 \libogg0 \libopus0 \libpopt0 \libresample1 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu78 \libxml2-16 \libspandsp2t64 \
+        binutils \ca-certificates \curl \gettext-base \libedit2 \libgsm1 \libjansson4 \libogg0 \libopus0 \libpopt0 \libresample1 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-8.0 \libicu78 \libxml2-16 \libspandsp2t64 \
     && apt-get clean
 
 # Create asterisk user and required directories

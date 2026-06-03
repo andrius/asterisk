@@ -140,7 +140,7 @@ packages:
   - libssl3t64
   - libsrtp2-1
   - libncurses6
-  - libpqxx-7.10
+  - libpqxx-8.0
   - libicu78
   - libxml2-16
   - libspandsp2t64

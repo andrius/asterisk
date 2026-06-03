@@ -15,6 +15,7 @@ base:
 #   libxml2     -> libxml2-16
 #   libspandsp2 -> libspandsp2t64
 #   libicu76    -> libicu78
+#   libpqxx-7.10 -> libpqxx-8.0
 package_overrides:
   exclude_runtime:
     - libxml2        # obsoleted on forky; replaced by libxml2-16
@@ -27,7 +28,7 @@ package_overrides:
     - libssl3t64
     - libsrtp2-1
     - libncurses6
-    - libpqxx-7.10
+    - libpqxx-8.0    # forky bumped to libpqxx 8.0; libpqxx-7.10 not in apt repo
     - libicu78
     - libxml2-16
     - libspandsp2t64
