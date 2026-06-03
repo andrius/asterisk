@@ -69,6 +69,28 @@ RUN --mount=type=cache,target=/tmp/asterisk_build \
     && make basic-pbx \
     && ldconfig
 
+# Derive exact runtime shared-library packages from the freshly built binaries.
+# ldd lists the full transitive closure of linked libraries; each resolved .so
+# is mapped to its owning Debian package via dpkg-query. This keeps the runtime
+# image correct on rolling/experimental suites (e.g. forky) where SONAME-
+# versioned package names drift (libicuNN, libpqxx-N.N, the t64 transition, ...).
+RUN set -eu; \
+    { ldd /usr/sbin/asterisk || true; \
+      for f in /usr/lib/libasterisk*.so*; do [ -e "$f" ] && ldd "$f" || true; done; \
+      find /usr/lib/asterisk/modules -name '*.so' -exec ldd {} \; 2>/dev/null || true; \
+    } 2>/dev/null \
+    | awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' \
+    | grep -E '^/' \
+    | while read -r lib; do readlink -f "$lib" 2>/dev/null || true; done \
+    | sort -u \
+    | xargs -r dpkg-query -S 2>/dev/null \
+    | cut -d: -f1 \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -E '^[a-z0-9][a-z0-9+.-]+$' \
+    | sort -u > /runtime-lib-deps.txt; \
+    echo "== Derived runtime library packages =="; cat /runtime-lib-deps.txt; \
+    test -s /runtime-lib-deps.txt
 # ==============================================================================
 # STAGE 2: Runtime Environment
 # ==============================================================================
@@ -86,14 +108,26 @@ ARG TARGETARCH
 ENV GIT_SHA=${GIT_SHA}
 
 # EOL distribution setup (if needed)
-# Install runtime dependencies
+# Install runtime dependencies: non-library essentials (explicit) plus the
+# shared-library packages auto-derived from the built binaries (builder stage).
+COPY --from=asterisk-builder /runtime-lib-deps.txt /tmp/runtime-lib-deps.txt
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-runtime-$TARGETARCH \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-runtime-$TARGETARCH \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        binutils \ca-certificates \curl \gettext-base \libedit2 \libgsm1 \libjansson4 \libogg0 \libopus0 \libpopt0 \libresample1 \libspeex1 \libspeexdsp1 \libsqlite3-0 \libvorbis0a \libxslt1.1 \odbcinst \portaudio19-dev \procps \python3 \unixodbc \uuid \libcurl4t64 \libssl3t64 \libsrtp2-1 \libncurses6 \libpqxx-7.10 \libicu78 \libxml2-16 \libspandsp2t64 \
+        binutils \
+        ca-certificates \
+        curl \
+        gettext-base \
+        odbcinst \
+        portaudio19-dev \
+        procps \
+        python3 \
+        unixodbc \
+        uuid \
+        $(cat /tmp/runtime-lib-deps.txt) \
+    && rm -f /tmp/runtime-lib-deps.txt \
     && apt-get clean
-
 # Create asterisk user and required directories
 RUN groupadd -g 1000 asterisk \
     && useradd -r -u 1000 -g asterisk -d /var/lib/asterisk -s /bin/bash asterisk \

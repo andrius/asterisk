@@ -140,6 +140,17 @@ class DRYTemplateGenerator:
         packages["build"] = list(dict.fromkeys(packages["build"]))
         packages["runtime"] = list(dict.fromkeys(packages["runtime"]))
 
+        # When runtime auto-derivation is enabled, the shared-library packages
+        # are discovered from the built binaries at image-build time (ldd +
+        # dpkg-query), so drop the hand-pinned lib* entries here and keep only
+        # the non-library runtime essentials (curl, ca-certificates, python3,
+        # gettext-base, ...). This keeps experimental/rolling distributions
+        # (forky) resilient to SONAME-versioned package renames.
+        if context.distribution_config.get("runtime_autoderive"):
+            packages["runtime"] = [
+                p for p in packages["runtime"] if not p.startswith("lib")
+            ]
+
         return packages
 
     def _resolve_asterisk_config(self, context: TemplateContext) -> Dict[str, Any]:
@@ -196,6 +207,12 @@ class DRYTemplateGenerator:
 
         # Set distribution
         base_config["distribution"] = context.distribution
+
+        # Propagate runtime auto-derivation flag. Rolling/experimental suites
+        # (e.g. Debian forky) derive their runtime shared-library packages from
+        # the built binaries at image-build time instead of hand-pinning them.
+        if context.distribution_config.get("runtime_autoderive"):
+            base_config["runtime_autoderive"] = True
 
         return base_config
 
