@@ -125,6 +125,30 @@ RUN make menuselect/menuselect menuselect-tree menuselect.makeopts
 COPY build.sh /usr/src/asterisk/build.sh
 RUN chmod +x build.sh && ./build.sh
 
+{% if config.base.runtime_autoderive -%}
+# Derive exact runtime shared-library packages from the freshly built binaries.
+# ldd lists the full transitive closure of linked libraries; each resolved .so
+# is mapped to its owning Debian package via dpkg-query. This keeps the runtime
+# image correct on rolling/experimental suites (e.g. forky) where SONAME-
+# versioned package names drift (libicuNN, libpqxx-N.N, the t64 transition, ...).
+RUN set -eu; \
+    { ldd /usr/sbin/asterisk || true; \
+      for f in /usr/lib/libasterisk*.so*; do [ -e "$f" ] && ldd "$f" || true; done; \
+      find /usr/lib/asterisk/modules -name '*.so' -exec ldd {} \; 2>/dev/null || true; \
+    } 2>/dev/null \
+    | awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' \
+    | grep -E '^/' \
+    | while read -r lib; do readlink -f "$lib" 2>/dev/null || true; done \
+    | sort -u \
+    | xargs -r dpkg-query -S 2>/dev/null \
+    | cut -d: -f1 \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -E '^[a-z0-9][a-z0-9+.-]+$' \
+    | sort -u > /runtime-lib-deps.txt; \
+    echo "== Derived runtime library packages =="; cat /runtime-lib-deps.txt; \
+    test -s /runtime-lib-deps.txt
+{% endif %}
 # ==============================================================================
 # STAGE 2: Runtime Environment
 # ==============================================================================
@@ -139,12 +163,25 @@ ARG TARGETARCH
 ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
 
 {% if config.base.os == "debian" -%}
+{% if config.base.runtime_autoderive -%}
+# Install runtime dependencies: non-library essentials (explicit) plus the
+# shared-library packages auto-derived from the built binaries (builder stage).
+COPY --from=asterisk-builder /runtime-lib-deps.txt /tmp/runtime-lib-deps.txt
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+{{ runtime_packages | join_packages(80) }} \
+        $(cat /tmp/runtime-lib-deps.txt) && \
+    rm -f /tmp/runtime-lib-deps.txt && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+{% else -%}
 # Install only runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
 {{ runtime_packages | join_packages(80) }} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+{% endif -%}
 {% elif config.base.os == "alpine" -%}
 # Install runtime dependencies
 RUN apk add --no-cache \

@@ -9,26 +9,25 @@ base:
 
 # No EOL setup needed for current distributions
 
-# Forky-specific package overrides.
-# Forky completes the t64 transition (libcurl4t64, libssl3t64, libspandsp2t64)
-# and replaces some packages with their ABI-versioned successors:
-#   libxml2     -> libxml2-16
-#   libspandsp2 -> libspandsp2t64
-#   libicu76    -> libicu78
+# Runtime shared-library packages are auto-derived from the built Asterisk
+# binaries at image-build time (ldd + dpkg-query) rather than being hand-pinned.
+#
+# Forky is Debian's rolling experimental/testing suite, so SONAME-versioned
+# package names drift over time, e.g.:
+#   libxml2      -> libxml2-16
+#   libspandsp2  -> libspandsp2t64
+#   libicu76     -> libicu78
 #   libpqxx-7.10 -> libpqxx-8.0
+#   the t64 transition: libcurl4 -> libcurl4t64, libssl3 -> libssl3t64
+# Pinning exact names meant every such bump removed a package from the apt repo
+# and broke the runtime `apt-get install` (exit code 100). Auto-derivation
+# installs exactly the libraries the binaries actually link, so these renames no
+# longer require manual config changes. The generator strips lib* entries from
+# the runtime list when this flag is set; only non-library essentials (curl,
+# ca-certificates, python3, gettext-base, ...) remain explicit.
+runtime_autoderive: true
+
+# Build dependencies are still pinned explicitly (not auto-derivable).
 package_overrides:
-  exclude_runtime:
-    - libxml2        # obsoleted on forky; replaced by libxml2-16
-    - libspandsp2    # obsoleted on forky; replaced by libspandsp2t64
-    - libicu76       # forky bumped to libicu78; libicu76 not in apt repo
   build:
     - libsrtp2-dev
-  runtime:
-    - libcurl4t64
-    - libssl3t64
-    - libsrtp2-1
-    - libncurses6
-    - libpqxx-8.0    # forky bumped to libpqxx 8.0; libpqxx-7.10 not in apt repo
-    - libicu78
-    - libxml2-16
-    - libspandsp2t64

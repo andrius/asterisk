@@ -313,7 +313,7 @@ templates/
 │   ├── asterisk-base.yml.template
 │   └── common-packages.yml
 ├── distributions/                 # OS-specific package versions
-│   ├── debian-forky.yml           # libicu78, libxml2-16, libspandsp2t64 (experimental)
+│   ├── debian-forky.yml           # experimental; runtime libs auto-derived (ldd+dpkg)
 │   ├── debian-trixie.yml          # libicu76, libpqxx-7.10
 │   ├── debian-bookworm.yml        # libicu72, libpqxx-6.4
 │   ├── debian-buster.yml          # libicu63, libpqxx-6.2
