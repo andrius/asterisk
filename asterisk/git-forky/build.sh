@@ -52,8 +52,11 @@ log "Configuring Asterisk modules..."
 # Disable BUILD_NATIVE optimization for container builds
 menuselect/menuselect --disable BUILD_NATIVE menuselect.makeopts
 
-# Enable better backtraces for debugging
-menuselect/menuselect --enable BETTER_BACKTRACES menuselect.makeopts
+# ponytail: BETTER_BACKTRACES left off on Debian forky - its binutils removed the
+# bfd_boolean type from <bfd.h>, so Asterisk's backtrace.c fails to compile. The
+# option is off by default, so omitting --enable is enough. Re-enable for all
+# distros once Asterisk upstream tracks the binutils >= 2.34 bfd API (also revisit
+# when trixie's binutils bumps past 2.33).
 
 # Disable sound packages to reduce image size
 menuselect/menuselect --disable-category MENUSELECT_CORE_SOUNDS menuselect.makeopts
@@ -102,6 +105,8 @@ log "Module configuration completed"
 
 # Pre-build third-party (pjproject) sequentially with verbose output.
 # This surfaces real compiler errors that would otherwise be hidden by parallel make.
+# Skipped on Asterisk < 13: the 'third-party' target was added with bundled
+# pjproject support and does not exist in older trees.
 log "Building third-party dependencies (pjproject) with verbose output..."
 TMPDIR=${TMPDIR} make NOISY_BUILD=yes -j 1 third-party
 
