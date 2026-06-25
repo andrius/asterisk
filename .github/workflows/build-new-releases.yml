@@ -13,7 +13,7 @@ on:
       - 'asterisk/supported-asterisk-builds.yml'
 
 permissions:
-  contents: read
+  contents: write  # announce-releases reusable workflow pushes announced-* tags; caller must grant >= callee's request or the run fails at startup
   pull-requests: write
   packages: write
 
