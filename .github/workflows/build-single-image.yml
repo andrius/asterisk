@@ -89,7 +89,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate inputs
         run: |
@@ -165,7 +165,7 @@ jobs:
           echo "config_file=$CONFIG_FILE" >> $GITHUB_OUTPUT
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -174,11 +174,11 @@ jobs:
           pip install --user pyyaml jinja2 jsonschema
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: docker.io
           username: ${{ vars.DOCKER_USERNAME }}
@@ -186,7 +186,7 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: inputs.push == true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -422,7 +422,7 @@ jobs:
           fi
 
       - name: Upload generated files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-files-${{ inputs.version }}-${{ inputs.distribution }}
           path: |
@@ -445,10 +445,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -457,7 +457,7 @@ jobs:
           pip install --user pyyaml jinja2 jsonschema
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Determine branch and tag suffix
         id: branch-info
@@ -484,7 +484,7 @@ jobs:
 
       - name: Log in to Docker Hub
         if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: docker.io
           username: ${{ vars.DOCKER_USERNAME }}
@@ -492,14 +492,14 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: inputs.push == true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download generated files
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-files-${{ inputs.version }}-${{ inputs.distribution }}
           path: .
@@ -544,7 +544,7 @@ jobs:
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -573,7 +573,7 @@ jobs:
 
       - name: Upload digest
         if: steps.build-config.outputs.use_tags == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-${{ inputs.version }}-${{ inputs.distribution }}-${{ contains(matrix.platform, 'amd64') && 'amd64' || 'arm64' }}
           path: /tmp/digests/*
@@ -607,7 +607,7 @@ jobs:
 
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Determine branch and tag suffix
         id: branch-info
@@ -634,7 +634,7 @@ jobs:
 
       - name: Log in to Docker Hub
         if: inputs.push == true && steps.branch-info.outputs.tag_suffix == ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: docker.io
           username: ${{ vars.DOCKER_USERNAME }}
@@ -642,14 +642,14 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: inputs.push == true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digests-${{ inputs.version }}-${{ inputs.distribution }}-*
