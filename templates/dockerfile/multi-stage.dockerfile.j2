@@ -86,17 +86,34 @@ RUN mkdir -p \
 
 WORKDIR /usr/src/asterisk
 
-# Download and extract Asterisk source
+# Download and extract Asterisk source.
+# When a sha256 checksum is present (plan 002) verify it before extracting;
+# otherwise fall back to the historical unverified pipe (legacy tail /
+# versions not yet backfilled). sha256sum ships in coreutils on every
+# Debian base, including jessie/stretch - no new build dependency.
 {% set source_url = config.asterisk.source.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz") -%}
+{% if config.asterisk.source.checksum -%}
+RUN curl -fsSL -o /tmp/asterisk-src.tar.gz {{ source_url.format(version=version) }} \
+    && echo "{{ config.asterisk.source.checksum }}  /tmp/asterisk-src.tar.gz" | sha256sum -c - \
+    && tar --strip-components=1 -xzf /tmp/asterisk-src.tar.gz \
+    && rm /tmp/asterisk-src.tar.gz
+{% else -%}
 RUN curl -fsSL {{ source_url.format(version=version) }} | \
     tar --strip-components=1 -xz
-
+{% endif %}
 {% if config.asterisk.addons.version -%}
 # Download and extract Asterisk addons (for legacy versions)
 WORKDIR /usr/src/asterisk/addons
 {% set addons_url = config.asterisk.addons.url_template | default("https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz") -%}
+{% if config.asterisk.addons.checksum -%}
+RUN curl -fsSL -o /tmp/asterisk-addons.tar.gz {{ addons_url.format(version=config.asterisk.addons.version) }} \
+    && echo "{{ config.asterisk.addons.checksum }}  /tmp/asterisk-addons.tar.gz" | sha256sum -c - \
+    && tar --strip-components=1 -xzf /tmp/asterisk-addons.tar.gz \
+    && rm /tmp/asterisk-addons.tar.gz
+{% else -%}
 RUN curl -fsSL {{ addons_url.format(version=config.asterisk.addons.version) }} | \
     tar --strip-components=1 -xz
+{% endif %}
 
 WORKDIR /usr/src/asterisk
 {% endif %}

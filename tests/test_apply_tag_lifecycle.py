@@ -162,3 +162,71 @@ def test_finalize_double_quotes_deprecated_at():
     atl.finalize(data, "2026-07-04T11:00:00Z")
     buf = io.StringIO(); y.dump(data, buf)
     assert 'deprecated_at: "2026-07-04T11:00:00Z"' in buf.getvalue()
+
+
+CHECKSUM_YAML = """\
+latest_builds:
+  - version: "23.3.0"
+    tarball_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    additional_tags: "23"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures: ["amd64", "arm64"]
+  - version: "1.4.44"
+    tarball_sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+    addons_sha256: "2222222222222222222222222222222222222222222222222222222222222222"
+    additional_tags: "1.4"
+    os_matrix:
+      - os: "debian"
+        distribution: "jessie"
+        architectures: ["amd64"]
+  - version: "23.4.1"
+    tarball_sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures: ["amd64", "arm64"]
+metadata:
+  mode: "manual"
+"""
+
+
+def test_apply_pr_preserves_tarball_and_addons_checksums():
+    """Tag-lifecycle must round-trip checksum fields byte-for-byte untouched.
+
+    plan 002 stores tarball_sha256 / addons_sha256 on each build entry;
+    apply-tag-lifecycle rewrites the YAML with ruamel, so a no-op pass
+    over those entries must not drop, reformat, or rewrap the checksums.
+    """
+    import io
+    y, data = _load(CHECKSUM_YAML)
+    atl.apply_pr(data)
+    buf = io.StringIO(); y.dump(data, buf); out = buf.getvalue()
+    assert 'tarball_sha256: "0000000000000000000000000000000000000000000000000000000000000000"' in out
+    assert 'tarball_sha256: "1111111111111111111111111111111111111111111111111111111111111111"' in out
+    assert 'addons_sha256: "2222222222222222222222222222222222222222222222222222222222222222"' in out
+    # the new active tag holder also keeps its checksum
+    assert 'tarball_sha256: "3333333333333333333333333333333333333333333333333333333333333333"' in out
+    # no unquoted / bare checksum renderings leaked through
+    assert "tarball_sha256: 0" not in out
+    assert "tarball_sha256: 1" not in out
+
+
+def test_finalize_preserves_tarball_and_addons_checksums():
+    """finalize must not touch checksum fields when stamping deprecated_at."""
+    import io
+    # mark one entry pending so finalize has work to do
+    y, data = _load(CHECKSUM_YAML)
+    data["latest_builds"][0]["superseded_by"] = "23.4.1"
+    atl.finalize(data, "2026-07-04T11:00:00Z")
+    buf = io.StringIO(); y.dump(data, buf); out = buf.getvalue()
+    builds = {b["version"]: b for b in data["latest_builds"]}
+    # checksums intact on the deprecated entry
+    assert builds["23.3.0"]["tarball_sha256"] == "0" * 64
+    # and on the legacy-addons entry, untouched
+    assert builds["1.4.44"]["tarball_sha256"] == "1" * 64
+    assert builds["1.4.44"]["addons_sha256"] == "2" * 64
+    # rendered form preserved
+    assert 'tarball_sha256: "1111111111111111111111111111111111111111111111111111111111111111"' in out
+
