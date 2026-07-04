@@ -28,7 +28,7 @@ docker buildx create --use
 
 ## Python Unit Tests (pytest)
 
-Fast unit tests cover the tag-lifecycle logic and the README updater - no Docker needed:
+Fast unit tests cover the tag-lifecycle logic, the README updater, and golden regeneration of the generated configs/Dockerfiles/build scripts - no Docker needed for the hermetic tier:
 
 ```bash
 python3 -m pytest tests/
@@ -37,8 +37,9 @@ python3 -m pytest tests/
 - `tests/test_tag_lifecycle.py` - semantic-tag planning (`lib/tag_lifecycle.py`)
 - `tests/test_apply_tag_lifecycle.py` - YAML application, both phases (`scripts/apply-tag-lifecycle.py`)
 - `tests/test_update_readme_versions.py` - README version-table updater
+- `tests/test_golden_regeneration.py` - regenerates 7 representative versions in a throwaway git worktree and asserts byte-identity with the tracked goldens, catching both generator regressions and hand-edits to auto-generated files. The Dockerfile tier (dockerfmt-formatted output) runs when Docker is available and is skipped otherwise; the hermetic tier (configs/build.sh/healthcheck.sh/entrypoint.sh) always runs.
 
-CI runs the suite on every push/PR touching `lib/`, `scripts/`, `tests/`, or `requirements-dev.txt` (`.github/workflows/test.yml`).
+CI runs the suite on every push/PR touching `lib/`, `scripts/`, `tests/`, `templates/`, `configs/generated/`, `asterisk/`, `schema/`, `config/`, or the requirements files (`.github/workflows/test.yml`).
 
 ## Test Modes Explained
 

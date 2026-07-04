@@ -4,9 +4,9 @@ name: Python Tests
 on:
   push:
     branches: [main]
-    paths: ['lib/**', 'scripts/**', 'tests/**', 'requirements.txt', 'requirements-dev.txt']
+    paths: ['lib/**', 'scripts/**', 'tests/**', 'templates/**', 'configs/generated/**', 'asterisk/**', 'schema/**', 'config/**', 'requirements.txt', 'requirements-dev.txt']
   pull_request:
-    paths: ['lib/**', 'scripts/**', 'tests/**', 'requirements.txt', 'requirements-dev.txt']
+    paths: ['lib/**', 'scripts/**', 'tests/**', 'templates/**', 'configs/generated/**', 'asterisk/**', 'schema/**', 'config/**', 'requirements.txt', 'requirements-dev.txt']
 
 permissions:
   contents: read
