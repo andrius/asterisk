@@ -90,3 +90,40 @@ def test_yaml_roundtrip_preserves_indented_sequence_style():
     buf = io.StringIO()
     y.dump(data, buf)
     assert buf.getvalue() == INDENTED_YAML
+
+
+PENDING_YAML = """\
+latest_builds:
+  - version: "23.3.0"
+    superseded_by: "23.4.1"
+    os_matrix:
+      - {os: "debian", distribution: "trixie", architectures: ["amd64"]}
+  - version: "22.8.2"
+    superseded_by: "22.9.0"
+    deprecated_at: "2026-05-04T07:22:53Z"
+    os_matrix:
+      - {os: "debian", distribution: "trixie", architectures: ["amd64"]}
+  - version: "23.4.1"
+    additional_tags: "23"
+    os_matrix:
+      - {os: "debian", distribution: "trixie", architectures: ["amd64"]}
+metadata:
+  mode: "manual"
+"""
+
+
+def test_finalize_stamps_only_pending():
+    y, data = _load(PENDING_YAML)
+    stamped = atl.finalize(data, "2026-07-04T11:00:00Z")
+    builds = {b["version"]: b for b in data["latest_builds"]}
+    assert stamped == ["23.3.0"]
+    assert builds["23.3.0"]["deprecated_at"] == "2026-07-04T11:00:00Z"
+    # already-deprecated one is untouched (keeps original date)
+    assert builds["22.8.2"]["deprecated_at"] == "2026-05-04T07:22:53Z"
+
+
+def test_finalize_idempotent():
+    y, data = _load(PENDING_YAML)
+    atl.finalize(data, "2026-07-04T11:00:00Z")
+    stamped_again = atl.finalize(data, "2026-07-05T11:00:00Z")
+    assert stamped_again == []   # nothing pending on second run

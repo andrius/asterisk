@@ -13,6 +13,7 @@ import argparse
 import copy
 import os
 import sys
+from datetime import datetime, timezone
 
 from ruamel.yaml import YAML
 
@@ -55,6 +56,15 @@ def apply_pr(data):
             target.append(copy.deepcopy(member))
 
 
+def finalize(data, now_iso):
+    stamped = []
+    for b in data["latest_builds"]:
+        if b.get("superseded_by") and not b.get("deprecated_at"):
+            b["deprecated_at"] = now_iso
+            stamped.append(b["version"])
+    return stamped
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", required=True, choices=["pr", "finalize"])
@@ -68,7 +78,9 @@ def main(argv=None):
     if args.phase == "pr":
         apply_pr(data)
     else:
-        raise SystemExit("finalize implemented in a later task")
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stamped = finalize(data, now_iso)
+        print(f"finalized: {stamped}")
 
     with open(args.file, "w") as fh:
         y.dump(data, fh)
