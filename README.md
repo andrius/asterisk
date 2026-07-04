@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 31 versions from 1.2.40 to 23.4.1 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 25 versions from 1.2.40 to 23.4.1 plus git development builds.
 
 ## Quick Start
 
@@ -54,18 +54,11 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | experimental-git | Forky | amd64, arm64 |
 | **23.4.1** | 23 | Trixie | amd64, arm64 |
 | **23.4.1** | experimental | Forky | amd64, arm64 |
-| **23.3.0** | - | Trixie | amd64, arm64 |
-| **23.3.0** | experimental | Forky | amd64, arm64 |
 | **22.10.1** | `latest,stable,22` | Trixie | amd64, arm64 |
-| **22.9.0** | - | Trixie | amd64, arm64 |
 | **22.8-cert3** | 22-cert | Trixie | amd64, arm64 |
-| **22.8-cert2** | - | Trixie | amd64, arm64 |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
-| **21.12.2** | - | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | Trixie | amd64, arm64 |
-| **20.19.0** | - | Trixie | amd64, arm64 |
 | **20.7-cert11** | 20-cert | Trixie | amd64, arm64 |
-| **20.7-cert10** | - | Trixie | amd64, arm64 |
 | **19.8.1** | 19 | Bookworm | amd64 |
 | **18.26.4** | 18 | Trixie | amd64 |
 | **18.9-cert18** | 18-cert | Trixie | amd64, arm64 |
@@ -91,6 +84,12 @@ These versions are no longer built but kept here for historical reference. Exist
 
 | Version | Deprecated | Superseded by |
 | ------- | ---------- | ------------- |
+| **23.3.0** | 2026-07-04 | `23.4.1` |
+| **22.9.0** | 2026-07-04 | `22.10.1` |
+| **22.8-cert2** | 2026-07-04 | `22.8-cert3` |
+| **21.12.2** | 2026-07-04 | `21.12.3` |
+| **20.19.0** | 2026-07-04 | `20.20.1` |
+| **20.7-cert10** | 2026-07-04 | `20.7-cert11` |
 | **23.2.2** | 2026-05-04 | `23.3.0` |
 | **23.2.0** | 2026-05-04 | `23.3.0` |
 | **23.1.0** | 2026-05-04 | `23.3.0` |
