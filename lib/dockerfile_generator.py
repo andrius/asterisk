@@ -179,7 +179,11 @@ class DockerfileGenerator:
                 cmd = [
                     "docker", "run", "--rm",
                     "-v", f"{current_dir}:/pwd",
-                    "ghcr.io/reteps/dockerfmt:latest",
+                    # Pinned by digest so an upstream dockerfmt behavior change
+                    # cannot silently alter generated Dockerfile bytes (and
+                    # break the golden regeneration tests). Tag monitored via
+                    # Renovate; update together with a golden regeneration.
+                    "ghcr.io/reteps/dockerfmt@sha256:f7ccef07090dee3318f3521a91b12956a5655bd347f5c6749a3e5a1da5293626",
                     "--indent", "4",
                     "--newline",
                     f"/pwd/{temp_filename}"

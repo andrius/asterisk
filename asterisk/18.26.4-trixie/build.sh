@@ -100,6 +100,8 @@ log "Module configuration completed"
 
 # Pre-build third-party (pjproject) sequentially with verbose output.
 # This surfaces real compiler errors that would otherwise be hidden by parallel make.
+# Skipped on Asterisk < 13: the 'third-party' target was added with bundled
+# pjproject support and does not exist in older trees.
 log "Building third-party dependencies (pjproject) with verbose output..."
 TMPDIR=${TMPDIR} make NOISY_BUILD=yes -j 1 third-party
 
