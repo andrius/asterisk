@@ -328,7 +328,6 @@ latest_builds:
           - "arm64"
 
   - version: "20.7-cert10"
-    additional_tags: "20-cert"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -336,8 +335,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "20.7-cert11"
   - version: "21.12.2"
-    additional_tags: "21"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -345,8 +344,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "21.12.3"
   - version: "22.8-cert2"
-    additional_tags: "22-cert"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -354,6 +353,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "22.8-cert3"
   - version: "18.9-cert18"
     additional_tags: "18-cert"
     os_matrix:
@@ -364,7 +364,6 @@ latest_builds:
           - "arm64"
 
   - version: "20.19.0"
-    additional_tags: "20"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -372,8 +371,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "20.20.1"
   - version: "22.9.0"
-    additional_tags: "latest,stable,22"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -381,8 +380,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "22.10.1"
   - version: "23.3.0"
-    additional_tags: "23"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
@@ -396,6 +395,7 @@ latest_builds:
           - "arm64"
         additional_tags: "experimental"
 
+    superseded_by: "23.4.1"
   - version: "20.20.1"
     os_matrix:
       - os: "debian"
@@ -404,6 +404,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    additional_tags: "20"
   - version: "20.7-cert11"
     os_matrix:
       - os: "debian"
@@ -412,6 +413,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    additional_tags: "20-cert"
   - version: "21.12.3"
     os_matrix:
       - os: "debian"
@@ -420,6 +422,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    additional_tags: "21"
   - version: "22.10.1"
     os_matrix:
       - os: "debian"
@@ -428,6 +431,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    additional_tags: "latest,stable,22"
   - version: "22.8-cert3"
     os_matrix:
       - os: "debian"
@@ -436,6 +440,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    additional_tags: "22-cert"
   - version: "23.4.1"
     os_matrix:
       - os: "debian"
@@ -444,6 +449,14 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+      - os: "debian"
+        distribution: "forky"
+        architectures:
+          - "amd64"
+          - "arm64"
+        additional_tags: "experimental"
+
+    additional_tags: "23"
 metadata:
   generated_at: "2026-06-30T20:41:21Z"
   supported_os:
