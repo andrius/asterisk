@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: main-yaml-writer
+  cancel-in-progress: false
+
 jobs:
   update-readme:
     runs-on: ubuntu-latest

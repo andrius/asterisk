@@ -17,6 +17,7 @@ import sys
 from datetime import datetime, timezone
 
 from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.tag_lifecycle import plan  # noqa: E402
@@ -46,11 +47,11 @@ def apply_pr(data):
     index = _by_version(data)
 
     for ver, tags in p.set_tags.items():
-        index[ver]["additional_tags"] = tags
+        index[ver]["additional_tags"] = DoubleQuotedScalarString(tags)
     for ver in p.clear_tags:
         index[ver].pop("additional_tags", None)
     for ver, superseded_by in p.deprecate.items():
-        index[ver]["superseded_by"] = superseded_by
+        index[ver]["superseded_by"] = DoubleQuotedScalarString(superseded_by)
     for new_ver, members in p.migrate_experimental.items():
         target = index[new_ver].setdefault("os_matrix", [])
         for member in members:
@@ -61,7 +62,7 @@ def finalize(data, now_iso):
     stamped = []
     for b in data["latest_builds"]:
         if b.get("superseded_by") and not b.get("deprecated_at"):
-            b["deprecated_at"] = now_iso
+            b["deprecated_at"] = DoubleQuotedScalarString(now_iso)
             stamped.append(b["version"])
     return stamped
 

@@ -136,4 +136,5 @@ def plan(builds):
                        if m.get("distribution") not in keep_dists]
             if to_move:
                 p.migrate_experimental.setdefault(keep, []).extend(to_move)
+                keep_dists.update(m.get("distribution") for m in to_move)
     return p

@@ -179,3 +179,10 @@ def test_plan_idempotent_after_apply():
     assert p.deprecate == {}                 # 23.3.0 already deprecated -> excluded
     assert p.migrate_experimental == {}
     assert p.set_tags == {"23.4.1": "23"}    # unchanged
+
+
+def test_experimental_deduped_across_multiple_superseded():
+    # two older entries in one line both carry a forky member; only ONE migrates
+    p = plan([_b_forky("23.2.0", "23"), _b_forky("23.3.0", "23"), _b("23.4.1")])
+    moved = p.migrate_experimental["23.4.1"]
+    assert len([m for m in moved if m["distribution"] == "forky"]) == 1

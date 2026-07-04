@@ -145,3 +145,20 @@ def test_check_returns_zero_when_clean(tmp_path):
     rc = atl.main(["--phase", "pr", "--file", str(f), "--check"])
     assert rc == 0
     assert f.read_text() == settled
+
+
+def test_apply_pr_double_quotes_fresh_keys():
+    import io
+    y, data = _load(YAML_IN)
+    atl.apply_pr(data)
+    buf = io.StringIO(); y.dump(data, buf); out = buf.getvalue()
+    assert 'additional_tags: "23"' in out       # fresh entry-level tag on 23.4.1
+    assert 'superseded_by: "23.4.1"' in out      # fresh key on 23.3.0
+
+
+def test_finalize_double_quotes_deprecated_at():
+    import io
+    y, data = _load(PENDING_YAML)
+    atl.finalize(data, "2026-07-04T11:00:00Z")
+    buf = io.StringIO(); y.dump(data, buf)
+    assert 'deprecated_at: "2026-07-04T11:00:00Z"' in buf.getvalue()
