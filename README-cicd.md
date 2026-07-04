@@ -233,7 +233,6 @@ Semantic tags and deprecations are managed automatically from `asterisk/supporte
 | `test.yml` | push/PR touching `lib/`, `scripts/`, `tests/` | pytest suite (tag lifecycle + README updater) |
 | `validate-generation.yml` | PR touching version files | Verifies every active version has config + Dockerfile artifacts |
 | `announce-releases.yml` | called by `build-new-releases.yml` / manual | Telegram + Mastodon announcements, pushes `announced-<version>` git tags |
-| `test-reusable-action.yml` | manual | Exercises the `build-asterisk-image` composite action |
 
 ## 🧪 Testing with nektos/act
 

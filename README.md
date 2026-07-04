@@ -493,7 +493,7 @@ The basic example includes:
 
 ## GitHub Actions
 
-Sixteen workflows automate discovery, builds, tag lifecycle, and announcements - see [README-cicd.md](README-cicd.md) for the full pipeline. Key ones:
+A fleet of workflows automates discovery, builds, tag lifecycle, and announcements - see [README-cicd.md](README-cicd.md) for the full pipeline. Key ones:
 
 - **`discover-releases.yml`**: Daily release discovery at 8:00 PM UTC; opens a consolidated PR and promotes semantic tags
 - **`finalize-deprecations.yml`**: Stamps `deprecated_at` when a release PR merges (two-phase deprecation)
