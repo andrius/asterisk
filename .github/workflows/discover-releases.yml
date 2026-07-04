@@ -13,6 +13,9 @@ on:
       - scripts/discover-latest-versions.sh
       - scripts/get-asterisk-releases.sh
       - scripts/get-asterisk-certified-releases.sh
+      - scripts/apply-tag-lifecycle.py
+      - scripts/update-readme-versions.py
+      - lib/tag_lifecycle.py
 
   schedule:
     # Run daily at 20:00 UTC
@@ -214,6 +217,39 @@ jobs:
               echo "git_sha_changed=false" >> $GITHUB_OUTPUT
             fi
           fi
+
+      - name: Commit release list refresh to main
+        if: steps.extract-versions.outputs.has_new_versions != 'true' && steps.extract-versions.outputs.release_lists_updated == 'true'
+        run: |
+          # Persist metadata-only refreshes so release lists do not lag upstream
+          # until the next buildable version. Only the four list files are
+          # committed - supported-asterisk-builds.yml changes (e.g. git_sha)
+          # stay uncommitted here; build-git-daily owns those, gated on a
+          # successful image build.
+          LIST_FILES=(
+            asterisk/asterisk-releases.txt
+            asterisk/asterisk-certified-releases.txt
+            asterisk/asterisk-releases.yml
+            asterisk/asterisk-certified-releases.yml
+          )
+
+          if [ -z "$(git status --porcelain -- "${LIST_FILES[@]}")" ]; then
+            echo "📋 Release list files unchanged, nothing to commit"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "${LIST_FILES[@]}"
+          git commit -m "🔄 Refresh Asterisk release lists [skip ci]"
+
+          # Rebase onto anything that landed since checkout (autostash keeps
+          # the intentionally-uncommitted supported-builds changes), then push
+          git pull --rebase --autostash origin main
+          git push origin main
+
+          echo "✅ Release list refresh committed to main"
 
       - name: Cleanup existing PR and branch
         if: steps.extract-versions.outputs.has_new_versions == 'true'
