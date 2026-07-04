@@ -31,7 +31,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install --user pyyaml
+          pip install --user -r requirements.txt
 
       - name: Run update script
         run: |

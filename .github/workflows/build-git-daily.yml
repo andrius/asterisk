@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --user pyyaml jinja2
+          pip install --user -r requirements.txt
 
       - name: Fetch current git SHA
         id: current-sha
@@ -120,7 +120,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --user pyyaml jinja2
+          pip install --user -r requirements.txt
 
       - name: Update YAML with new SHA
         run: |

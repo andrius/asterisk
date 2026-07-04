@@ -1,0 +1,7 @@
+# Runtime dependencies for the build system:
+# config/Dockerfile generation, release discovery, tag lifecycle, README updater.
+pyyaml>=6.0
+jinja2>=3.1
+jsonschema>=4.0
+# Pinned: apply-tag-lifecycle.py relies on byte-stable YAML round-trips
+ruamel.yaml==0.18.10

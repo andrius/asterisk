@@ -17,9 +17,9 @@ All tests run **AMD64 only** and **never push to registry** - pure local validat
 ```bash
 # Required tools
 sudo apt install python3 python3-pip docker.io
-pip3 install pyyaml jinja2 jsonschema
+pip3 install -r requirements.txt
 
-# Python unit-test dependencies (pytest, ruamel.yaml, pyyaml)
+# Python unit-test dependencies (runtime deps + pytest)
 pip3 install -r requirements-dev.txt
 
 # Docker buildx support

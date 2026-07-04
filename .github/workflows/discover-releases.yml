@@ -16,6 +16,7 @@ on:
       - scripts/apply-tag-lifecycle.py
       - scripts/update-readme-versions.py
       - lib/tag_lifecycle.py
+      - requirements.txt
 
   schedule:
     # Run daily at 20:00 UTC
@@ -46,7 +47,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install --user pyyaml jinja2
+          pip install --user -r requirements.txt
 
       - name: Update Asterisk releases
         working-directory: scripts
@@ -66,7 +67,6 @@ jobs:
 
       - name: Promote tags and mark deprecations (PR phase)
         run: |
-          pip install --user ruamel.yaml
           python3 scripts/apply-tag-lifecycle.py --phase pr
           python3 scripts/update-readme-versions.py
 

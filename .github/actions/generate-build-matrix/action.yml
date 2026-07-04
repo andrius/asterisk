@@ -42,7 +42,7 @@ runs:
 
     - name: Install Python dependencies
       shell: bash
-      run: pip install --user pyyaml
+      run: pip install --user -r requirements.txt
 
     - name: Generate build matrix
       id: generate

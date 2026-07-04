@@ -36,7 +36,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Python dependencies
-        run: pip install pyyaml
+        run: pip install -r requirements.txt
 
       - name: Extract new versions
         id: extract-versions
@@ -139,7 +139,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install --user pyyaml
+          pip install --user -r requirements.txt
 
       - name: Generate build matrix for new versions only
         id: generate-matrix
