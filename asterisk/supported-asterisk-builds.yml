@@ -28,6 +28,8 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "61dc745b12f6dc2998404e77747a964db56df8efae84a666c4ccddf016c9c06d"
+    addons_sha256: "13df280ca14e9573b3a72de4c1ac75424939add981337cfd1c73a99444f75dc4"
   - version: "1.4.44"
     additional_tags: "1.4"
     os_matrix:
@@ -37,6 +39,8 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "044d6db957deac9841df0320499c99494bdd0c215e680ba37c2ed33fffe730d6"
+    addons_sha256: "3d7bbcbbc074b58fcd81b8398b5c68c927ab2dca542b85fbac666ecc8bda11f0"
   - version: "1.6.2.24"
     additional_tags: "1.6"
     os_matrix:
@@ -46,6 +50,8 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "5f5b28f7644eeef6ecf778b4cdbbfe89ef70d482943af9b2e588823bd8ef0e54"
+    addons_sha256: "0898696af8097b6cbd46d4b3d63b7838138f947c9bf08d34e4ef4411bf2211a6"
   - version: "1.8.32.3"
     additional_tags: "1.8"
     os_matrix:
@@ -55,6 +61,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "3c12ddbb86e2b901af449bd5a3ac7bbc55a28664159d0c4fb70f89d761d8bf9e"
   - version: "10.12.4"
     additional_tags: "10"
     os_matrix:
@@ -64,6 +71,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "d719e09677e2aa7866f506a8b3f83016aa27a3c652b975b7d2beebe5891e2ee9"
   - version: "11.25.3"
     additional_tags: "11"
     os_matrix:
@@ -73,6 +81,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "beb63953cb61b9822fc8f1d79842d821c5147f2a2944941d54a02f2e5fd4db20"
   - version: "11.6-cert18"
     additional_tags: "11-cert"
     os_matrix:
@@ -81,6 +90,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "7c29840d5e97284ceb98ab0851e77e887be2812d22d6fbd93ff034d4a50aa65c"
   - version: "12.8.2"
     additional_tags: "12"
     os_matrix:
@@ -89,6 +99,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "e55dd97a284a404d7040122f6fa7208fa3b773c728da1196255921bc6ad075a1"
   - version: "13.38.3"
     additional_tags: "13"
     os_matrix:
@@ -97,6 +108,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "478040705f5819259bb1d22cb4e27970092a5bfdb691d27d321c26235eea4bb3"
   - version: "13.21-cert6"
     additional_tags: "13-cert"
     os_matrix:
@@ -105,6 +117,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "0860afb54efd2e334b5ff377b730835da3bbb5f35dad94ba7b0130ae634bdff9"
   - version: "14.7.8"
     additional_tags: "14"
     os_matrix:
@@ -113,6 +126,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "3de8b119c3acacc4b54a1fe6cd7b49929394187f19288c684f9ca510826839a1"
   - version: "15.7.4"
     additional_tags: "15"
     os_matrix:
@@ -121,6 +135,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "fd5415bde9e58874f52fbd7fde5cbcbdbdff1626f415a10220478396873b435f"
   - version: "16.30.1"
     additional_tags: "16"
     os_matrix:
@@ -129,6 +144,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "8a91b0f8412d8e3dbd7172c118c52ba4ed4e016696f2778a466db094ec4b8b22"
   - version: "16.8-cert14"
     additional_tags: "16-cert"
     os_matrix:
@@ -137,6 +153,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "5190e48d5d53f3781a748af4785f63db4b491a8e4dea1c56579e3861cc848f08"
   - version: "17.9.4"
     additional_tags: "17"
     os_matrix:
@@ -145,6 +162,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "cc0d6b9ef1512d4e279b80ca8bf78032d69fe6e92492c95c22c44023d6c111fa"
   - version: "18.9-cert17"
     deprecated_at: "2026-05-04T07:22:53Z"
     superseded_by: "18.9-cert18"
@@ -165,6 +183,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "a17f511bfa092c8fa9eccd3a5ecf5f728ccdcf2b1a04d2c06e7177d96c3c9ee1"
   - version: "19.8.1"
     additional_tags: "19"
     os_matrix:
@@ -173,6 +192,7 @@ latest_builds:
         architectures:
           - "amd64"
 
+    tarball_sha256: "854217b450b41360bc89a5bf732c30ca1e1296fadbc41d9cd7cfe5e15c6b4caa"
   - version: "20.7-cert7"
     deprecated_at: "2026-05-04T07:22:53Z"
     superseded_by: "20.7-cert10"
@@ -366,6 +386,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    tarball_sha256: "7b14286e8587da490907e5240ecec966c228c149f8d962fb4d3843f0e91954cf"
   - version: "20.19.0"
     os_matrix:
       - os: "debian"
@@ -411,6 +432,7 @@ latest_builds:
           - "arm64"
 
     additional_tags: "20"
+    tarball_sha256: "32ef7db8e449629128eb5f7e42d3d704f03daacb91d76ee694a9acf7f1fd53e2"
   - version: "20.7-cert11"
     os_matrix:
       - os: "debian"
@@ -420,6 +442,7 @@ latest_builds:
           - "arm64"
 
     additional_tags: "20-cert"
+    tarball_sha256: "56b7e654a171f2a47dcea05a5df657af7b1b060439d2d7744cf8da2e1d104db6"
   - version: "21.12.3"
     os_matrix:
       - os: "debian"
@@ -429,6 +452,7 @@ latest_builds:
           - "arm64"
 
     additional_tags: "21"
+    tarball_sha256: "1601086eb812ee78e810adc34d3196cb253e2d3156ccfd9911f736f2bce83dd8"
   - version: "22.10.1"
     os_matrix:
       - os: "debian"
@@ -438,6 +462,7 @@ latest_builds:
           - "arm64"
 
     additional_tags: "latest,stable,22"
+    tarball_sha256: "0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353"
   - version: "22.8-cert3"
     os_matrix:
       - os: "debian"
@@ -447,6 +472,7 @@ latest_builds:
           - "arm64"
 
     additional_tags: "22-cert"
+    tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
   - version: "23.4.1"
     os_matrix:
       - os: "debian"
@@ -463,6 +489,7 @@ latest_builds:
         additional_tags: "experimental"
 
     additional_tags: "23"
+    tarball_sha256: "9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51"
 metadata:
   generated_at: "2026-06-30T20:41:21Z"
   supported_os:
