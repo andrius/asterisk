@@ -135,27 +135,35 @@ validate_version() {
 check_prerequisites() {
     log INFO "Checking prerequisites..."
 
-    # Check Docker
-    if ! command -v docker >/dev/null 2>&1; then
-        log ERROR "Docker is not installed or not in PATH"
-        return 1
-    fi
+    # In dry-run mode we only generate configs/Dockerfiles/build scripts and
+    # never build an image, so Docker buildx and a running daemon are not
+    # required. Docker (if present) is still used opportunistically by the
+    # Dockerfile generator for dockerfmt formatting; if absent, formatting is
+    # silently skipped (see lib/dockerfile_generator.py:_format_dockerfile).
+    # This lets config regeneration run on docker-less hosts/CI runners.
+    if [[ "$DRY_RUN" != true ]]; then
+        # Check Docker
+        if ! command -v docker >/dev/null 2>&1; then
+            log ERROR "Docker is not installed or not in PATH"
+            return 1
+        fi
 
-    # Check Docker buildx
-    if ! docker buildx version >/dev/null 2>&1; then
-        log ERROR "Docker buildx is not available"
-        return 1
-    fi
+        # Check Docker buildx
+        if ! docker buildx version >/dev/null 2>&1; then
+            log ERROR "Docker buildx is not available"
+            return 1
+        fi
 
-    # Check if Docker daemon is running
-    if ! docker info >/dev/null 2>&1; then
-        log ERROR "Docker daemon is not running"
-        return 1
+        # Check if Docker daemon is running
+        if ! docker info >/dev/null 2>&1; then
+            log ERROR "Docker daemon is not running"
+            return 1
+        fi
     fi
 
     # Check Python for YAML parsing and generation
     if ! command -v python3 >/dev/null 2>&1; then
-        log ERROR "Python 3 is not installed or not in PATH"
+        log ERROR "Python 3 is not installed or in PATH"
         return 1
     fi
 
@@ -1032,9 +1040,11 @@ setup_buildx() {
 # Build processing
 log INFO "Build matrix resolution complete - proceeding with config generation..."
 
-# Setup buildx
-if ! setup_buildx; then
-    exit 1
+# Setup buildx (skipped in dry-run: no image is built, so buildx is unused)
+if [[ "$DRY_RUN" != true ]]; then
+    if ! setup_buildx; then
+        exit 1
+    fi
 fi
 
 # Track build results
