@@ -74,6 +74,6 @@ SIP ports.
 - [ ] Set `EXTERNAL_IP`, `RTP_RANGE_START`, `RTP_RANGE_END` in those configs.
 - [ ] Use the host-mode variant for real SIP traffic.
 - [ ] Open the RTP port range on every node's external firewall.
-- [ ] Pin to an exact image tag (`22.9.0_debian-trixie`), not `:latest`.
+- [ ] Pin to an exact image tag (`22.10.1_debian-trixie`), not `:latest`.
 - [ ] Persist `/var/log/asterisk` to a named volume or external log shipper.
 - [ ] If using bind mounts, set `PUID` / `PGID` to match host ownership.

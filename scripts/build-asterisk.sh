@@ -78,19 +78,19 @@ Options:
   --help, -h           Show this help message
 
 Examples:
-  $0 22.5.2                           # Build all OS/arch from latest-asterisk-builds.yml
-  $0 22.5.2 debian                    # Build all Debian variants and architectures
-  $0 22.5.2 debian amd64              # Build only Debian amd64
-  $0 22.5.2 debian arm64              # Build only Debian arm64
-  $0 22.5.2 --push --registry myuser/asterisk
-  $0 22.5.2 --push --registry ghcr.io/myuser/asterisk
-  $0 23.0.0-rc1 --dry-run             # Preview what would be built
+  $0 22.10.1                           # Build all OS/arch from supported-asterisk-builds.yml
+  $0 22.10.1 debian                    # Build all Debian variants and architectures
+  $0 22.10.1 debian amd64              # Build only Debian amd64
+  $0 22.10.1 debian arm64              # Build only Debian arm64
+  $0 22.10.1 --push --registry myuser/asterisk
+  $0 22.10.1 --push --registry ghcr.io/myuser/asterisk
+  $0 23.4.1 --dry-run             # Preview what would be built
   $0 --git trixie                     # Build from git with Debian Trixie
   $0 --git trixie --push              # Build and push git version
 
 Matrix Resolution:
-  - Versions in latest-asterisk-builds.yml: Use exact OS matrix (preserves customizations)
-  - Versions not in YAML: Use metadata defaults from latest-asterisk-builds.yml
+  - Versions in supported-asterisk-builds.yml: Use exact OS matrix (preserves customizations)
+  - Versions not in YAML: Use metadata defaults from supported-asterisk-builds.yml
   - Custom configs in configs/ directory take precedence
 
 EOF
@@ -320,7 +320,7 @@ try:
 
     if not version_found:
         # Version not found in YAML - ERROR
-        print(f"ERROR: Version $version not found in latest-asterisk-builds.yml", file=sys.stderr)
+        print(f"ERROR: Version $version not found in supported-asterisk-builds.yml", file=sys.stderr)
         print("", file=sys.stderr)
         print("Only validated versions can be built. Available versions:", file=sys.stderr)
 

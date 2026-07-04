@@ -1,4 +1,4 @@
-FROM andrius/asterisk:22.5.2_debian-trixie
+FROM andrius/asterisk:22.10.1_debian-trixie
 
 # Get root to install additional packages
 USER root

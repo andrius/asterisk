@@ -19,9 +19,26 @@ All tests run **AMD64 only** and **never push to registry** - pure local validat
 sudo apt install python3 python3-pip docker.io
 pip3 install pyyaml jinja2 jsonschema
 
+# Python unit-test dependencies (pytest, ruamel.yaml, pyyaml)
+pip3 install -r requirements-dev.txt
+
 # Docker buildx support
 docker buildx create --use
 ```
+
+## Python Unit Tests (pytest)
+
+Fast unit tests cover the tag-lifecycle logic and the README updater - no Docker needed:
+
+```bash
+python3 -m pytest tests/
+```
+
+- `tests/test_tag_lifecycle.py` - semantic-tag planning (`lib/tag_lifecycle.py`)
+- `tests/test_apply_tag_lifecycle.py` - YAML application, both phases (`scripts/apply-tag-lifecycle.py`)
+- `tests/test_update_readme_versions.py` - README version-table updater
+
+CI runs the suite on every push/PR touching `lib/`, `scripts/`, `tests/`, or `requirements-dev.txt` (`.github/workflows/test.yml`).
 
 ## Test Modes Explained
 
@@ -35,20 +52,20 @@ docker buildx create --use
 
 **Example:**
 ```bash
-scripts/test-build.sh --mode config "22.5.2"
+scripts/test-build.sh --mode config "22.10.1"
 ```
 
 **Real output:**
 ```
-2025-09-28 18:10:44 [INFO] Testing version: 22.5.2 (mode: config)
-[INFO]  Starting Asterisk build for version: 22.5.2
+2025-09-28 18:10:44 [INFO] Testing version: 22.10.1 (mode: config)
+[INFO]  Starting Asterisk build for version: 22.10.1
 [INFO]  OS filter: debian
 [INFO]  Architecture filter: amd64
 [INFO]  DRY RUN MODE - No actual builds will be performed
 [INFO]  Build targets:
 [INFO]    → debian/trixie (amd64) [from: custom_matrix]
 [INFO]  DRY RUN - Would build 1 targets
-2025-09-28 18:10:44 [SUCCESS] Version 22.5.2: All tests passed (0s)
+2025-09-28 18:10:44 [SUCCESS] Version 22.10.1: All tests passed (0s)
 
 === BUILD STATISTICS ===
 Total builds: 1
@@ -59,7 +76,7 @@ Success rate: 100%
 
 **What happens under the hood:**
 1. Parses `asterisk/supported-asterisk-builds.yml` matrix
-2. Loads version configuration from `configs/generated/asterisk-22.5.2-trixie.yml`
+2. Loads version configuration from `configs/generated/asterisk-22.10.1-trixie.yml`
 3. Renders Dockerfile from `templates/dockerfile/multi-stage.dockerfile.j2`
 4. Generates build script from `templates/partials/build.sh.j2`
 5. Creates healthcheck from `templates/partials/healthcheck.sh.j2`
@@ -76,7 +93,7 @@ Success rate: 100%
 
 **Example:**
 ```bash
-scripts/test-build.sh --mode build "22.5.2"
+scripts/test-build.sh --mode build "22.10.1"
 ```
 
 **What happens under the hood:**
@@ -86,16 +103,16 @@ scripts/test-build.sh --mode build "22.5.2"
 4. Installs build packages (libicu76, libpqxx-7.10, etc.)
 5. Compiles Asterisk with menuselect configuration
 6. Creates optimized runtime image with only necessary packages
-7. Tags image as `22.5.2_debian-trixie`
+7. Tags image as `22.10.1_debian-trixie`
 
 **Real Docker commands executed:**
 ```bash
 # Generated Dockerfile gets built with:
 docker buildx build \
   --platform linux/amd64 \
-  --tag 22.5.2_debian-trixie \
+  --tag 22.10.1_debian-trixie \
   --file Dockerfile \
-  /home/ak/code/asterisk/asterisk/asterisk/22.5.2-trixie/
+  ./asterisk/22.10.1-trixie/
 ```
 
 ### Validate Mode (Complete End-to-End Testing)
@@ -110,23 +127,23 @@ docker buildx build \
 
 **Example:**
 ```bash
-scripts/test-build.sh --mode validate "22.5.2"
+scripts/test-build.sh --mode validate "22.10.1"
 ```
 
 **Detailed validation steps:**
 
 #### 1. Container Startup Test
 ```bash
-docker run --rm 22.5.2_debian-trixie asterisk -V
+docker run --rm 22.10.1_debian-trixie asterisk -V
 ```
 **Expected output:**
 ```
-Asterisk 22.5.2 built by root @ buildnode on a x86_64 running Linux on 2025-09-28 18:00:00 UTC
+Asterisk 22.10.1 built by root @ buildnode on a x86_64 running Linux on 2025-09-28 18:00:00 UTC
 ```
 
 #### 2. Configuration Syntax Validation
 ```bash
-docker run --rm 22.5.2_debian-trixie asterisk -T
+docker run --rm 22.10.1_debian-trixie asterisk -T
 ```
 **What this tests:**
 - Parses all configuration files in `/etc/asterisk/`
@@ -136,7 +153,7 @@ docker run --rm 22.5.2_debian-trixie asterisk -T
 
 #### 3. CLI Functionality Test
 ```bash
-docker run --rm 22.5.2_debian-trixie sh -c "asterisk -rx 'core show version'"
+docker run --rm 22.10.1_debian-trixie sh -c "asterisk -rx 'core show version'"
 ```
 **What this tests:**
 - Basic Asterisk CLI connectivity
@@ -147,10 +164,10 @@ docker run --rm 22.5.2_debian-trixie sh -c "asterisk -rx 'core show version'"
 #### 4. Image Optimization Analysis
 ```bash
 # Size validation
-docker image inspect 22.5.2_debian-trixie --format '{{.Size}}'
+docker image inspect 22.10.1_debian-trixie --format '{{.Size}}'
 
 # Layer count analysis
-docker image inspect 22.5.2_debian-trixie --format '{{len .RootFS.Layers}}'
+docker image inspect 22.10.1_debian-trixie --format '{{len .RootFS.Layers}}'
 ```
 **Validation criteria:**
 - ✅ Image size < 2GB (optimized multi-stage build)
@@ -162,21 +179,21 @@ docker image inspect 22.5.2_debian-trixie --format '{{len .RootFS.Layers}}'
 ### Quick Development Testing
 ```bash
 # Test latest version config only (30 seconds)
-scripts/test-build.sh --mode config "23.0.0-rc2"
+scripts/test-build.sh --mode config "23.4.1"
 
 # Test specific version build (5-10 minutes)
-scripts/test-build.sh --mode build "22.5.2"
+scripts/test-build.sh --mode build "22.10.1"
 ```
 
 ### Pattern Matching
 ```bash
 # Test all version 2x releases
 scripts/test-build.sh --mode config "2*"
-# Matches: 20.15.2, 20.7-cert7, 21.10.2, 22.5.2, 23.0.0-rc2
+# Matches: 20.20.1, 20.7-cert11, 21.12.3, 22.10.1, 22.8-cert3, 23.4.1
 
 # Test all certified releases
 scripts/test-build.sh --mode config "*cert*"
-# Matches: 11.6-cert18, 13.21-cert6, 16.8-cert14, 18.9-cert17, 20.7-cert7
+# Matches: 11.6-cert18, 13.21-cert6, 16.8-cert14, 18.9-cert18, 20.7-cert11, 22.8-cert3
 ```
 
 ### Performance Optimization
@@ -203,15 +220,14 @@ scripts/test-build.sh --mode validate "23.*"
 ```
 2025-09-28 18:10:44 [INFO] Initializing Asterisk Docker Build Test System
 2025-09-28 18:10:44 [INFO] Test mode: config
-2025-09-28 18:10:44 [INFO] Found 23 buildable versions
-2025-09-28 18:10:44 [INFO] Filtered to 1 versions matching pattern: 22.5.2
+2025-09-28 18:10:44 [INFO] Filtered to 1 versions matching pattern: 22.10.1
 
-2025-09-28 18:10:44 [INFO] Testing version: 22.5.2 (mode: config)
+2025-09-28 18:10:44 [INFO] Testing version: 22.10.1 (mode: config)
 [INFO]  Build targets:
 [INFO]    → debian/trixie (amd64) [from: custom_matrix]
 [INFO]  DRY RUN - Would build 1 targets
 
-2025-09-28 18:10:44 [SUCCESS] Version 22.5.2: All tests passed (0s)
+2025-09-28 18:10:44 [SUCCESS] Version 22.10.1: All tests passed (0s)
 
 === DETAILED TEST REPORT ===
 Test Mode: config
@@ -245,15 +261,15 @@ Success rate: 0%
 
 ### Complete Validation Report
 ```bash
-scripts/test-build.sh --mode validate "22.5.2" --verbose
+scripts/test-build.sh --mode validate "22.10.1" --verbose
 ```
 
 **Generated Image Report:**
 ```
-=== IMAGE REPORT: 22.5.2_debian-trixie ===
+=== IMAGE REPORT: 22.10.1_debian-trixie ===
 Size: 876.4MB (918425600 bytes)
 Created: 2025-09-28
-Asterisk Version: Asterisk 22.5.2 built by root @ buildnode
+Asterisk Version: Asterisk 22.10.1 built by root @ buildnode
 Container Startup: ✅ PASS
 Asterisk Functionality: ✅ PASS
 Image Optimization: ✅ PASS
@@ -296,7 +312,7 @@ The test system leverages existing build scripts:
 
 ```bash
 # Test system calls build-asterisk.sh with specific flags:
-/scripts/build-asterisk.sh 22.5.2 debian amd64 \
+./scripts/build-asterisk.sh 22.10.1 debian amd64 \
   --platforms linux/amd64 \
   --dry-run \        # Config mode only
   --force-config \   # Always regenerate
@@ -304,11 +320,11 @@ The test system leverages existing build scripts:
 ```
 
 **File Generation Process:**
-1. `configs/asterisk-22.5.2-trixie.yml` → Configuration loaded
-2. `templates/debian-trixie.yml.template` → Template resolved
-3. `asterisk/22.5.2-trixie/Dockerfile` → Generated
-4. `asterisk/22.5.2-trixie/build.sh` → Generated
-5. `asterisk/22.5.2-trixie/healthcheck.sh` → Generated
+1. `configs/generated/asterisk-22.10.1-trixie.yml` → Configuration loaded
+2. `templates/distributions/debian-trixie.yml` → Distribution template resolved
+3. `asterisk/22.10.1-trixie/Dockerfile` → Generated
+4. `asterisk/22.10.1-trixie/build.sh` → Generated
+5. `asterisk/22.10.1-trixie/healthcheck.sh` → Generated
 
 ## Troubleshooting
 
@@ -335,13 +351,16 @@ docker buildx create --use
 
 **Template errors:**
 ```bash
-# Test template syntax
+# Test template syntax (variant templates carry {{VERSION}} placeholders)
 python3 -c "
 import yaml
-template = open('templates/debian-trixie.yml.template').read()
-config = template.replace('{{VERSION}}', '22.5.2')
+template = open('templates/variants/modern.yml.template').read()
+config = template.replace('{{VERSION}}', '22.10.1')
 yaml.safe_load(config)
 "
+
+# Distribution templates are plain YAML
+python3 -c "import yaml; yaml.safe_load(open('templates/distributions/debian-trixie.yml'))"
 ```
 
 ### Performance Tips
@@ -349,7 +368,7 @@ yaml.safe_load(config)
 **For frequent testing:**
 ```bash
 # Use config mode for development (fastest)
-scripts/test-build.sh --mode config "22.5.2"
+scripts/test-build.sh --mode config "22.10.1"
 
 # Parallel testing for multiple versions
 scripts/test-build.sh --mode config --parallel "2*"
@@ -414,10 +433,10 @@ The modular design allows easy extension:
 **Quick Start:**
 ```bash
 # Test your changes quickly
-scripts/test-build.sh --mode config "22.5.2"
+scripts/test-build.sh --mode config "22.10.1"
 
 # Full validation before commit
-scripts/test-build.sh --mode validate "22.5.2"
+scripts/test-build.sh --mode validate "22.10.1"
 
 # Test all modern versions
 scripts/test-build.sh --mode config "2*" --parallel

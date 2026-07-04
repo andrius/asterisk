@@ -2,15 +2,15 @@
 
 ## 🎯 Overview
 
-This repository implements an automated Asterisk release discovery and Docker image build system using GitHub Actions. The system features a **per-release branch strategy** that creates individual branches and pull requests for each new Asterisk version, enabling granular review and deployment control.
+This repository implements an automated Asterisk release discovery and Docker image build system using GitHub Actions. The system features a **consolidated release PR strategy**: each discovery run collects every new Asterisk version into a single `asterisk-new-releases` branch and pull request, together with automatic semantic-tag promotion and two-phase deprecation of superseded versions.
 
 ### Key Features
 
 - **🔍 Automated Discovery**: Daily scanning for new Asterisk releases from downloads.asterisk.org
-- **🌿 Per-Release Branches**: Individual `asterisk-{VERSION}` branches for each new release
-- **🚫 Collision Detection**: Prevents duplicate branches and PRs
+- **🌿 Consolidated Release PR**: One `asterisk-new-releases` branch/PR carrying all newly discovered versions
+- **🏷️ Tag Lifecycle**: Semantic tags (`latest`, `stable`, majors, certs) move automatically; superseded versions are deprecated in two phases
 - **🏗️ Matrix Building**: Automated Docker image generation across multiple architectures
-- **🧪 Local Testing**: Comprehensive testing with `nektos/act`
+- **🧪 Local Testing**: Comprehensive testing with `nektos/act`, plus a pytest suite for `lib/` and `scripts/`
 
 ## 🏗️ Workflow Architecture
 
@@ -22,62 +22,35 @@ This repository implements an automated Asterisk release discovery and Docker im
          │                           │                           │
          ▼                           ▼                           ▼
 ┌─────────────────────┐    ┌──────────────────────┐    ┌─────────────────────┐
-│ Per-release PRs     │    │ Matrix generation    │    │ Individual builds   │
-│ asterisk-22.6.0     │    │ Multi-arch support   │    │ Docker image output │
-│ asterisk-23.0.0     │    │ Filtered building    │    │ Health checks       │
+│ Consolidated PR     │    │ Matrix generation    │    │ Individual builds   │
+│ asterisk-new-       │    │ Multi-arch support   │    │ Docker image output │
+│ releases branch     │    │ Filtered building    │    │ Health checks       │
 └─────────────────────┘    └──────────────────────┘    └─────────────────────┘
 ```
 
-## 🎨 Per-Release Branch Strategy
+## 🎨 Consolidated Release PR Strategy
 
 ### Concept
 
-Instead of creating bulk PRs with multiple versions, the system creates **one branch per Asterisk release**:
+Each discovery run gathers **all** newly found Asterisk versions into a single branch and PR:
 
-- **Branch naming**: `asterisk-{VERSION}`
-- **Individual PRs**: Each version gets its own review process
-- **Collision detection**: Skips versions with existing branches
-- **Granular control**: Independent merge/close decisions
+- **Branch naming**: `asterisk-new-releases` (deleted and recreated on each run with fresh content)
+- **One PR per run**: New versions, their generated configs/Dockerfiles, README table updates, and tag-lifecycle changes are reviewed together
+- **Tag promotion**: `scripts/apply-tag-lifecycle.py --phase pr` moves each line's semantic tags to its newest release and marks predecessors with `superseded_by`
+- **Two-phase deprecation**: superseded versions stay buildable while the PR is open; on merge, `finalize-deprecations.yml` stamps `deprecated_at` and the build matrix drops them
 
-### Example Scenarios
+### Example
 
-#### Scenario 1: Multiple New Releases
 ```bash
-# Discovery finds: 22.6.0, 23.0.0, 24.0.0-rc1
-# Result: 3 separate branches and PRs
+# Discovery finds: 22.10.1, 23.4.1
+# Result: one branch, one PR
 
-✅ Created: asterisk-22.6.0    → PR #123 "Add Asterisk 22.6.0 (Stable Release)"
-✅ Created: asterisk-23.0.0    → PR #124 "Add Asterisk 23.0.0 (Stable Release)"
-✅ Created: asterisk-24.0.0-rc1 → PR #125 "Add Asterisk 24.0.0-rc1 (Release Candidate)"
-
-# Maintainer can:
-# - Merge 22.6.0 + 23.0.0 immediately (stable)
-# - Hold 24.0.0-rc1 for testing (RC)
-```
-
-#### Scenario 2: Collision Prevention
-```bash
-# Discovery finds: 22.6.0, 23.0.0, 24.0.0-rc1
-# Existing branches: asterisk-22.6.0, asterisk-24.0.0-rc1
-
-⏭️ Skipped: 22.6.0 (branch asterisk-22.6.0 already exists)
-✅ Created: asterisk-23.0.0 → PR #126
-⏭️ Skipped: 24.0.0-rc1 (branch asterisk-24.0.0-rc1 already exists)
-
-# Result: Only 1 new PR created, no duplicate work
-```
-
-#### Scenario 3: Version Evolution
-```bash
-# Day 1: 24.0.0-rc1 discovered
-✅ Created: asterisk-24.0.0-rc1 → PR #127 (under review)
-
-# Day 5: 24.0.0 final released
-✅ Created: asterisk-24.0.0 → PR #128 (new PR)
-
-# Available options:
-# - Close PR #127 (superseded by final)
-# - Merge PR #128 (stable release)
+✅ Branch: asterisk-new-releases
+✅ PR: consolidated "New Asterisk releases" PR containing
+   - configs + Dockerfiles generated for both versions
+   - latest,stable,22 moved to 22.10.1; 23 moved to 23.4.1
+   - 22.9.0 / 23.3.0 marked superseded_by (deprecated_at stamped on merge)
+   - README Supported/Deprecated tables regenerated
 ```
 
 ## 📋 Workflow Details
@@ -93,18 +66,14 @@ Instead of creating bulk PRs with multiple versions, the system creates **one br
 
 **Process**:
 1. **Fetch releases**: Updates `asterisk-releases.txt` and `asterisk-certified-releases.txt`
-2. **Generate YAML**: Creates `supported-asterisk-builds.yml` with `--updates-only` flag
-3. **Extract versions**: Parses `git diff` to find new versions in supported builds
-4. **Process individually**: For each new version:
-   - Check branch collision (local + remote)
-   - Create `asterisk-{VERSION}` branch if available
-   - Generate version-specific commit and PR
-5. **Handle release lists**: Direct commit to main for metadata-only updates
+2. **Generate YAML**: Updates `supported-asterisk-builds.yml` with `--updates-only` flag
+3. **Promote tags**: Runs `scripts/apply-tag-lifecycle.py --phase pr` (moves semantic tags, sets `superseded_by`) and regenerates the README version tables
+4. **Generate artifacts**: Configs and Dockerfiles for every new version (fails loudly if any generation fails)
+5. **Open PR**: Recreates the `asterisk-new-releases` branch and opens one consolidated PR
 
 **Outputs**:
-- Individual branches: `asterisk-22.6.0`, `asterisk-23.0.0`, etc.
-- Individual PRs with version-specific descriptions
-- Updated release metadata files
+- One consolidated PR listing all new versions and tag movements
+- Updated release metadata, build matrix, README tables, and generated build artifacts
 
 ### 2. build-images.yml
 
@@ -113,13 +82,13 @@ Instead of creating bulk PRs with multiple versions, the system creates **one br
 **Triggers**:
 - **Manual**: `workflow_dispatch` with filtering options
 
-**Inputs**:
+**Inputs** (defaults shown):
 ```yaml
-push: false                    # Push to registry
-registry: "docker.io/andrius/asterisk"  # Target registry
-max_parallel: "5"             # Concurrent builds
-filter_version: "22.5.2"      # Build specific version
-filter_distribution: "trixie" # Build specific distribution
+push: true                    # Push to registry
+registry: "andrius/asterisk"  # Target registry
+max_parallel: "25"            # Concurrent builds (1/5/25/50)
+filter_version: ""            # Build specific version, e.g. "22.10.1"
+filter_distribution: ""       # Build specific distribution, e.g. "trixie"
 ```
 
 **Process**:
@@ -137,14 +106,14 @@ filter_distribution: "trixie" # Build specific distribution
 - **Workflow call**: From `build-images.yml`
 - **Manual**: `workflow_dispatch` for testing
 
-**Inputs**:
+**Inputs** (defaults shown; version/distribution required):
 ```yaml
-version: "22.5.2"              # Asterisk version
+version: "22.10.1"             # Asterisk version
 distribution: "trixie"         # OS distribution
-architecture: "amd64"          # Target architecture
-additional_tags: "latest,stable,22.x"  # Additional Docker tags (comma-separated)
+architectures: "amd64"         # Target architectures (comma-separated: amd64,arm64)
+additional_tags: ""            # Additional Docker tags, e.g. "latest,stable,22"
 push: false                    # Push to registry
-registry: "test.local/asterisk" # Target registry
+registry: "andrius/asterisk"   # Target registry
 ```
 
 **Process**:
@@ -189,7 +158,7 @@ registry: "test.local/asterisk" # Target registry
 
 ```yaml
 latest_builds:
-  - version: "22.5.2"
+  - version: "22.10.1"
     additional_tags: "latest,stable,22"
     os_matrix:
       - os: "debian"
@@ -198,17 +167,18 @@ latest_builds:
 ```
 
 **Tag Types**:
-- **`latest`**: Points to the most current stable release
-- **`stable`**: Alias for the latest stable production version
-- **`22`**: Major version tag for Asterisk 22.x series
-- **`23-rc`**: Release candidate tag for pre-releases
-- **`20-cert`**: Certified release tag for certified builds
-- **`experimental`** / **`experimental-git`**: Forky-built images (latest stable + git tip on Debian 14 testing). Refreshed weekly; not for production.
+- **`latest`**: Newest release of the current LTS (even-numbered) major - the newer Standard major never takes `latest`
+- **`stable`**: Alias for `latest`
+- **`22`**, **`23`**, ...: Major version tags, newest release of that series
+- **`20-cert`** / **`22-cert`**: Certified release tags
+- **`experimental`** / **`experimental-git`**: Forky-built images (latest stable + git tip on Debian 14 testing). Refreshed weekly; never carry the plain major tag; not for production.
+
+Tags are managed by the tag-lifecycle automation (see section 7) - manual edits to `additional_tags` are normally not needed.
 
 **Per-entry Override**: A matrix entry can override the version-level `additional_tags` so the same Asterisk version on different distributions gets different short aliases. Example:
 
 ```yaml
-- version: "23.3.0"
+- version: "23.4.1"
   additional_tags: "23"            # default - applies to trixie entry
   os_matrix:
     - os: "debian"
@@ -241,7 +211,29 @@ latest_builds:
 
 Each batch workflow shares a common pattern: it calls the reusable `./.github/actions/generate-build-matrix` action with a `version-pattern` (or `filter-distribution` for forky) and then fans out to `build-single-image.yml`. Matrix generation skips deprecated versions automatically.
 
-The Friday/forky batch builds only the latest stable Asterisk minor (currently 23.3.0) and the git tip on Debian Forky (Debian 14, currently testing). It tags those images as `experimental` and `experimental-git` respectively so users opt-in deliberately.
+The Friday/forky batch builds only the latest stable Asterisk minor (currently 23.4.1) and the git tip on Debian Forky (Debian 14, currently testing). It tags those images as `experimental` and `experimental-git` respectively so users opt-in deliberately.
+
+### 7. Tag Lifecycle & Two-Phase Deprecation
+
+Semantic tags and deprecations are managed automatically from `asterisk/supported-asterisk-builds.yml`:
+
+- **PR phase** (`discover-releases.yml` → `scripts/apply-tag-lifecycle.py --phase pr`): moves each line's semantic tags (`latest`/`stable` on the newest active LTS major, bare major tags, `NN-cert`, member-level `experimental`) to the newest release and sets `superseded_by` on predecessors. Superseded versions remain buildable while the PR is under review.
+- **Finalize phase** (`finalize-deprecations.yml`, triggered by pushes to `asterisk/supported-asterisk-builds.yml` on main): stamps `deprecated_at` on every entry that has `superseded_by` but no date, then regenerates the README tables and commits with `[skip ci]`. `generate-build-matrix` excludes any entry with `deprecated_at`.
+- Deprecation stops future builds only - published images and tags are never deleted.
+- The pure planning logic lives in `lib/tag_lifecycle.py`; `scripts/apply-tag-lifecycle.py` supports `--check` and `--dry-run` for local inspection.
+- `finalize-deprecations.yml` and `update-readme-versions.yml` share the `main-yaml-writer` concurrency group to serialize pushes to main.
+
+### 8. Supporting Workflows
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `build-new-releases.yml` | PR / push to main touching the build matrix | Builds newly added versions (dev builds on PR, full builds on merge) |
+| `finalize-deprecations.yml` | push to main (build matrix) | Two-phase deprecation, see section 7 |
+| `update-readme-versions.yml` | push to main (build matrix) + manual | Regenerates the README Supported/Deprecated tables |
+| `test.yml` | push/PR touching `lib/`, `scripts/`, `tests/` | pytest suite (tag lifecycle + README updater) |
+| `validate-generation.yml` | PR touching version files | Verifies every active version has config + Dockerfile artifacts |
+| `announce-releases.yml` | called by `build-new-releases.yml` / manual | Telegram + Mastodon announcements, pushes `announced-<version>` git tags |
+| `test-reusable-action.yml` | manual | Exercises the `build-asterisk-image` composite action |
 
 ## 🧪 Testing with nektos/act
 
@@ -389,7 +381,7 @@ gh act workflow_dispatch \
   -W .github/workflows/build-images.yml \
   -e .act/payloads/workflow_dispatch_build_images.json \
   --dryrun \
-  --env FILTER_VERSION="22.5.2"
+  --env FILTER_VERSION="22.10.1"
 
 # Verifies filtering logic works correctly
 ```
@@ -401,7 +393,7 @@ gh act workflow_dispatch \
   -W .github/workflows/build-single-image.yml \
   -e .act/payloads/workflow_dispatch_build_single_image.json \
   --dryrun \
-  --env ADDITIONAL_TAGS="latest,stable,22.x"
+  --env ADDITIONAL_TAGS="latest,stable,22"
 
 # Verify tags are processed and applied correctly
 ```
@@ -431,12 +423,12 @@ gh run list --workflow=discover-releases.yml
 ```bash
 # Build single version
 gh workflow run build-images.yml \
-  -f filter_version="23.0.0" \
+  -f filter_version="23.4.1" \
   -f push=false
 
 # Build with push to registry
 gh workflow run build-images.yml \
-  -f filter_version="22.5.2" \
+  -f filter_version="22.10.1" \
   -f filter_distribution="trixie" \
   -f push=true \
   -f registry="your-registry.com/asterisk"
@@ -446,17 +438,17 @@ gh workflow run build-images.yml \
 ```bash
 # Test individual image build
 gh workflow run build-single-image.yml \
-  -f version="22.5.2" \
+  -f version="22.10.1" \
   -f distribution="trixie" \
-  -f architecture="amd64" \
+  -f architectures="amd64" \
   -f push=false
 
 # Test build with additional tags
 gh workflow run build-single-image.yml \
-  -f version="22.5.2" \
+  -f version="22.10.1" \
   -f distribution="trixie" \
-  -f architecture="amd64" \
-  -f additional_tags="latest,stable,22.x" \
+  -f architectures="amd64" \
+  -f additional_tags="latest,stable,22" \
   -f push=true \
   -f registry="your-registry.com/asterisk"
 ```
@@ -465,11 +457,11 @@ gh workflow run build-single-image.yml \
 
 #### Successful Discovery Run
 ```
-✅ New Releases Found!
-- 🔀 Action: Created individual Pull Requests per release
-- 🎯 Impact: New buildable Asterisk versions detected
-- 📊 Versions: 22.6.0 23.0.0 24.0.0-rc1
-- ⚙️ Next: Review and merge individual PRs to enable building
+### Asterisk Updates Detected
+- 🔀 Action: Created consolidated Pull Request
+- 🎯 Branch: asterisk-new-releases
+- 📦 New Versions: 22.10.1 23.4.1
+- ⚙️ Next: Review and merge the consolidated PR to enable building
 ```
 
 #### No New Releases
@@ -479,15 +471,10 @@ gh workflow run build-single-image.yml \
 - 📊 Status: All release data is current
 ```
 
-#### Partial Processing (Collision Detection)
+#### Release Lists Refreshed (no new buildable versions)
 ```
-🔄 Processing new versions: 22.6.0 23.0.0
-⏭️ Skipping 22.6.0 - branch asterisk-22.6.0 already exists
-✅ Branch asterisk-23.0.0 available - creating PR for 23.0.0
-📊 Summary:
-  - New versions found: 2
-  - PRs created: 1
-  - Skipped (branch exists): 1
+📝 Release Lists Updated
+- 📊 Impact: Release lists refreshed, no new buildable versions
 ```
 
 ## 🔧 Maintenance and Development

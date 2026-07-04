@@ -68,7 +68,7 @@ def calculate_version_metrics(builds):
     sorted_versions = sorted(versioned, key=version_sort_key)
 
     return {
-        'total': len(enabled),
+        'total': len(versioned),
         'oldest': sorted_versions[0] if sorted_versions else None,
         'latest': sorted_versions[-1] if sorted_versions else None,
         'has_git': has_git
@@ -332,7 +332,7 @@ def update_readme(readme_path, new_table, dry_run=False):
         sys.exit(1)
 
     # Extract the intro text (before the table)
-    intro_text = "All supported Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (not tracked in git).\n\n"
+    intro_text = "All supported Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (auto-generated - never edit by hand).\n\n"
 
     # Build new section content
     new_content = match.group(1) + intro_text + new_table + match.group(3)

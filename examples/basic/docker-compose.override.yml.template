@@ -1,6 +1,7 @@
 services:
   # Development overrides
   asterisk:
+    ports:
       - "127.0.0.1:5038:5038/tcp" # asterisk manager (AMI)
     volumes:
       # Override logs for local access

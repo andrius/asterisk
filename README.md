@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 25 versions from 1.2.40 to 23.4.1 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 24 versions from 1.2.40 to 23.4.1 plus git development builds.
 
 ## Quick Start
 
@@ -13,11 +13,11 @@ docker run --rm -p 5060:5060/udp andrius/asterisk:latest
 docker run --rm andrius/asterisk:latest asterisk -V
 
 # Use specific version for production
-docker run --rm -p 5060:5060/udp andrius/asterisk:22.9.0_debian-trixie
+docker run --rm -p 5060:5060/udp andrius/asterisk:22.10.1_debian-trixie
 
 # Or build latest stable version locally and run locally built container
-./scripts/build-asterisk.sh 22.9.0
-docker run --rm -p 5060:5060/udp 22.9.0_debian-trixie
+./scripts/build-asterisk.sh 22.10.1
+docker run --rm -p 5060:5060/udp 22.10.1_debian-trixie
 
 ```
 
@@ -46,7 +46,7 @@ New releases are automatically announced on Telegram and Mastodon when builds co
 
 ## Supported Versions
 
-All supported Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (not tracked in git).
+All supported Asterisk versions with automatic variant detection. Generated build artifacts are placed in `asterisk/VERSION-DIST/` directories (auto-generated - never edit by hand).
 
 | Version | Tags | Distribution | Architectures |
 | ------- | ---- | ------------ | ------------- |
@@ -112,38 +112,39 @@ These versions are no longer built but kept here for historical reference. Exist
 
 The build system supports semantic Docker tags for easier version management. These tags are defined in the `additional_tags` property of `asterisk/supported-asterisk-builds.yml` and automatically applied during builds.
 
+Tag placement is managed automatically. When a new release is discovered, the release PR moves each line's semantic tags to the newest version and marks the predecessor with `superseded_by` (it stays buildable during review). Once the PR merges, `finalize-deprecations.yml` stamps `deprecated_at`, which removes the old version from the build matrix. Deprecation never deletes published images or tags.
+
 ## Docker Tags Format
 
-This project uses a dual-tagging system: **version-specific tags** in the format `{version}_{os}-{distribution}` (e.g., `22.9.0_debian-trixie`) for precise deployment, and semantic tags (e.g., `latest`, `stable`, `22`, `23-rc`, `20-cert`) for convenient version management.
+This project uses a dual-tagging system: **version-specific tags** in the format `{version}_{os}-{distribution}` (e.g., `22.10.1_debian-trixie`) for precise deployment, and semantic tags (e.g., `latest`, `stable`, `22`, `23`, `20-cert`) for convenient version management.
 
 Primary tags include the full OS and distribution context, while additional semantic tags are defined per version in the build matrix using the additional_tags property. Multi-architecture builds create unified manifests under the same tag names, automatically selecting the correct architecture.
 
-For development, use semantic tags like `asterisk:latest` or `asterisk:stable`, and for production a specific tag like `asterisk:22.9.0_debian-trixie` that guarantee exact version and environment reproducibility.
+For development, use semantic tags like `andrius/asterisk:latest` or `andrius/asterisk:stable`, and for production a specific tag like `andrius/asterisk:22.10.1_debian-trixie` that guarantees exact version and environment reproducibility.
 
 ### Current Tag Meanings
 
-- **`latest`** - Points to the most current stable release (currently **22.9.0**)
-- **`stable`** - Alias for the latest stable production version
-- **`22`** - Major version tag for the Asterisk 22.x series
-- **`23-rc`** - Release candidate tag for Asterisk 23.x pre-releases
-- **`testing`** / **`git-latest`** / **`development`** - Latest git HEAD from Asterisk repository
-- **`20-cert`** - Certified release tag for Asterisk 20.x certified builds
-- **`experimental`** - Latest stable Asterisk built on Debian Forky (Debian 14, currently testing). Refreshed weekly. **Not for production** - Forky's package set is still moving.
+- **`latest`** - Newest release of the current LTS (even-numbered) major - currently Asterisk 22. The newer Standard major (23) never takes `latest`; it moves only when a newer LTS line becomes active.
+- **`stable`** - Alias for `latest`
+- **`22`**, **`23`**, **`21`**, **`20`**, ... - Major version tags, each pointing at the newest release of that series
+- **`20-cert`** / **`22-cert`** - Certified release tags, newest certified build of that major
+- **`testing`** / **`dev`** - Latest git HEAD from the Asterisk repository
+- **`experimental`** - Latest stable Asterisk built on Debian Forky (Debian 14, currently testing). Refreshed weekly. Never carries the plain major tag. **Not for production** - Forky's package set is still moving.
 - **`experimental-git`** - Asterisk git tip built on Debian Forky. Same caveats as `experimental`.
 
 ### Usage Examples
 
 ```bash
 # Use semantic tags for consistent deployments
-docker run --rm -p 5060:5060/udp asterisk:latest
+docker run --rm -p 5060:5060/udp andrius/asterisk:latest
 
 # Target specific release types
-docker run --rm asterisk:stable asterisk -V
-docker run --rm asterisk:23-rc asterisk -V
-docker run --rm asterisk:20-cert asterisk -V
+docker run --rm andrius/asterisk:stable asterisk -V
+docker run --rm andrius/asterisk:23 asterisk -V
+docker run --rm andrius/asterisk:20-cert asterisk -V
 
 # Major version targeting
-docker run --rm asterisk:22 asterisk -V
+docker run --rm andrius/asterisk:22 asterisk -V
 ```
 
 ### Configuration
@@ -153,7 +154,7 @@ Additional tags are configured per version in the build matrix:
 ```yaml
 # In asterisk/supported-asterisk-builds.yml
 latest_builds:
-  - version: "22.9.0"
+  - version: "22.10.1"
     additional_tags: "latest,stable,22"
     os_matrix:
       - os: "debian"
@@ -161,7 +162,7 @@ latest_builds:
         architectures: ["amd64", "arm64"]
 ```
 
-When building, both version-specific tags (`22.9.0_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
+When building, both version-specific tags (`22.10.1_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
 
 ## Volume Permissions (PUID / PGID)
 
@@ -311,7 +312,7 @@ The build system uses template inheritance to eliminate duplication:
 
 - **Base Templates**: Common packages and Asterisk configuration (37 build + 21 runtime packages)
 - **Distribution Layer**: OS-specific package versions (libicu78 for Forky, libicu76 for Trixie, libicu72 for Bookworm)
-- **Variant Layer**: Version-specific features (modern, asterisk10, legacy-addons)
+- **Variant Layer**: Version-specific features (modern, asterisk-11, legacy, legacy-addons, git-dev)
 
 ```
 templates/
@@ -327,8 +328,10 @@ templates/
 │   └── debian-stretch.yml         # libicu57, libpqxx-4.0
 ├── variants/                      # Version-specific templates
 │   ├── modern.yml.template        # Asterisk 12+ with PJSIP
-│   ├── asterisk10.yml.template    # Asterisk 1.8-11.x transitional
-│   └── legacy-addons.yml.template # Asterisk 1.2-1.6 with addons
+│   ├── asterisk-11.yml.template   # Asterisk 11.x transitional
+│   ├── legacy.yml.template        # Asterisk 1.8-10.x pre-PJSIP
+│   ├── legacy-addons.yml.template # Asterisk 1.2-1.6 with addons
+│   └── git-dev.yml.template       # git development builds
 ├── dockerfile/                    # Jinja2 Dockerfile generation
 └── partials/                      # Build scripts & health checks
 ```
@@ -338,26 +341,27 @@ templates/
 | Version Range | Variant         | Features                          |
 | ------------- | --------------- | --------------------------------- |
 | 1.2.x - 1.6.x | `legacy-addons` | Separate addons, chan_sip only    |
-| 1.8.x - 11.x  | `asterisk10`    | Pre-PJSIP, chan_sip, transitional |
+| 1.8.x - 10.x  | `legacy`        | Pre-PJSIP, chan_sip               |
+| 11.x          | `asterisk-11`   | Pre-PJSIP, chan_sip, transitional |
 | 12.x+         | `modern`        | PJSIP, WebRTC, ARI, full features |
 
 ### Version-Specific Requirements
 
-The build system automatically enforces version-specific module requirements during configuration generation (see `lib/template_generator.py:224` - `_apply_version_overrides()` method):
+The build system automatically enforces version-specific module requirements during configuration generation (see `lib/template_generator.py:247` - `_apply_version_overrides()` method):
 
 **Asterisk 21+ (PJSIP-only requirement)**:
 
 - Automatically adds `chan_sip` to the exclude list
 - As per [official deprecation](https://www.asterisk.org/asterisk-21-module-removal/), chan_sip was removed in Asterisk 21
 - Only `chan_pjsip` is available for SIP communications
-- Example: `asterisk/21.12.2-trixie/build.sh:88` contains `menuselect --disable chan_sip`
+- Example: `asterisk/21.12.3-trixie/build.sh:96` contains `menuselect --disable chan_sip`
 
 **Asterisk 23+ and git (WebSocket requirement)**:
 
 - Automatically adds `chan_websocket` to the channels list
 - Sets `features.websockets = true` in configuration
 - Includes full WebSocket stack: `chan_websocket`, `res_http_websocket`, `res_pjsip_transport_websocket`
-- Example: `asterisk/23.3.0-trixie/build.sh:73` contains `menuselect --enable chan_websocket`
+- Example: `asterisk/23.4.1-trixie/build.sh:81` contains `menuselect --enable chan_websocket`
 
 **Asterisk 20+ (Opus codec)**:
 
@@ -369,7 +373,7 @@ The build system automatically enforces version-specific module requirements dur
 
 These overrides are applied automatically during ANY config generation:
 
-- `./scripts/regenerate-all-configs.sh` - applies to all 31 versions
+- `./scripts/regenerate-all-configs.sh` - applies to all active versions
 - `./scripts/build-asterisk.sh VERSION --force-config` - applies to specific version
 - Configuration happens at template merge time (before Dockerfile generation)
 
@@ -408,21 +412,21 @@ These overrides are applied automatically during ANY config generation:
 ./scripts/discover-latest-versions.sh --output-yaml --updates-only
 
 # Build specific version
-./scripts/build-asterisk.sh 22.9.0 --force-config
+./scripts/build-asterisk.sh 22.10.1 --force-config
 
 # Build with specific distribution
-./scripts/build-asterisk.sh 22.9.0 debian bookworm
+./scripts/build-asterisk.sh 19.8.1 debian bookworm
 
 # Preview build without execution
-./scripts/build-asterisk.sh 22.9.0 --dry-run
+./scripts/build-asterisk.sh 22.10.1 --dry-run
 
 # Test configurations and builds
-./scripts/test-build.sh --mode config "22.9.0"   # Fast validation
-./scripts/test-build.sh --mode build "22.9.0"    # Full Docker build
-./scripts/test-build.sh --mode validate "22.9.0" # Complete testing
+./scripts/test-build.sh --mode config "22.10.1"   # Fast validation
+./scripts/test-build.sh --mode build "22.10.1"    # Full Docker build
+./scripts/test-build.sh --mode validate "22.10.1" # Complete testing
 
 # Generate config only
-python3 scripts/generate-config.py 22.9.0 trixie
+python3 scripts/generate-config.py 22.10.1 trixie
 ```
 
 ### Template Modification
@@ -450,14 +454,17 @@ After template changes, rebuild with `--force-config`:
 ### Testing
 
 ```bash
-# Validate configuration
-python3 scripts/generate-dockerfile.py configs/generated/asterisk-22.9.0-trixie.yml --validate
+# Run the Python unit tests (lib/ and scripts/)
+python3 -m pytest tests/
 
-# Test health check
-docker run --rm asterisk:22.9.0_debian-trixie /usr/local/bin/healthcheck.sh --verbose
+# Validate configuration
+python3 scripts/generate-dockerfile.py configs/generated/asterisk-22.10.1-trixie.yml --validate
+
+# Test health check (image name as produced by a local build)
+docker run --rm 22.10.1_debian-trixie /usr/local/bin/healthcheck.sh --verbose
 
 # Run container with shell
-docker run -it --rm asterisk:22.9.0_debian-trixie /bin/bash
+docker run -it --rm 22.10.1_debian-trixie /bin/bash
 ```
 
 ## Examples
@@ -486,8 +493,15 @@ The basic example includes:
 
 ## GitHub Actions
 
-- **`discover-releases.yml`**: Daily release discovery at 8:00 PM UTC
-- **`build-images.yml`**: Automated multi-platform builds
+Sixteen workflows automate discovery, builds, tag lifecycle, and announcements - see [README-cicd.md](README-cicd.md) for the full pipeline. Key ones:
+
+- **`discover-releases.yml`**: Daily release discovery at 8:00 PM UTC; opens a consolidated PR and promotes semantic tags
+- **`finalize-deprecations.yml`**: Stamps `deprecated_at` when a release PR merges (two-phase deprecation)
+- **`build-images.yml`** / **`build-single-image.yml`**: Automated multi-platform builds
+- **`build-batch-*.yml`**: Weekly rebuild rotation (Mon-Fri, includes the Friday forky/experimental refresh)
+- **`build-git-daily.yml`**: Daily git-HEAD build at 6:00 PM UTC
+- **`test.yml`**: pytest suite for `lib/` and `scripts/`
+- **`update-readme-versions.yml`**: Regenerates the version tables in this README
 
 ## Support & Community
 
