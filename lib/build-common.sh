@@ -2,7 +2,7 @@
 
 # Common build functions library for Asterisk Docker builds
 # Provides modular functionality for build scripts and testing
-# Sources functionality from existing build-asterisk.sh and build-all.sh
+# Sources functionality from existing build-asterisk.sh
 
 # Prevent multiple sourcing
 if [[ "${BUILD_COMMON_LOADED:-}" == "true" ]]; then
