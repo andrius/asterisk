@@ -61,6 +61,12 @@ jobs:
           # Generate supported builds YAML from discovered versions
           ./scripts/discover-latest-versions.sh --output-yaml --updates-only
 
+      - name: Promote tags and mark deprecations (PR phase)
+        run: |
+          pip install --user ruamel.yaml
+          python3 scripts/apply-tag-lifecycle.py --phase pr
+          python3 scripts/update-readme-versions.py
+
       - name: Generate config files and Dockerfiles for new versions
         id: generate-configs
         run: |
@@ -266,6 +272,7 @@ jobs:
           git add asterisk/asterisk-releases.yml
           git add asterisk/asterisk-certified-releases.yml
           git add asterisk/supported-asterisk-builds.yml
+          git add README.md
           git add configs/generated/
 
           # Add generated Dockerfiles and build assets for new versions
@@ -336,6 +343,7 @@ jobs:
           PR_BODY="${PR_BODY}- 🔧 Generated YAML config files for new versions\n"
           PR_BODY="${PR_BODY}- 🐳 Generated Dockerfiles and build scripts (build.sh, healthcheck.sh)\n"
           PR_BODY="${PR_BODY}- 🎯 Ready for Docker builds - can trigger build-images workflow\n\n"
+          PR_BODY="${PR_BODY}- 🏷️ Promoted semantic tags to newest release per line; marked superseded versions (deprecation date stamped on merge) - see supported-asterisk-builds.yml diff\n"
 
           PR_BODY="${PR_BODY}### 🎨 Review Checklist\n\n"
           PR_BODY="${PR_BODY}- [ ] Verify all versions are legitimate Asterisk releases\n"
