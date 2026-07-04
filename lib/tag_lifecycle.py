@@ -41,3 +41,77 @@ def line_key(version):
     if major == 1:
         return f"{major}.{minor}"
     return str(major)
+
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Plan:
+    set_tags: dict = field(default_factory=dict)            # version -> entry additional_tags
+    clear_tags: set = field(default_factory=set)            # versions to strip entry tags from
+    deprecate: dict = field(default_factory=dict)           # version -> superseded_by
+    migrate_experimental: dict = field(default_factory=dict)  # new_version -> [member dicts]
+
+
+def _is_git(build):
+    v = build.get("version", "")
+    return v == "git" or v.startswith("git-")
+
+
+def _is_active(build):
+    return "os_matrix" in build and not build.get("deprecated_at")
+
+
+def _active_parseable(builds):
+    out = []
+    for b in builds:
+        if _is_git(b) or not _is_active(b):
+            continue
+        try:
+            line_key(b["version"])
+        except (ValueError, KeyError):
+            continue
+        out.append(b)
+    return out
+
+
+def _newest_per_line(active):
+    lines = {}
+    for b in active:
+        lines.setdefault(line_key(b["version"]), []).append(b)
+    newest = {lk: max(entries, key=lambda b: version_sort_key(b["version"]))
+              for lk, entries in lines.items()}
+    return lines, newest
+
+
+def _lts_major(newest):
+    """Highest active even (LTS) *stable* major, or None."""
+    best = None
+    for lk, b in newest.items():
+        if lk.endswith("-cert"):
+            continue
+        major = version_sort_key(b["version"])[0]
+        if major % 2 == 0 and (best is None or major > best):
+            best = major
+    return best
+
+
+def plan(builds):
+    active = _active_parseable(builds)
+    lines, newest = _newest_per_line(active)
+    lts = _lts_major(newest)
+
+    p = Plan()
+    for lk, b in newest.items():
+        ver = b["version"]
+        if lk.endswith("-cert"):
+            tags = [lk]
+        else:
+            major, _minor, _patch, _cert = version_sort_key(ver)
+            bare = lk if major == 1 else str(major)
+            tags = [bare]
+            if lts is not None and major == lts:
+                tags = ["latest", "stable"] + tags
+        p.set_tags[ver] = ",".join(tags)
+    return p
