@@ -42,6 +42,12 @@ class DRYTemplateGenerator:
         self.base_packages = self._load_base_packages()
         self.base_template = self._load_base_template()
 
+        # Optional: path to asterisk/supported-asterisk-builds.yml, used to
+        # look up per-version tarball/addons checksums (plan 002). Defaults to
+        # <repo-root>/asterisk/supported-asterisk-builds.yml (the templates dir
+        # is <repo-root>/templates); tests and callers may override it.
+        self.supported_builds_file = None
+
     def _load_base_packages(self) -> Dict[str, Any]:
         """Load common package definitions"""
         packages_file = self.base_dir / "common-packages.yml"
@@ -178,6 +184,20 @@ class DRYTemplateGenerator:
                 "url_template": "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
             }
 
+        # Pin tarball integrity (plan 002): carry the per-version sha256 from
+        # supported-asterisk-builds.yml into the generated config, where the
+        # Dockerfile template renders a download-verify-extract step. Absent
+        # checksum (legacy tail not yet backfilled, or no matrix entry) leaves
+        # the config unchanged so the template falls back to its unverified
+        # branch and builds keep working during rollout.
+        checksums = self._lookup_checksums(context.version)
+        if checksums.get("tarball_sha256"):
+            asterisk_config["source"]["checksum"] = checksums["tarball_sha256"]
+        if checksums.get("addons_sha256"):
+            asterisk_config.setdefault("addons", {})
+            if isinstance(asterisk_config.get("addons"), dict):
+                asterisk_config["addons"]["checksum"] = checksums["addons_sha256"]
+
         return asterisk_config
 
     def _resolve_docker_config(self, context: TemplateContext) -> Dict[str, Any]:
@@ -243,6 +263,50 @@ class DRYTemplateGenerator:
         }
 
         return addons_mapping.get(major_version, asterisk_version)
+
+    def _resolve_supported_builds_file(self) -> Optional[Path]:
+        """Locate asterisk/supported-asterisk-builds.yml for checksum lookups.
+
+        Honors an explicit override (set by tests / advanced callers), else
+        falls back to <templates-dir>/../asterisk/supported-asterisk-builds.yml
+        (the standard repo layout). Returns None if no file is found, in which
+        case checksum plumbing is silently skipped - configs generate exactly
+        as before, and the Dockerfile template renders its unverified branch.
+        """
+        if self.supported_builds_file:
+            p = Path(self.supported_builds_file)
+            return p if p.exists() else None
+        default = self.templates_dir.parent / "asterisk" / "supported-asterisk-builds.yml"
+        return default if default.exists() else None
+
+    def _lookup_checksums(self, version: str) -> Dict[str, Optional[str]]:
+        """Look up tarball_sha256 / addons_sha256 for a version from the matrix.
+
+        Returns a dict with optional 'tarball_sha256' and 'addons_sha256'
+        keys (absent when the version has no entry or no checksum). This is
+        the source-of-truth read: the matrix entry is where a new release's
+        checksum is reviewed (tag-lifecycle precedent), and it survives
+        tag-lifecycle round-trips untouched (unit-tested in
+        test_apply_tag_lifecycle.py).
+        """
+        builds_file = self._resolve_supported_builds_file()
+        if not builds_file:
+            return {}
+        try:
+            with open(builds_file, 'r') as f:
+                data = yaml.safe_load(f)
+        except (FileNotFoundError, OSError):
+            return {}
+
+        result: Dict[str, Optional[str]] = {}
+        for build in (data or {}).get("latest_builds", []):
+            if build.get("version") == version:
+                if build.get("tarball_sha256"):
+                    result["tarball_sha256"] = build["tarball_sha256"]
+                if build.get("addons_sha256"):
+                    result["addons_sha256"] = build["addons_sha256"]
+                break
+        return result
 
     def _apply_version_overrides(self, config: Dict[str, Any], version: str) -> Dict[str, Any]:
         """Apply version-specific overrides to configuration"""

@@ -49,14 +49,21 @@ RUN apt-get update \
 
 WORKDIR /usr/src/asterisk
 
-# Download and extract Asterisk source
-RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-1.2.40.tar.gz \
-    | tar --strip-components=1 -xz
-
+# Download and extract Asterisk source.
+# When a sha256 checksum is present (plan 002) verify it before extracting;
+# otherwise fall back to the historical unverified pipe (legacy tail /
+# versions not yet backfilled). sha256sum ships in coreutils on every
+# Debian base, including jessie/stretch - no new build dependency.
+RUN curl -fsSL -o /tmp/asterisk-src.tar.gz https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-1.2.40.tar.gz \
+    && echo "61dc745b12f6dc2998404e77747a964db56df8efae84a666c4ccddf016c9c06d  /tmp/asterisk-src.tar.gz" | sha256sum -c - \
+    && tar --strip-components=1 -xzf /tmp/asterisk-src.tar.gz \
+    && rm /tmp/asterisk-src.tar.gz
 # Download and extract Asterisk addons (for legacy versions)
 WORKDIR /usr/src/asterisk/addons
-RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-1.2.9.tar.gz \
-    | tar --strip-components=1 -xz
+RUN curl -fsSL -o /tmp/asterisk-addons.tar.gz https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-1.2.9.tar.gz \
+    && echo "13df280ca14e9573b3a72de4c1ac75424939add981337cfd1c73a99444f75dc4  /tmp/asterisk-addons.tar.gz" | sha256sum -c - \
+    && tar --strip-components=1 -xzf /tmp/asterisk-addons.tar.gz \
+    && rm /tmp/asterisk-addons.tar.gz
 
 WORKDIR /usr/src/asterisk
 

@@ -70,6 +70,7 @@ asterisk:
   opus_codec:
     enabled: false
   source:
+    checksum: beb63953cb61b9822fc8f1d79842d821c5147f2a2944941d54a02f2e5fd4db20
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
   distribution: jessie

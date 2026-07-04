@@ -1,5 +1,6 @@
 asterisk:
   addons:
+    checksum: 0898696af8097b6cbd46d4b3d63b7838138f947c9bf08d34e4ef4411bf2211a6
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-addons-{version}.tar.gz
     version: 1.6.2.4
   configure_options:
@@ -43,6 +44,7 @@ asterisk:
   opus_codec:
     enabled: false
   source:
+    checksum: 5f5b28f7644eeef6ecf778b4cdbbfe89ef70d482943af9b2e588823bd8ef0e54
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
   distribution: jessie

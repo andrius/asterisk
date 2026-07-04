@@ -140,6 +140,11 @@
               "description": "Download URL template",
               "default": "https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz"
             },
+            "checksum": {
+              "type": "string",
+              "description": "sha256 of the source tarball; when present the Dockerfile renders a download-verify-extract step (plan 002). Absent => unverified download (legacy tail / pre-backfill).",
+              "pattern": "^[a-f0-9]{64}$"
+            },
             "verify_signature": {
               "type": "boolean",
               "description": "Verify GPG signature",
@@ -159,6 +164,11 @@
             "url_template": {
               "type": "string",
               "default": "http://downloads.asterisk.org/pub/telephony/asterisk/old-releases/asterisk-addons-{version}.tar.gz"
+            },
+            "checksum": {
+              "type": "string",
+              "description": "sha256 of the addons tarball (plan 002); verified at image build when present.",
+              "pattern": "^[a-f0-9]{64}$"
             }
           }
         },
