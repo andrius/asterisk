@@ -1,0 +1,23 @@
+# .github/workflows/test.yml
+name: Python Tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['lib/**', 'scripts/**', 'tests/**', 'requirements-dev.txt']
+  pull_request:
+    paths: ['lib/**', 'scripts/**', 'tests/**', 'requirements-dev.txt']
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/ -q
