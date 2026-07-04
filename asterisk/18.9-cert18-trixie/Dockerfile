@@ -48,10 +48,15 @@ RUN apt-get update \
 
 WORKDIR /usr/src/asterisk
 
-# Download and extract Asterisk source
-RUN curl -fsSL https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-18.9-cert18.tar.gz \
-    | tar --strip-components=1 -xz
-
+# Download and extract Asterisk source.
+# When a sha256 checksum is present (plan 002) verify it before extracting;
+# otherwise fall back to the historical unverified pipe (legacy tail /
+# versions not yet backfilled). sha256sum ships in coreutils on every
+# Debian base, including jessie/stretch - no new build dependency.
+RUN curl -fsSL -o /tmp/asterisk-src.tar.gz https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-18.9-cert18.tar.gz \
+    && echo "7b14286e8587da490907e5240ecec966c228c149f8d962fb4d3843f0e91954cf  /tmp/asterisk-src.tar.gz" | sha256sum -c - \
+    && tar --strip-components=1 -xzf /tmp/asterisk-src.tar.gz \
+    && rm /tmp/asterisk-src.tar.gz
 
 # Configure Asterisk build (skip for very old versions that don't have configure script)
 RUN ./configure

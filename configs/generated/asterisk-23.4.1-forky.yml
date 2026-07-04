@@ -40,6 +40,7 @@ asterisk:
     enabled: true
     major_version: 23
   source:
+    checksum: 9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
   distribution: forky

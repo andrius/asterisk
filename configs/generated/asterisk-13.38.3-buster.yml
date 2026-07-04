@@ -37,6 +37,7 @@ asterisk:
   opus_codec:
     enabled: false
   source:
+    checksum: 478040705f5819259bb1d22cb4e27970092a5bfdb691d27d321c26235eea4bb3
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
   distribution: buster

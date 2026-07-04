@@ -39,6 +39,7 @@ asterisk:
     enabled: true
     major_version: 21
   source:
+    checksum: 1601086eb812ee78e810adc34d3196cb253e2d3156ccfd9911f736f2bce83dd8
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
 base:
   distribution: trixie
