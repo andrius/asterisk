@@ -1,4 +1,4 @@
-name: Build Batch - Tuesday (Versions 11-19)
+name: Build Batch - Tuesday (Versions 11-19, certs excluded)
 
 on:
   schedule:
@@ -33,8 +33,8 @@ jobs:
         id: generate
         uses: ./.github/actions/generate-build-matrix
         with:
-          version-pattern: '^1[1-9]\.'
-          batch-name: "Tuesday - Versions 11-19"
+          version-pattern: '^1[1-9]\.(?!.*cert)'
+          batch-name: "Tuesday - Versions 11-19 (certs excluded)"
 
   build-matrix:
     needs: prepare-matrix

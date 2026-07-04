@@ -202,8 +202,8 @@ Tags are managed by the tag-lifecycle automation (see section 7) - manual edits 
 | Workflow | Schedule (UTC) | Versions | Filter |
 |---|---|---|---|
 | `build-batch-monday.yml` | Mon 08:00 | Legacy 1.x-10.x | `version-pattern: '^(1\.[2468]\.\|10\.)'` |
-| `build-batch-tuesday.yml` | Tue 08:00 | 11.x-19.x | `version-pattern: '^1[1-9]\.'` |
-| `build-batch-wednesday.yml` | Wed 08:00 | 20.x-23.x | `version-pattern: '^2[0-3]\.'` |
+| `build-batch-tuesday.yml` | Tue 08:00 | 11.x-19.x (certs excluded) | `version-pattern: '^1[1-9]\.(?!.*cert)'` |
+| `build-batch-wednesday.yml` | Wed 08:00 | 20.x and newer (certs excluded) | `version-pattern: '^2[0-9]\.(?!.*cert)'` |
 | `build-batch-thursday.yml` | Thu 08:00 | Certified releases | `version-pattern: 'cert'` |
 | `build-batch-friday.yml` | **Fri 08:00** | **Latest stable + git on Forky** | **`filter-distribution: forky`** |
 | `build-git-daily.yml` | Daily 18:00 | git tip | n/a |
