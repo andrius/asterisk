@@ -108,6 +108,11 @@ try:
         if not os_matrix:
             continue
 
+        # Skip deprecated versions (kept in YAML for history but not built),
+        # matching .github/actions/generate-build-matrix behavior
+        if build.get('deprecated_at'):
+            continue
+
         # Handle different os_matrix formats
         if isinstance(os_matrix, list):
             matrices = os_matrix
