@@ -24,6 +24,7 @@ jobs:
       current_sha: ${{ steps.current-sha.outputs.sha }}
       new_sha: ${{ steps.new-sha.outputs.sha }}
       changed: ${{ steps.check-change.outputs.changed }}
+      git_tags: ${{ steps.git-tags.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -44,6 +45,19 @@ jobs:
           CURRENT_SHA=$(grep 'git_sha:' asterisk/supported-asterisk-builds.yml | sed 's/.*git_sha: *"\([^"]*\)".*/\1/')
           echo "sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
           echo "📋 Current git SHA: $CURRENT_SHA"
+
+      - name: Read git tags from build matrix
+        id: git-tags
+        run: |
+          # The YAML is the single source of truth for the git entry's semantic tags
+          TAGS=$(python3 -c "
+          import yaml
+          data = yaml.safe_load(open('asterisk/supported-asterisk-builds.yml'))
+          entry = next(b for b in data['latest_builds'] if b.get('version') == 'git')
+          print(entry.get('additional_tags') or 'testing,dev')
+          ")
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "🏷️ Git tags from YAML: $TAGS"
 
       - name: Discover latest git SHA
         id: new-sha
@@ -79,7 +93,7 @@ jobs:
       version: "git"
       distribution: "trixie"
       architectures: "amd64,arm64"
-      additional_tags: "git-latest,development,testing,git-${{ needs.check-git-sha.outputs.new_sha }}"
+      additional_tags: "${{ needs.check-git-sha.outputs.git_tags }},git-${{ needs.check-git-sha.outputs.new_sha }}"
       push: true
       registry: "andrius/asterisk"
     secrets: inherit
@@ -150,7 +164,7 @@ jobs:
 
           ✅ Docker images built and pushed successfully
           🐳 Registry: andrius/asterisk
-          🏷️  Tags: git-latest, development, testing, git-${{ needs.check-git-sha.outputs.new_sha }}
+          🏷️  Tags: ${{ needs.check-git-sha.outputs.git_tags }}, git-${{ needs.check-git-sha.outputs.new_sha }}
           📦 Platforms: amd64, arm64
 
           📝 Files Updated:
@@ -207,7 +221,7 @@ jobs:
             if [ "${{ needs.build-git-version.result }}" == "success" ]; then
               echo "- **Build Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
               echo "- **Registry**: andrius/asterisk" >> $GITHUB_STEP_SUMMARY
-              echo "- **Tags**: git-latest, development, testing, git-${{ needs.check-git-sha.outputs.new_sha }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Tags**: ${{ needs.check-git-sha.outputs.git_tags }}, git-${{ needs.check-git-sha.outputs.new_sha }}" >> $GITHUB_STEP_SUMMARY
               echo "- **Platforms**: amd64, arm64" >> $GITHUB_STEP_SUMMARY
 
               if [ "${{ needs.commit-updated-yaml.result }}" == "success" ]; then
