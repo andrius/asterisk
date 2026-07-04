@@ -97,6 +97,12 @@ def _lts_major(newest):
     return best
 
 
+def _experimental_members(build):
+    members = build.get("os_matrix") or []
+    return [m for m in members
+            if EXPERIMENTAL_TOKEN in (m.get("additional_tags") or "")]
+
+
 def plan(builds):
     active = _active_parseable(builds)
     lines, newest = _newest_per_line(active)
@@ -114,4 +120,20 @@ def plan(builds):
             if lts is not None and major == lts:
                 tags = ["latest", "stable"] + tags
         p.set_tags[ver] = ",".join(tags)
+
+    for lk, entries in lines.items():
+        keep = newest[lk]["version"]
+        keep_dists = {m.get("distribution")
+                      for m in (newest[lk].get("os_matrix") or [])}
+        for b in entries:
+            ver = b["version"]
+            if ver == keep:
+                continue
+            p.deprecate[ver] = keep
+            if b.get("additional_tags"):
+                p.clear_tags.add(ver)
+            to_move = [m for m in _experimental_members(b)
+                       if m.get("distribution") not in keep_dists]
+            if to_move:
+                p.migrate_experimental.setdefault(keep, []).extend(to_move)
     return p

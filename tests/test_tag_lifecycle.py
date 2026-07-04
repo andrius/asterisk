@@ -121,3 +121,61 @@ def test_set_tags_skips_deprecated_and_unparseable():
     p = plan(builds)
     assert p.set_tags["22.10.1"] == "latest,stable,22"
     assert "garbage" not in p.set_tags
+
+
+def _b_forky(version, tags=None):
+    entry = _b(version, tags)
+    entry["os_matrix"].append({"os": "debian", "distribution": "forky",
+                               "architectures": ["amd64", "arm64"],
+                               "additional_tags": "experimental"})
+    return entry
+
+
+def test_deprecate_all_older_active_in_line():
+    builds = [_b("22.7.0"), _b("22.9.0", "latest,stable,22"), _b("22.10.1")]
+    p = plan(builds)
+    assert p.deprecate == {"22.7.0": "22.10.1", "22.9.0": "22.10.1"}
+    assert "22.9.0" in p.clear_tags      # it held tags
+    assert "22.7.0" not in p.clear_tags  # it had none
+
+
+def test_single_entry_line_not_deprecated():
+    builds = [_b("18.9-cert18", "18-cert"), _b("22.10.1")]
+    p = plan(builds)
+    assert "18.9-cert18" not in p.deprecate
+
+
+def test_experimental_member_migrated_to_newest():
+    builds = [_b_forky("23.3.0", "23"), _b("23.4.1")]
+    p = plan(builds)
+    assert p.deprecate["23.3.0"] == "23.4.1"
+    moved = p.migrate_experimental["23.4.1"]
+    assert len(moved) == 1
+    assert moved[0]["distribution"] == "forky"
+    assert moved[0]["additional_tags"] == "experimental"
+
+
+def test_experimental_not_migrated_if_target_has_distribution():
+    newest = _b_forky("23.4.1")          # already has forky
+    builds = [_b_forky("23.3.0", "23"), newest]
+    p = plan(builds)
+    assert "23.4.1" not in p.migrate_experimental
+
+
+def test_plan_idempotent_after_apply():
+    # simulate applied state: newest has tags, old is deprecated + forky moved
+    applied = [
+        {"version": "23.3.0", "additional_tags": "23",
+         "deprecated_at": "2026-07-04T00:00:00Z", "superseded_by": "23.4.1",
+         "os_matrix": [{"distribution": "trixie", "architectures": ["amd64"]},
+                       {"distribution": "forky", "architectures": ["amd64"],
+                        "additional_tags": "experimental"}]},
+        {"version": "23.4.1", "additional_tags": "23",
+         "os_matrix": [{"distribution": "trixie", "architectures": ["amd64"]},
+                       {"distribution": "forky", "architectures": ["amd64"],
+                        "additional_tags": "experimental"}]},
+    ]
+    p = plan(applied)
+    assert p.deprecate == {}                 # 23.3.0 already deprecated -> excluded
+    assert p.migrate_experimental == {}
+    assert p.set_tags == {"23.4.1": "23"}    # unchanged
