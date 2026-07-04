@@ -223,6 +223,15 @@ Semantic tags and deprecations are managed automatically from `asterisk/supporte
 - The pure planning logic lives in `lib/tag_lifecycle.py`; `scripts/apply-tag-lifecycle.py` supports `--check` and `--dry-run` for local inspection.
 - `finalize-deprecations.yml` and `update-readme-versions.yml` share the `main-yaml-writer` concurrency group to serialize pushes to main.
 
+### 7a. Tarball checksum verification (supply-chain integrity)
+
+Every release tarball is downloaded and verified against a pinned sha256 before extraction (`tarball_sha256` field on each build entry in `supported-asterisk-builds.yml`; `addons_sha256` for the four legacy-addons variants). Git builds clone at a recorded SHA and are content-addressed, so they are exempt.
+
+- **Source of truth**: the build matrix entry, reviewed in the same PR that adds the version (tag-lifecycle precedent). `validate-generation.yml` enforces that every active entry carries a valid `tarball_sha256` (64 hex chars), so a future hand-added version cannot skip verification silently.
+- **Plumbing**: `lib/template_generator.py` reads the checksum into the generated config as `asterisk.source.checksum`; `templates/dockerfile/multi-stage.dockerfile.j2` renders a `curl → sha256sum -c → tar` download-verify-extract step when present, and falls back to the historical unverified pipe when a checksum is absent (legacy tail / not yet backfilled).
+- **Discovery**: `discover-latest-versions.sh` resolves the upstream `.sha256` file (same-origin corroboration) and writes `tarball_sha256` for each new release automatically; `scripts/backfill-checksums.py` is the one-time maintenance tool used to seed existing entries.
+- **Threat model**: pins protect against post-discovery mirror compromise, MITM on later rebuilds (weekly batches re-download every time), and silent upstream file replacement. For the legacy tail (1.x-10.x) with no upstream `.sha256`, the pin is trust-on-first-use computed from the first download. GPG `.asc` verification against a pinned Digium keyring is the natural follow-up hardening (not yet implemented).
+
 ### 8. Supporting Workflows
 
 | Workflow | Trigger | Purpose |
@@ -535,6 +544,9 @@ gh act --validate
 ### Troubleshooting
 
 #### Common Issues
+
+**Build fails at `sha256sum -c` (checksum mismatch)**:
+The source tarball's actual sha256 no longer matches the pinned `tarball_sha256` in `asterisk/supported-asterisk-builds.yml`. This is the verification working: it usually means upstream re-rolled a tarball in place (historically happens with `-patch` releases). Confirm the new hash is legitimate (re-run `python3 scripts/backfill-checksums.py --version <VERSION> --dry-run`), then update the pin in the YAML, regenerate, and open a PR.
 
 **Workflow Validation Fails**:
 ```bash

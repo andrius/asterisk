@@ -303,6 +303,7 @@ docker run -d \
 - **PUID/PGID Volume Permissions**: Asterisk 10.x+ images adapt the asterisk user UID/GID at startup so bind-mounted host directories work without manual `chown`
 - **Config Templating**: `envsubst` ships in every runtime image - drop `*.conf.template` files into `/etc/asterisk` and render from env vars without rebuilding
 - **Configurable Terminal Colors**: `ASTERISK_TERMINAL_OPTS` env var on v10+ images swaps the baked-in `-W` for `-B` (dark bg), `-n` (no color), or empty
+- **Supply-Chain Integrity**: every release tarball is downloaded and verified against a pinned `sha256` (`tarball_sha256` in `supported-asterisk-builds.yml`); new releases get their checksum pinned automatically at discovery time. Git builds clone at a recorded SHA (already content-addressed).
 
 ## Architecture
 

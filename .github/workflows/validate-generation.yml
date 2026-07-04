@@ -24,11 +24,13 @@ jobs:
       - name: Validate generation consistency
         run: |
           python3 << 'EOF'
+          import re
           import yaml
           import os
           import sys
 
           errors = []
+          SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
           with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
               data = yaml.safe_load(f)
@@ -47,6 +49,28 @@ jobs:
               if deprecated_at:
                   print(f"⏭️  Skipping {version} (deprecated since {deprecated_at})")
                   continue
+
+              # git versions clone at a recorded SHA (content-addressed); no tarball.
+              if version == 'git' or str(version).startswith('git-'):
+                  continue
+
+              # Enforcement (plan 002): every active release version MUST carry a
+              # pinned tarball_sha256, so a future hand-added version cannot skip
+              # verification silently. addons_sha256 is required only for the
+              # legacy-addons variants (1.2/1.4/1.6) that build an addons tarball.
+              sha = build.get('tarball_sha256')
+              if not sha:
+                  errors.append(f"{version}: missing tarball_sha256 (required for active builds)")
+              elif not SHA256.match(str(sha)):
+                  errors.append(f"{version}: malformed tarball_sha256 (expected 64 hex chars): {sha!r}")
+
+              major_minor = '.'.join(str(version).split('.')[:2])
+              if major_minor in ('1.2', '1.4', '1.6'):
+                  addons_sha = build.get('addons_sha256')
+                  if not addons_sha:
+                      errors.append(f"{version}: missing addons_sha256 (required for legacy-addons builds)")
+                  elif not SHA256.match(str(addons_sha)):
+                      errors.append(f"{version}: malformed addons_sha256 (expected 64 hex chars): {addons_sha!r}")
 
               for os_config in os_matrix:
                   dist = os_config.get('distribution')
@@ -67,10 +91,10 @@ jobs:
                               errors.append(f"Missing file: {file_path}")
 
           if errors:
-              print("❌ Validation FAILED - missing generated files:")
+              print("❌ Validation FAILED:")
               for error in errors:
                   print(f"  - {error}")
               sys.exit(1)
           else:
-              print("✅ All expected files present and consistent")
+              print("✅ All expected files present and checksums pinned")
           EOF
