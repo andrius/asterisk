@@ -163,6 +163,49 @@ get_git_sha() {
   fi
 }
 
+# Function to resolve a pinned sha256 for a release tarball (plan 002).
+# Mirrors scripts/backfill-checksums.py: try the upstream .sha256 file first
+# (same-origin corroboration), fall back to downloading and hashing (TOFU).
+# New versions discovered here are always recent enough to have an upstream
+# .sha256; the TOFU path exists for robustness only. Echoes the 64-hex digest
+# on success (empty on failure). Certified releases use the certified URL
+# template; everything else the regular releases tree.
+resolve_tarball_sha256() {
+  local version="$1"
+  local tarball_url sha_url body digest
+
+  if [[ "$version" =~ -cert[0-9]+ ]]; then
+    tarball_url="https://downloads.asterisk.org/pub/telephony/certified-asterisk/releases/asterisk-certified-${version}.tar.gz"
+  else
+    tarball_url="https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-${version}.tar.gz"
+  fi
+  sha_url="${tarball_url%.tar.gz}.sha256"
+
+  # Prefer the upstream .sha256 file (standard sha256sum format, second field
+  # is the bare filename). Validate the filename matches before trusting.
+  local expected_filename
+  expected_filename="$(basename "$tarball_url")"
+  body=$(curl -fsSL "$sha_url" 2>/dev/null || true)
+  if [[ -n "$body" ]]; then
+    digest=$(echo "$body" | awk -v fn="$expected_filename" 'NF>=2 && $1 ~ /^[a-f0-9]{64}$/ && $2=="*"fn {print $1; exit}')
+    [[ -z "$digest" ]] && digest=$(echo "$body" | awk -v fn="$expected_filename" 'NF>=2 && $1 ~ /^[a-f0-9]{64}$/ && $2==fn {print $1; exit}')
+    if [[ -n "$digest" ]]; then
+      echo "$digest"
+      return 0
+    fi
+  fi
+
+  # TOFU fallback: download + sha256sum. Silently returns empty on failure so
+  # a missing checksum does not abort release discovery (the build still works
+  # via the unverified template branch; a follow-up PR can pin the value).
+  digest=$(curl -fsSL "$tarball_url" 2>/dev/null | sha256sum | awk '{print $1}')
+  if [[ "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+    echo "$digest"
+    return 0
+  fi
+  return 1
+}
+
 # Function to get current git SHA from YAML metadata
 get_current_git_sha() {
   local yaml_file="$1"
@@ -479,6 +522,7 @@ generate_yaml_output() {
           # Insert new versions with full os_matrix before metadata
           for version in "${new_versions[@]}"; do
             echo "  - version: \"$version\""
+            echo "    tarball_sha256: \"$(resolve_tarball_sha256 "$version")\""
             echo "    os_matrix:"
             echo "      - os: \"$default_os\""
             echo "        distribution: \"$default_dist\""
@@ -498,6 +542,7 @@ generate_yaml_output() {
       if [[ "$metadata_started" == false ]]; then
         for version in "${new_versions[@]}"; do
           echo "  - version: \"$version\""
+          echo "    tarball_sha256: \"$(resolve_tarball_sha256 "$version")\""
           echo "    os_matrix:"
           echo "      - os: \"$default_os\""
           echo "        distribution: \"$default_dist\""
