@@ -127,3 +127,21 @@ def test_finalize_idempotent():
     atl.finalize(data, "2026-07-04T11:00:00Z")
     stamped_again = atl.finalize(data, "2026-07-05T11:00:00Z")
     assert stamped_again == []   # nothing pending on second run
+
+
+def test_check_returns_nonzero_when_drift(tmp_path):
+    f = tmp_path / "b.yml"
+    f.write_text(YAML_IN)
+    rc = atl.main(["--phase", "pr", "--file", str(f), "--check"])
+    assert rc == 1                      # YAML_IN is not in desired state
+    assert f.read_text() == YAML_IN     # unchanged
+
+
+def test_check_returns_zero_when_clean(tmp_path):
+    f = tmp_path / "b.yml"
+    f.write_text(YAML_IN)
+    atl.main(["--phase", "pr", "--file", str(f)])   # bring to desired state
+    settled = f.read_text()
+    rc = atl.main(["--phase", "pr", "--file", str(f), "--check"])
+    assert rc == 0
+    assert f.read_text() == settled

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import io
 import os
 import sys
 from datetime import datetime, timezone
@@ -65,26 +66,44 @@ def finalize(data, now_iso):
     return stamped
 
 
+def _render(y, data):
+    buf = io.StringIO()
+    y.dump(data, buf)
+    return buf.getvalue()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", required=True, choices=["pr", "finalize"])
     ap.add_argument("--file", default=DEFAULT_FILE)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--check", action="store_true")
     args = ap.parse_args(argv)
 
     y = _yaml()
     with open(args.file) as fh:
-        data = y.load(fh)
+        original = fh.read()
+    data = y.load(original)
 
     if args.phase == "pr":
         apply_pr(data)
     else:
         now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        stamped = finalize(data, now_iso)
-        print(f"finalized: {stamped}")
+        print(f"finalized: {finalize(data, now_iso)}")
 
+    rendered = _render(y, data)
+    if args.check:
+        changed = rendered != original
+        if changed:
+            print("DRIFT: supported-asterisk-builds.yml is not in desired state")
+        return 1 if changed else 0
+    if args.dry_run:
+        print(rendered)
+        return 0
     with open(args.file, "w") as fh:
-        y.dump(data, fh)
+        fh.write(rendered)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
