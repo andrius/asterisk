@@ -17,7 +17,7 @@ project_dir = os.path.dirname(script_dir)
 lib_dir = os.path.join(project_dir, 'lib')
 sys.path.insert(0, lib_dir)
 
-from template_generator import DRYTemplateGenerator
+from template_generator import DRYTemplateGenerator, build_slug
 
 
 # DRY template system handles all template logic internally
@@ -33,7 +33,13 @@ def main():
     )
     parser.add_argument(
         'distribution',
-        help='Distribution name (e.g., trixie, bookworm)'
+        help='Distribution name (e.g., trixie, bookworm; for alpine: 3.24, edge)'
+    )
+    parser.add_argument(
+        '--os',
+        dest='os_name',
+        default='debian',
+        help='Target OS family (default: debian; use "alpine" for apk-based images)'
     )
     parser.add_argument(
         '--templates-dir',
@@ -64,7 +70,8 @@ def main():
         if args.output:
             output_path = args.output
         else:
-            output_filename = f"asterisk-{args.version}-{args.distribution}.yml"
+            slug = build_slug(args.os_name, args.distribution)
+            output_filename = f"asterisk-{args.version}-{slug}.yml"
             output_path = os.path.join(args.output_dir, output_filename)
 
         # Create output directory if it doesn't exist (skip if output_path is just a filename)
@@ -73,7 +80,8 @@ def main():
             os.makedirs(output_dir, exist_ok=True)
 
         # Generate and save config using DRY template system
-        success = generator.generate_and_save_config(args.version, args.distribution, output_path)
+        success = generator.generate_and_save_config(args.version, args.distribution, output_path,
+                                                      os_name=args.os_name)
 
         if success:
             print(f"Generated config: {output_path}")

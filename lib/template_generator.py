@@ -19,6 +19,21 @@ from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 from copy import deepcopy
 
+
+def build_slug(os_name: str, distribution: str) -> str:
+    """Directory/config key for a (os, distribution) pair.
+
+    Debian keeps the bare distribution name (``trixie``) so the 64 existing
+    ``asterisk/<version>-<dist>/`` dirs and ``configs/generated`` files are
+    untouched. Alpine namespaces the version under ``alpine-`` (``alpine-3.24``,
+    ``alpine-edge``) - the raw Alpine version (``3.24``) alone would be an
+    unreadable, collision-prone key. See plans/003-alpine-apk-images.md.
+    """
+    if os_name == "alpine":
+        return f"alpine-{distribution}"
+    return distribution
+
+
 @dataclass
 class TemplateContext:
     """Context for template resolution"""
@@ -28,6 +43,7 @@ class TemplateContext:
     base_packages: Dict[str, List[str]]
     distribution_config: Dict[str, Any]
     variant_config: Dict[str, Any]
+    os_name: str = "debian"
 
 class DRYTemplateGenerator:
     """Enhanced template generator with DRY architecture support"""
@@ -70,9 +86,18 @@ class DRYTemplateGenerator:
             print(f"Warning: Base template file not found: {template_file}")
             return {}
 
-    def _load_distribution_config(self, distribution: str) -> Dict[str, Any]:
-        """Load distribution-specific configuration"""
-        config_file = self.distributions_dir / f"debian-{distribution}.yml"
+    def _load_distribution_config(self, distribution: str, os_name: str = "debian") -> Dict[str, Any]:
+        """Load distribution-specific configuration.
+
+        Alpine builds share a single ``alpine.yml`` (they consume prebuilt apks
+        rather than compile, so there are no per-Alpine-version package lists);
+        the specific Alpine version rides the os_matrix entry. Debian keeps its
+        per-distribution ``debian-<dist>.yml`` files.
+        """
+        if os_name == "alpine":
+            config_file = self.distributions_dir / "alpine.yml"
+        else:
+            config_file = self.distributions_dir / f"debian-{distribution}.yml"
         try:
             with open(config_file, 'r') as f:
                 return yaml.safe_load(f)
@@ -228,6 +253,14 @@ class DRYTemplateGenerator:
         # Set distribution
         base_config["distribution"] = context.distribution
 
+        # Resolve OS. Debian is the base-template default (re-assigning the same
+        # value is a no-op, so Debian output is byte-identical); Alpine flips it
+        # and composes its base image from the Alpine version carried in the
+        # os_matrix distribution field (3.24 -> alpine:3.24, edge -> alpine:edge).
+        base_config["os"] = context.os_name
+        if context.os_name == "alpine":
+            base_config["image"] = f"alpine:{context.distribution}"
+
         # Propagate runtime auto-derivation flag. Rolling/experimental suites
         # (e.g. Debian forky) derive their runtime shared-library packages from
         # the built binaries at image-build time instead of hand-pinning them.
@@ -377,7 +410,8 @@ class DRYTemplateGenerator:
 
         return config
 
-    def generate_config(self, version: str, distribution: str = None, variant: str = None) -> Dict[str, Any]:
+    def generate_config(self, version: str, distribution: str = None, variant: str = None,
+                        os_name: str = "debian") -> Dict[str, Any]:
         """Generate complete configuration using DRY template system"""
 
         # Auto-detect distribution and variant if not provided
@@ -386,10 +420,10 @@ class DRYTemplateGenerator:
         if variant is None:
             variant = self._determine_variant(version)
 
-        print(f"Generating config for {version} (distribution: {distribution}, variant: {variant})")
+        print(f"Generating config for {version} (os: {os_name}, distribution: {distribution}, variant: {variant})")
 
         # Load configurations
-        distribution_config = self._load_distribution_config(distribution)
+        distribution_config = self._load_distribution_config(distribution, os_name)
         variant_config = self._load_variant_template(variant)
 
         # Create context
@@ -399,7 +433,8 @@ class DRYTemplateGenerator:
             variant=variant,
             base_packages=self.base_packages,
             distribution_config=distribution_config,
-            variant_config=variant_config
+            variant_config=variant_config,
+            os_name=os_name
         )
 
         # Build final configuration
@@ -437,10 +472,11 @@ class DRYTemplateGenerator:
         with open(output_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    def generate_and_save_config(self, version: str, distribution: str, output_path: str) -> bool:
+    def generate_and_save_config(self, version: str, distribution: str, output_path: str,
+                                 os_name: str = "debian") -> bool:
         """Generate and save configuration in one step"""
         try:
-            config = self.generate_config(version, distribution)
+            config = self.generate_config(version, distribution, os_name=os_name)
             self.save_config(config, output_path)
             return True
         except Exception as e:
@@ -460,6 +496,7 @@ class DRYTemplateGenerator:
 
             for matrix_entry in os_matrix:
                 distribution = matrix_entry["distribution"]
+                os_name = matrix_entry.get("os", "debian")
 
                 # Use custom template mapping if specified
                 variant = None
@@ -473,9 +510,9 @@ class DRYTemplateGenerator:
                         variant = "asterisk-11"
 
                 try:
-                    config = self.generate_config(version, distribution, variant)
+                    config = self.generate_config(version, distribution, variant, os_name=os_name)
 
-                    output_file = f"{output_dir}/asterisk-{version}-{distribution}.yml"
+                    output_file = f"{output_dir}/asterisk-{version}-{build_slug(os_name, distribution)}.yml"
                     self.save_config(config, output_file)
 
                     print(f"✅ Generated: {output_file}")
