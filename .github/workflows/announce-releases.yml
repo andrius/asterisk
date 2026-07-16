@@ -2,7 +2,9 @@ name: Announce Releases
 
 # Posts a single grouped announcement to Telegram and Mastodon for one or more
 # Asterisk versions, then pushes an `announced-<version>` git tag per version
-# so the same version is never announced twice.
+# so the same version is never announced twice. Finally adds an entry to the
+# andrius.mobi/asterisk timeline via repository_dispatch to andrius/blog
+# (skipped when the BLOG_DISPATCH_TOKEN secret is not configured).
 #
 # Triggered by:
 #   - `workflow_call` from build-new-releases.yml after a successful build of
@@ -187,6 +189,37 @@ jobs:
             git push origin "$TAG"
             echo "🏷️  Pushed tag $TAG"
           done
+
+      # Failure here is loud on purpose: announcements and tags are already
+      # safe (a re-run skips them), and the missed entry can be recovered with
+      # the blog's manual workflow_dispatch (asterisk-updates.yml).
+      - name: Update andrius.mobi/asterisk timeline
+        if: steps.filter.outputs.has_versions == 'true' && inputs.dry_run != true
+        env:
+          BLOG_DISPATCH_TOKEN: ${{ secrets.BLOG_DISPATCH_TOKEN }}
+          FILTERED_VERSIONS: ${{ steps.filter.outputs.versions }}
+        run: |
+          if [ -z "$BLOG_DISPATCH_TOKEN" ]; then
+            echo "::notice::BLOG_DISPATCH_TOKEN not set - skipping timeline update"
+            exit 0
+          fi
+          VERSION_LIST=$(echo "$FILTERED_VERSIONS" | sed 's/ /, /g; s/, \([^,]*\)$/ and \1/')
+          TITLE="Debian images for Asterisk $VERSION_LIST"
+          PAYLOAD=$(jq -n --arg title "$TITLE" '{
+            event_type: "asterisk-update",
+            client_payload: {
+              title: $title,
+              url: "https://hub.docker.com/r/andrius/asterisk/tags",
+              tags: "docker,debian"
+            }
+          }')
+          curl -sfS -X POST \
+            -H "Authorization: Bearer $BLOG_DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/andrius/blog/dispatches \
+            -d "$PAYLOAD"
+          echo "📝 Timeline entry sent: $TITLE"
 
       - name: Summary
         if: always()
