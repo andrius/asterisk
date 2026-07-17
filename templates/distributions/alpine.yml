@@ -37,6 +37,7 @@ runtime_packages:
   - bash
   - shadow
   - gettext
+  - procps          # procps-ng pgrep -x (healthcheck); busybox pgrep -x differs
   - ca-certificates
   - curl
   - tzdata

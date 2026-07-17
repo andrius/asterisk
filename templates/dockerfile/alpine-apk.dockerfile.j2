@@ -5,8 +5,8 @@
 {% set alpine = config.alpine -%}
 {% set docker_config = config.docker -%}
 {% set user_config = docker_config.user | default({}) -%}
-{% set uid = user_config.uid | default(1000) -%}
 {% set user_name = user_config.name | default("asterisk") -%}
+{% set user_home = "/var/lib/" ~ user_name -%}
 FROM {{ base_image }}
 
 LABEL maintainer="{{ maintainer }}"
@@ -33,10 +33,10 @@ RUN echo "@{{ alpine.pin_tag }} {{ alpine.repo_url }}" >> /etc/apk/repositories 
 {% endfor %}{% for rp in alpine.runtime_packages %}      {{ rp }} \
 {% endfor %} && asterisk -V
 
-# Create the asterisk user (busybox adduser/addgroup) and runtime directories.
-RUN addgroup -g {{ uid }} {{ user_name }} \
- && adduser -u {{ uid }} -G {{ user_name }} -h /home/{{ user_name }} -s /bin/bash -D {{ user_name }} \
- && mkdir -p \
+# The asterisk apk already creates the asterisk user/group (uid 100 by default);
+# just ensure the runtime directories exist (idempotent). The entrypoint remaps
+# uid/gid to PUID/PGID at container start, exactly as on the Debian image.
+RUN mkdir -p \
       /var/run/asterisk \
       /var/log/asterisk \
       /var/spool/asterisk/monitor \
@@ -56,7 +56,6 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh /usr/local/bin/entrypoint.sh \
  && chown -R {{ user_name }}:{{ user_name }} \
       /etc/asterisk \
-      /home/{{ user_name }} \
       /var/lib/asterisk \
       /var/log/asterisk \
       /var/spool/asterisk \
@@ -77,5 +76,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Entrypoint runs as root, remaps the asterisk uid/gid to PUID/PGID, then execs
 # CMD. Asterisk drops privileges itself via the -U/-p flags below.
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-WORKDIR /home/{{ user_name }}
+WORKDIR {{ user_home }}
 CMD ["/usr/sbin/asterisk", "-vvvdddf", "-T", "-W", "-U", "{{ user_name }}", "-p"]
