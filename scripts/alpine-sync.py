@@ -179,6 +179,8 @@ def main(argv=None) -> int:
     ap.add_argument("--file", default=DEFAULT_MATRIX, help="matrix YAML to update")
     ap.add_argument("--dry-run", action="store_true",
                     help="probe + resolve + report, but do not write the matrix")
+    ap.add_argument("--report-file", default=None,
+                    help="write the markdown change+drift report here (PR body)")
     args = ap.parse_args(argv)
 
     alpine_cfg = _load_alpine_config()
@@ -206,6 +208,9 @@ def main(argv=None) -> int:
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
         with open(step_summary, "a") as f:
+            f.write(report)
+    if args.report_file:
+        with open(args.report_file, "w") as f:
             f.write(report)
     print(report, file=sys.stderr)
 
