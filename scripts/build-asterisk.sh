@@ -901,14 +901,17 @@ generator.generate_build_script('$config_file', '$buildsh_path')
         return 1
     fi
 
-    # Generate entrypoint.sh for v10+ (PUID/PGID volume permission handling)
+    # Generate entrypoint.sh for v10+ (PUID/PGID volume permission handling).
+    # Alpine images always stage it: the apk Dockerfile is one uniform template
+    # that COPYs entrypoint.sh regardless of the Asterisk version, and the
+    # PUID/PGID remap is container-runtime UX, not a version concern.
     local entrypoint_major
     if [[ "$version" =~ ^git ]]; then
         entrypoint_major=99
     else
         entrypoint_major=$(echo "$version" | cut -d'.' -f1)
     fi
-    if [[ "$entrypoint_major" -ge 10 ]]; then
+    if [[ "$entrypoint_major" -ge 10 ]] || [[ "$os" == "alpine" ]]; then
         local entrypoint_path="${build_dir}/entrypoint.sh"
         log DEBUG "Generating entrypoint.sh for: $version_tag (major=$entrypoint_major)" >&2
         if ! sed "s/{{ config\.version }}/${version}/g" \
