@@ -23,6 +23,21 @@ apk_repo_base: "https://dl.cloudsmith.io/public/asterisk/alpine/alpine"
 # The edge tree uses the "<pin_tag>-edge" form (derived per build by role).
 apk_pin_tag: "andrius-asterisk"
 
+# Bounded candidate trees the daily alpine-sync workflow probes. It fetches
+# "v3.<minor>" for minor in [min..max] plus (optionally) "edge"; a tree counts
+# as live only if it publishes >=1 asterisk package on >=1 arch, so unpublished
+# (v3.25 today) or empty (mid-backfill) trees are ignored - never hardcoded.
+# Widen the range when Alpine cuts a new stable the sibling starts building on.
+apk_probe_minor_min: 20
+apk_probe_minor_max: 40
+apk_probe_include_edge: true
+
+# Drift report floor. The sync flags active matrix lines that have no published
+# apk, but only for major >= this - ancient legacy (1.x-15.x) is never on Alpine
+# and would just be daily noise. This does NOT gate what gets built (that is
+# purely index-driven); it only scopes the "missing apk" report.
+apk_drift_major_min: 16
+
 # Cloudsmith re-signs packages with its own per-repo RSA key (the old abuild key
 # is no longer in the consumer trust chain). The public key is vendored under
 # templates/partials/keys/<signing_key_file> and copied into each image build
