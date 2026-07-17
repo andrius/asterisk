@@ -138,6 +138,9 @@ try:
 
     yaml_file = os.path.join(project_dir, 'asterisk', 'supported-asterisk-builds.yml')
 
+    sys.path.insert(0, os.path.join(project_dir, 'lib'))
+    from template_generator import build_slug  # os-aware config/dir naming
+
     with open(yaml_file, 'r') as f:
         data = yaml.safe_load(f)
 
@@ -172,7 +175,7 @@ try:
             distribution = matrix_entry.get('distribution', 'trixie')
             os_name = matrix_entry.get('os', 'debian')
 
-            config_filename = f"asterisk-{version}-{distribution}.yml"
+            config_filename = f"asterisk-{version}-{build_slug(os_name, distribution)}.yml"
             config_path = os.path.join(project_dir, 'configs', 'generated', config_filename)
 
             # Check if config already exists
@@ -214,6 +217,7 @@ try:
             os.path.join(script_dir, 'generate-config.py'),
             config['version'],
             config['distribution'],
+            '--os', config['os'],
             '--templates-dir', os.path.join(project_dir, 'templates'),
             '--output', config['config_path']
         ]
