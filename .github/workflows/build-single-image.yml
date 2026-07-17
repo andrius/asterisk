@@ -81,6 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       config_file: ${{ steps.validate-config.outputs.config_file }}
+      os_type: ${{ steps.validate-config.outputs.os_type }}
       platforms_matrix: ${{ steps.prepare-matrix.outputs.platforms_matrix }}
       is_multi_platform: ${{ steps.prepare-matrix.outputs.is_multi_platform }}
       platform_count: ${{ steps.prepare-matrix.outputs.platform_count }}
@@ -108,10 +109,10 @@ jobs:
           IFS=',' read -ra ARCH_ARRAY <<< "$ARCHITECTURES"
           for arch in "${ARCH_ARRAY[@]}"; do
             arch=$(echo "$arch" | xargs)  # trim whitespace
-            if [[ "$arch" != "amd64" && "$arch" != "arm64" ]]; then
+            if [[ "$arch" != "amd64" && "$arch" != "arm64" && "$arch" != "armv7" && "$arch" != "armhf" ]]; then
               echo "❌ ERROR: Unsupported architecture: $arch"
               echo ""
-              echo "Only amd64 and arm64 are supported."
+              echo "Supported: amd64, arm64 (native runners); armv7, armhf (QEMU, Alpine apk builds only)."
               echo "Provided: $ARCHITECTURES"
               exit 1
             fi
@@ -146,13 +147,16 @@ jobs:
         working-directory: .
         run: |
           DISTRIBUTION="${{ inputs.distribution }}"
-          if [[ "$DISTRIBUTION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+          # Alpine distributions are the Alpine version (3.24) or "edge";
+          # Debian distributions are suite names (trixie, bookworm, ...).
+          if [[ "$DISTRIBUTION" =~ ^[0-9]+\.[0-9]+$ || "$DISTRIBUTION" == "edge" ]]; then
             OS_TYPE="alpine"
+            CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-alpine-${DISTRIBUTION}.yml"
           else
             OS_TYPE="debian"
+            CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${DISTRIBUTION}.yml"
           fi
-
-          CONFIG_FILE="configs/generated/asterisk-${{ inputs.version }}-${DISTRIBUTION}.yml"
+          echo "os_type=$OS_TYPE" >> $GITHUB_OUTPUT
 
           if [ ! -f "$CONFIG_FILE" ]; then
             echo "❌ Config file not found: $CONFIG_FILE"
@@ -206,19 +210,21 @@ jobs:
           architectures = '$ARCHITECTURES'.split(',')
           matrix_include = []
 
+          # Alpine arch name -> buildx platform. amd64/arm64 run on native
+          # runners; the 32-bit ARM variants (Alpine apk builds only) run under
+          # QEMU on an amd64 runner - cheap because apk-add does no compilation.
+          PLATFORM = {
+              'amd64': 'linux/amd64',
+              'arm64': 'linux/arm64',
+              'armv7': 'linux/arm/v7',
+              'armhf': 'linux/arm/v6',
+          }
+          RUNNER = {'amd64': 'ubuntu-latest', 'arm64': 'ubuntu-24.04-arm'}
           for arch in architectures:
               arch = arch.strip()
               if arch:
-                  platform = f'linux/{arch}'
-
-                  # Map platform to native runner
-                  if arch == 'amd64':
-                      runner = 'ubuntu-latest'
-                  elif arch == 'arm64':
-                      runner = 'ubuntu-24.04-arm'
-                  else:
-                      runner = 'ubuntu-latest'  # Fallback
-
+                  platform = PLATFORM.get(arch, f'linux/{arch}')
+                  runner = RUNNER.get(arch, 'ubuntu-latest')  # 32-bit ARM -> QEMU on amd64
                   matrix_include.append({
                       'platform': platform,
                       'runner': runner
@@ -370,6 +376,8 @@ jobs:
           if [ -f build.sh ]; then
             chmod +x build.sh
             echo "✅ Generated build.sh script ($(wc -l < build.sh) lines)"
+          elif [ "${{ steps.validate-config.outputs.os_type }}" = "alpine" ]; then
+            echo "⏭️  No build.sh for Alpine (installs prebuilt apks, nothing to compile)"
           else
             echo "❌ Failed to generate build.sh"
             exit 1
@@ -456,6 +464,10 @@ jobs:
         run: |
           pip install --user -r requirements.txt
 
+      - name: Set up QEMU (emulated 32-bit ARM)
+        if: contains(matrix.platform, 'arm/v')
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -506,14 +518,30 @@ jobs:
 
       - name: Verify generated files
         run: |
-          ls -la Dockerfile build.sh healthcheck.sh
-          chmod +x build.sh healthcheck.sh
+          ls -la Dockerfile healthcheck.sh
+          chmod +x healthcheck.sh
+          # Alpine images install prebuilt apks - there is no build.sh.
+          if [ -f build.sh ]; then
+            chmod +x build.sh
+          elif [ "${{ needs.validate-and-prepare.outputs.os_type }}" = "alpine" ]; then
+            echo "⏭️  No build.sh (Alpine apk image)"
+          else
+            echo "❌ build.sh missing for a non-Alpine build"; exit 1
+          fi
           if [ -f entrypoint.sh ]; then
             chmod +x entrypoint.sh
             echo "✅ Using pre-generated build files (with entrypoint.sh) for ${{ matrix.platform }}"
           else
             echo "✅ Using pre-generated build files (no entrypoint.sh - pre-v10) for ${{ matrix.platform }}"
           fi
+
+      - name: Stage Alpine signing key
+        if: needs.validate-and-prepare.outputs.os_type == 'alpine'
+        run: |
+          # The alpine-apk Dockerfile COPYs the key from the build-context root
+          # (context is '.'); place the vendored key there.
+          cp templates/partials/keys/cloudsmith-asterisk-alpine.rsa.pub ./
+          echo "✅ Staged Cloudsmith signing key into the build context"
 
       - name: Prepare build configuration
         id: build-config

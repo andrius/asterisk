@@ -1,0 +1,58 @@
+# Alpine (musl) Distribution Configuration
+#
+# Unlike the Debian distribution files, Alpine images are NOT compiled here.
+# They install pre-built, signed Asterisk .apk packages from the sibling
+# project's Cloudsmith repository (andrius/asterisk-alpine). There is no build
+# stage and no build.sh for an Alpine image. See plans/003-alpine-apk-images.md.
+#
+# One file serves every Alpine build. The specific Alpine version (3.24, edge,
+# ...), its Cloudsmith tree, role, exact apk pin, subpackages, and architectures
+# ride the os_matrix entry and are resolved from the published APKINDEX by the
+# daily alpine-sync workflow - never hand-edited.
+
+os: alpine
+
+# Cloudsmith consumption contract (public, anonymous pull; migrated off the
+# retired apk.andrius.mobi GitHub Pages host on 2026-07-16). apk appends
+# "/<arch>/APKINDEX.tar.gz" to "<apk_repo_base>/<tree>/main" itself, where
+# <tree> is the Cloudsmith distribution segment (v3.24 stable, edge).
+apk_repo_base: "https://dl.cloudsmith.io/public/asterisk/alpine/alpine"
+
+# Repository pin tag. Alpine's own main repo ships asterisk 22.9.x, so installs
+# MUST pin this repo explicitly: "asterisk@<pin_tag>=<exact apk_version>".
+# The edge tree uses the "<pin_tag>-edge" form (derived per build by role).
+apk_pin_tag: "andrius-asterisk"
+
+# Bounded candidate trees the daily alpine-sync workflow probes. It fetches
+# "v3.<minor>" for minor in [min..max] plus (optionally) "edge"; a tree counts
+# as live only if it publishes >=1 asterisk package on >=1 arch, so unpublished
+# (v3.25 today) or empty (mid-backfill) trees are ignored - never hardcoded.
+# Widen the range when Alpine cuts a new stable the sibling starts building on.
+apk_probe_minor_min: 20
+apk_probe_minor_max: 40
+apk_probe_include_edge: true
+
+# Drift report floor. The sync flags active matrix lines that have no published
+# apk, but only for major >= this - ancient legacy (1.x-15.x) is never on Alpine
+# and would just be daily noise. This does NOT gate what gets built (that is
+# purely index-driven); it only scopes the "missing apk" report.
+apk_drift_major_min: 16
+
+# Cloudsmith re-signs packages with its own per-repo RSA key (the old abuild key
+# is no longer in the consumer trust chain). The public key is vendored under
+# templates/partials/keys/<signing_key_file> and copied into each image build
+# context; apk matches it by the destination filename.
+signing_key_file: "cloudsmith-asterisk-alpine.rsa.pub"
+signing_key_dest: "/etc/apk/keys/alpine@asterisk-25B0C9A992BE0CEF.rsa.pub"
+
+# Non-Asterisk runtime packages. bash + shadow let the shared (bash) entrypoint
+# and healthcheck partials run unchanged (usermod/groupmod for PUID/PGID);
+# gettext provides envsubst for config templating - parity with the Debian image.
+runtime_packages:
+  - bash
+  - shadow
+  - gettext
+  - procps          # procps-ng pgrep -x (healthcheck); busybox pgrep -x differs
+  - ca-certificates
+  - curl
+  - tzdata

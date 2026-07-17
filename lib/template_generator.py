@@ -19,6 +19,35 @@ from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 from copy import deepcopy
 
+
+def build_slug(os_name: str, distribution: str) -> str:
+    """Directory/config key for a (os, distribution) pair.
+
+    Debian keeps the bare distribution name (``trixie``) so the 64 existing
+    ``asterisk/<version>-<dist>/`` dirs and ``configs/generated`` files are
+    untouched. Alpine namespaces the version under ``alpine-`` (``alpine-3.24``,
+    ``alpine-edge``) - the raw Alpine version (``3.24``) alone would be an
+    unreadable, collision-prone key. See plans/003-alpine-apk-images.md.
+    """
+    if os_name == "alpine":
+        return f"alpine-{distribution}"
+    return distribution
+
+
+def alpine_tree(distribution: str) -> str:
+    """Cloudsmith distribution segment for an Alpine version.
+
+    Numeric releases live under ``v<X.Y>`` (``3.24`` -> ``v3.24``); the rolling
+    ``edge`` tree keeps its bare name.
+    """
+    return distribution if distribution == "edge" else f"v{distribution}"
+
+
+def alpine_pin_tag(base_tag: str, distribution: str) -> str:
+    """apk repository pin tag; the edge tree is served under the ``-edge`` tag."""
+    return f"{base_tag}-edge" if distribution == "edge" else base_tag
+
+
 @dataclass
 class TemplateContext:
     """Context for template resolution"""
@@ -28,6 +57,7 @@ class TemplateContext:
     base_packages: Dict[str, List[str]]
     distribution_config: Dict[str, Any]
     variant_config: Dict[str, Any]
+    os_name: str = "debian"
 
 class DRYTemplateGenerator:
     """Enhanced template generator with DRY architecture support"""
@@ -70,9 +100,18 @@ class DRYTemplateGenerator:
             print(f"Warning: Base template file not found: {template_file}")
             return {}
 
-    def _load_distribution_config(self, distribution: str) -> Dict[str, Any]:
-        """Load distribution-specific configuration"""
-        config_file = self.distributions_dir / f"debian-{distribution}.yml"
+    def _load_distribution_config(self, distribution: str, os_name: str = "debian") -> Dict[str, Any]:
+        """Load distribution-specific configuration.
+
+        Alpine builds share a single ``alpine.yml`` (they consume prebuilt apks
+        rather than compile, so there are no per-Alpine-version package lists);
+        the specific Alpine version rides the os_matrix entry. Debian keeps its
+        per-distribution ``debian-<dist>.yml`` files.
+        """
+        if os_name == "alpine":
+            config_file = self.distributions_dir / "alpine.yml"
+        else:
+            config_file = self.distributions_dir / f"debian-{distribution}.yml"
         try:
             with open(config_file, 'r') as f:
                 return yaml.safe_load(f)
@@ -117,6 +156,13 @@ class DRYTemplateGenerator:
 
     def _resolve_packages(self, context: TemplateContext) -> Dict[str, List[str]]:
         """Resolve package lists using DRY architecture"""
+        # Alpine images install prebuilt apks and compile nothing, so they carry
+        # no Debian package lists. Their runtime dependencies come from
+        # alpine.yml (read by the Alpine Dockerfile template) plus the apk
+        # subpackages named in the os_matrix entry - never from common-packages.yml.
+        if context.os_name == "alpine":
+            return {"build": [], "runtime": []}
+
         packages = {
             "build": [],
             "runtime": []
@@ -161,6 +207,12 @@ class DRYTemplateGenerator:
 
     def _resolve_asterisk_config(self, context: TemplateContext) -> Dict[str, Any]:
         """Resolve Asterisk configuration with inheritance"""
+        # Alpine does not compile Asterisk: no menuselect, no configure options,
+        # no Digium Opus blob, no source tarball. The prebuilt apk already
+        # contains the selected modules, so the asterisk config block is empty.
+        if context.os_name == "alpine":
+            return {}
+
         # Start with base configuration
         asterisk_config = deepcopy(self.base_template.get("asterisk", {}))
 
@@ -228,6 +280,14 @@ class DRYTemplateGenerator:
         # Set distribution
         base_config["distribution"] = context.distribution
 
+        # Resolve OS. Debian is the base-template default (re-assigning the same
+        # value is a no-op, so Debian output is byte-identical); Alpine flips it
+        # and composes its base image from the Alpine version carried in the
+        # os_matrix distribution field (3.24 -> alpine:3.24, edge -> alpine:edge).
+        base_config["os"] = context.os_name
+        if context.os_name == "alpine":
+            base_config["image"] = f"alpine:{context.distribution}"
+
         # Propagate runtime auto-derivation flag. Rolling/experimental suites
         # (e.g. Debian forky) derive their runtime shared-library packages from
         # the built binaries at image-build time instead of hand-pinning them.
@@ -244,6 +304,7 @@ class DRYTemplateGenerator:
         config_str = config_str.replace("{{VERSION}}", context.version)
         config_str = config_str.replace("{{DISTRIBUTION}}", context.distribution)
         config_str = config_str.replace("{{VARIANT}}", context.variant)
+        config_str = config_str.replace("{{OS}}", context.os_name)
 
         # Handle addons version for legacy versions
         if context.variant == "legacy-addons":
@@ -308,9 +369,72 @@ class DRYTemplateGenerator:
                 break
         return result
 
+    def _lookup_alpine_facts(self, version: str, distribution: str) -> Dict[str, Any]:
+        """Look up the apk pin + subpackages for an Alpine build from the matrix.
+
+        Returns the ``apk_version`` / ``apk_packages`` (and ``architectures``)
+        recorded on the ``os: alpine`` os_matrix member for (version,
+        distribution). These are resolved from the published APKINDEX by the
+        alpine-sync workflow and are the only Alpine facts that are NOT
+        derivable locally (tree, pin tag, and repo URL derive from the Alpine
+        version). Absent entry -> empty dict (config generates with the
+        derivable fields only; validate-generation flags a missing apk_version).
+        """
+        builds_file = self._resolve_supported_builds_file()
+        if not builds_file:
+            return {}
+        try:
+            with open(builds_file, 'r') as f:
+                data = yaml.safe_load(f)
+        except (FileNotFoundError, OSError):
+            return {}
+
+        for build in (data or {}).get("latest_builds", []):
+            if build.get("version") != version:
+                continue
+            for member in build.get("os_matrix", []) or []:
+                if member.get("os") == "alpine" and str(member.get("distribution")) == str(distribution):
+                    facts: Dict[str, Any] = {}
+                    if member.get("apk_version"):
+                        facts["apk_version"] = member["apk_version"]
+                    if member.get("apk_packages"):
+                        facts["apk_packages"] = member["apk_packages"]
+                    if member.get("architectures"):
+                        facts["architectures"] = member["architectures"]
+                    return facts
+        return {}
+
+    def _resolve_alpine_config(self, version: str, distribution: str,
+                              distribution_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Assemble the ``alpine`` config block consumed by the apk Dockerfile.
+
+        Merges the Cloudsmith constants from alpine.yml with the tree/pin/repo
+        URL derived from the Alpine version and the exact apk pin looked up from
+        the matrix.
+        """
+        tree = alpine_tree(distribution)
+        facts = self._lookup_alpine_facts(version, distribution)
+        block = {
+            "tree": tree,
+            "repo_url": f"{distribution_config['apk_repo_base']}/{tree}/main",
+            "pin_tag": alpine_pin_tag(distribution_config["apk_pin_tag"], distribution),
+            "signing_key_file": distribution_config["signing_key_file"],
+            "signing_key_dest": distribution_config["signing_key_dest"],
+            "runtime_packages": distribution_config.get("runtime_packages", []),
+            "apk_packages": facts.get("apk_packages", []),
+        }
+        if facts.get("apk_version"):
+            block["apk_version"] = facts["apk_version"]
+        return block
+
     def _apply_version_overrides(self, config: Dict[str, Any], version: str) -> Dict[str, Any]:
         """Apply version-specific overrides to configuration"""
         import re
+
+        # Alpine builds carry no compile config to override (no menuselect,
+        # opus blob, or chan_sip/chan_websocket toggles - the apk is prebuilt).
+        if config.get("base", {}).get("os") == "alpine":
+            return config
 
         # Parse version to determine major version
         if version == 'git' or version.startswith('git-'):
@@ -377,7 +501,8 @@ class DRYTemplateGenerator:
 
         return config
 
-    def generate_config(self, version: str, distribution: str = None, variant: str = None) -> Dict[str, Any]:
+    def generate_config(self, version: str, distribution: str = None, variant: str = None,
+                        os_name: str = "debian") -> Dict[str, Any]:
         """Generate complete configuration using DRY template system"""
 
         # Auto-detect distribution and variant if not provided
@@ -386,10 +511,10 @@ class DRYTemplateGenerator:
         if variant is None:
             variant = self._determine_variant(version)
 
-        print(f"Generating config for {version} (distribution: {distribution}, variant: {variant})")
+        print(f"Generating config for {version} (os: {os_name}, distribution: {distribution}, variant: {variant})")
 
         # Load configurations
-        distribution_config = self._load_distribution_config(distribution)
+        distribution_config = self._load_distribution_config(distribution, os_name)
         variant_config = self._load_variant_template(variant)
 
         # Create context
@@ -399,25 +524,30 @@ class DRYTemplateGenerator:
             variant=variant,
             base_packages=self.base_packages,
             distribution_config=distribution_config,
-            variant_config=variant_config
+            variant_config=variant_config,
+            os_name=os_name
         )
 
-        # Build final configuration
+        # Build final configuration. Alpine installs prebuilt apks, so it has no
+        # build script (no build.sh); it is a single-FROM image (build.type
+        # satisfies the schema and reflects the single-stage Dockerfile).
         config = {
             "version": version,
             "base": self._resolve_base_config(context),
             "packages": self._resolve_packages(context),
             "asterisk": self._resolve_asterisk_config(context),
             "docker": self._resolve_docker_config(context),
-            "build": self.base_template.get("build", {})
+            "build": {"type": "single-stage"} if os_name == "alpine" else self.base_template.get("build", {})
         }
 
         # Add EOL setup if needed
         if distribution_config.get("eol"):
             config["packages"]["eol_setup"] = distribution_config.get("eol_setup", [])
 
-        # Add features if defined
-        if "features" in variant_config:
+        # Add features if defined. These are compile/build toggles (pjsip, hep,
+        # websockets, ...) that the Alpine apk resolves at package-build time, so
+        # they are irrelevant to an apk-installed image.
+        if "features" in variant_config and os_name != "alpine":
             config["features"] = variant_config["features"]
 
         # Substitute variables
@@ -425,6 +555,11 @@ class DRYTemplateGenerator:
 
         # Apply version-specific overrides
         config = self._apply_version_overrides(config, version)
+
+        # Alpine: attach the apk consumption block (repo URL, pin, key, exact
+        # version pin, subpackages) that the alpine-apk Dockerfile renders.
+        if os_name == "alpine":
+            config["alpine"] = self._resolve_alpine_config(version, distribution, distribution_config)
 
         return config
 
@@ -437,10 +572,11 @@ class DRYTemplateGenerator:
         with open(output_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    def generate_and_save_config(self, version: str, distribution: str, output_path: str) -> bool:
+    def generate_and_save_config(self, version: str, distribution: str, output_path: str,
+                                 os_name: str = "debian") -> bool:
         """Generate and save configuration in one step"""
         try:
-            config = self.generate_config(version, distribution)
+            config = self.generate_config(version, distribution, os_name=os_name)
             self.save_config(config, output_path)
             return True
         except Exception as e:
@@ -460,6 +596,7 @@ class DRYTemplateGenerator:
 
             for matrix_entry in os_matrix:
                 distribution = matrix_entry["distribution"]
+                os_name = matrix_entry.get("os", "debian")
 
                 # Use custom template mapping if specified
                 variant = None
@@ -473,9 +610,9 @@ class DRYTemplateGenerator:
                         variant = "asterisk-11"
 
                 try:
-                    config = self.generate_config(version, distribution, variant)
+                    config = self.generate_config(version, distribution, variant, os_name=os_name)
 
-                    output_file = f"{output_dir}/asterisk-{version}-{distribution}.yml"
+                    output_file = f"{output_dir}/asterisk-{version}-{build_slug(os_name, distribution)}.yml"
                     self.save_config(config, output_file)
 
                     print(f"✅ Generated: {output_file}")

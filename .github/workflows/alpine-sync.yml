@@ -1,0 +1,176 @@
+name: Sync Alpine apk Index
+
+# Mirrors the sibling's live Cloudsmith apk index into os: alpine os_matrix
+# members and opens/refreshes a single consolidated "alpine-sync" PR. The pure
+# resolver (lib/alpine_sync.py) is unit-tested; this workflow is the I/O + PR
+# machinery around scripts/alpine-sync.py.
+#
+# EVENT TRIGGER (repository_dispatch): the sibling repo andrius/asterisk-alpine
+# can POST a repository_dispatch of type "alpine-published" here right after a
+# successful Cloudsmith push, so a new apk lands in a PR within minutes instead
+# of waiting for the daily cron. That needs a SIBLING-SIDE change: a step in the
+# sibling's publish workflow that calls the GitHub API with a cross-repo PAT
+# (scope: repository_dispatch / contents on this repo), stored as a secret in
+# the sibling. The daily cron below is the always-on fallback and needs nothing
+# from the sibling. See plans/003-alpine-apk-images.md section 7.
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+
+  repository_dispatch:
+    types: [alpine-published]
+
+  push:
+    paths:
+      - .github/workflows/alpine-sync.yml
+      - scripts/alpine-sync.py
+      - lib/alpine_sync.py
+      - templates/distributions/alpine.yml
+
+  schedule:
+    # Daily at 22:00 UTC - after discover-releases (20:00) so a same-day new
+    # release is already in the matrix when the Alpine sync maps its label.
+    - cron: "0 22 * * *"
+
+jobs:
+  sync-alpine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: pip install --user -r requirements.txt
+
+      - name: Sync Alpine members from the live Cloudsmith index
+        run: |
+          # Probe every candidate tree/arch, resolve, upsert os: alpine members
+          # in place (Debian members untouched), emit the drift report.
+          python3 scripts/alpine-sync.py --report-file alpine-sync-report.md
+
+      - name: Regenerate Alpine configs + Dockerfiles (non-git members)
+        run: |
+          # build-asterisk.sh regenerates every os_matrix member of a version
+          # (Debian output is byte-identical - golden-verified - so only new
+          # Alpine artifacts show up in the diff). The git line is a daily-moving
+          # snapshot: like the Debian git image it is built on the fly by CI,
+          # never committed as a churning static dir, so it is skipped here.
+          ALPINE_VERSIONS=$(python3 - <<'PY'
+          import yaml
+          with open("asterisk/supported-asterisk-builds.yml") as f:
+              data = yaml.safe_load(f)
+          out = []
+          for b in data.get("latest_builds", []):
+              v = str(b.get("version", ""))
+              if v == "git" or v.startswith("git-"):
+                  continue
+              members = b.get("os_matrix") or []
+              if any((m or {}).get("os") == "alpine" for m in members):
+                  out.append(v)
+          print(" ".join(out))
+          PY
+          )
+
+          if [ -z "$ALPINE_VERSIONS" ]; then
+            echo "No non-git Alpine members to regenerate"
+            exit 0
+          fi
+
+          echo "Regenerating: $ALPINE_VERSIONS"
+          FAILED=()
+          for v in $ALPINE_VERSIONS; do
+            if ./scripts/build-asterisk.sh "$v" --force-config --dry-run; then
+              echo "  regenerated $v"
+            else
+              echo "  FAILED $v"
+              FAILED+=("$v")
+            fi
+          done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "Regeneration failed for: ${FAILED[*]}"
+            exit 1
+          fi
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain -- asterisk/supported-asterisk-builds.yml configs/generated asterisk)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Alpine matrix or artifacts changed"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No Alpine changes; index matches the matrix"
+          fi
+
+      - name: Open or refresh the alpine-sync PR
+        # Only ever open the PR from a main-context run (schedule / dispatch).
+        # The probe + regenerate + detect steps still run on any push touching
+        # this workflow's files (a useful smoke test), but a feature-branch push
+        # must never branch an alpine-sync PR off the feature ref.
+        if: steps.changes.outputs.changed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="alpine-sync"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Recreate the branch from the current main each run so it never
+          # accumulates stale commits; force-push updates an already-open PR in
+          # place (no close/reopen churn on the daily cron).
+          git checkout -B "$BRANCH"
+          git add asterisk/supported-asterisk-builds.yml configs/generated asterisk
+          git commit -m "chore(alpine): sync apk index into the build matrix
+
+          Auto-generated by ${{ github.workflow }} (run ${{ github.run_id }})."
+
+          git push --force origin "$BRANCH"
+
+          BODY_FILE=alpine-sync-report.md
+          [ -f "$BODY_FILE" ] || echo "Alpine sync." > "$BODY_FILE"
+
+          if gh pr list --head "$BRANCH" --state open --json number \
+               --jq '.[0].number' | grep -q '[0-9]'; then
+            PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+            echo "Refreshing existing PR #$PR"
+            gh pr edit "$PR" --body-file "$BODY_FILE"
+          else
+            gh pr create \
+              --title "Alpine apk sync" \
+              --body-file "$BODY_FILE" \
+              --base main \
+              --head "$BRANCH"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Alpine sync run" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+            echo "- Opened/refreshed the \`alpine-sync\` PR" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- No changes; index matches the matrix" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -1,0 +1,47 @@
+asterisk: {}
+base:
+  distribution: '3.24'
+  image: alpine:3.24
+  os: alpine
+build:
+  type: single-stage
+docker:
+  expose_ports:
+  - 5060/udp
+  - 5060/tcp
+  - 10000-20000/udp
+  registry: docker.io
+  repository: asterisk
+  tags:
+  - 1.6.2.24_alpine-3.24
+  - 1.6.2.24_alpine-3.24-amd64
+  volumes:
+  - /var/lib/asterisk/sounds
+  - /var/lib/asterisk/keys
+  - /var/lib/asterisk/phoneprov
+  - /var/spool/asterisk
+  - /var/log/asterisk
+  - /etc/asterisk
+packages:
+  build: []
+  runtime: []
+version: 1.6.2.24
+alpine:
+  tree: v3.24
+  repo_url: https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main
+  pin_tag: andrius-asterisk
+  signing_key_file: cloudsmith-asterisk-alpine.rsa.pub
+  signing_key_dest: /etc/apk/keys/alpine@asterisk-25B0C9A992BE0CEF.rsa.pub
+  runtime_packages:
+  - bash
+  - shadow
+  - gettext
+  - procps
+  - ca-certificates
+  - curl
+  - tzdata
+  apk_packages:
+  - fax
+  - odbc
+  - tds
+  apk_version: 1.6.2.24-r0

@@ -341,8 +341,12 @@ class DockerfileGenerator:
 
         # Determine template to use
         if not template_name:
+            # Alpine installs prebuilt apks - a dedicated single-FROM template
+            # with no build stage.
+            if config.get("base", {}).get("os") == "alpine":
+                template_name = "alpine-apk.dockerfile.j2"
             # Check if this is a git build
-            if (config.get("asterisk", {}).get("source_type") == "git" or
+            elif (config.get("asterisk", {}).get("source_type") == "git" or
                 config.get("variant") == "git-dev" or
                 config.get("version", "").startswith("git-")):
                 template_name = "git-dev.dockerfile.j2"
@@ -411,6 +415,11 @@ class DockerfileGenerator:
     def generate_build_script(self, config_path: str, output_path: str = None) -> str:
         """Generate build script from configuration"""
         config = self.load_config(config_path)
+
+        # Alpine images install prebuilt apks - there is no build.sh to generate.
+        if config.get("base", {}).get("os") == "alpine":
+            return None
+
         context = self.prepare_build_context(config)
 
         # Check configuration to determine appropriate build script template

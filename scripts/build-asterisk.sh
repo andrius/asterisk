@@ -501,6 +501,17 @@ for target in "${BUILD_TARGETS[@]}"; do
     log INFO "  → $os/$distribution ($architectures)$template_info$tags_info [from: $source]"
 done
 
+# Directory/config key for an (os, distribution) pair. Mirrors
+# lib/template_generator.build_slug: Debian keeps the bare distribution name
+# (trixie), Alpine namespaces the version (alpine-3.24, alpine-edge).
+build_slug() {
+    if [[ "$1" == "alpine" ]]; then
+        echo "alpine-$2"
+    else
+        echo "$2"
+    fi
+}
+
 # Function to ensure generated config exists
 ensure_config() {
     local version="$1"
@@ -593,7 +604,7 @@ print('Git config generated successfully')
     if [[ "$version" =~ ^git- ]]; then
         local generated_config="${PROJECT_DIR}/configs/generated/asterisk-git-master-${distribution}.yml"
     else
-        local generated_config="${PROJECT_DIR}/configs/generated/asterisk-${version}-${distribution}.yml"
+        local generated_config="${PROJECT_DIR}/configs/generated/asterisk-${version}-$(build_slug "$os" "$distribution").yml"
     fi
 
     log DEBUG "Checking for generated config: $generated_config" >&2
@@ -825,7 +836,7 @@ generate_dockerfile() {
     if [[ "$version" =~ ^git- ]]; then
         local version_tag="git-master-${distribution}"
     else
-        local version_tag="${version}-${distribution}"
+        local version_tag="${version}-$(build_slug "$os" "$distribution")"
     fi
     local build_dir="${PROJECT_DIR}/asterisk/${version_tag}"
     local dockerfile_path="${build_dir}/Dockerfile"
@@ -856,23 +867,33 @@ generate_dockerfile() {
         return 1
     fi
 
-    # Generate build.sh from template
-    local buildsh_path="${build_dir}/build.sh"
-    log DEBUG "Generating build.sh script for: $version_tag" >&2
-    if ! python3 -c "
+    if [[ "$os" == "alpine" ]]; then
+        # Alpine installs prebuilt apks: no build.sh. Instead stage the vendored
+        # Cloudsmith signing key that the alpine-apk Dockerfile COPYs.
+        rm -f "${build_dir}/build.sh"  # drop any stale build.sh from a prior run
+        if ! cp "${PROJECT_DIR}/templates/partials/keys/cloudsmith-asterisk-alpine.rsa.pub" "${build_dir}/"; then
+            log ERROR "Failed to stage Alpine signing key into $build_dir" >&2
+            return 1
+        fi
+    else
+        # Generate build.sh from template
+        local buildsh_path="${build_dir}/build.sh"
+        log DEBUG "Generating build.sh script for: $version_tag" >&2
+        if ! python3 -c "
 import sys
 sys.path.insert(0, '${PROJECT_DIR}/lib')
 from dockerfile_generator import DockerfileGenerator
 generator = DockerfileGenerator('${PROJECT_DIR}/templates')
 generator.generate_build_script('$config_file', '$buildsh_path')
 " 2>&1; then
-        log ERROR "Failed to generate build.sh from $config_file" >&2
-        return 1
-    fi
+            log ERROR "Failed to generate build.sh from $config_file" >&2
+            return 1
+        fi
 
-    if [[ ! -f "$buildsh_path" ]]; then
-        log ERROR "build.sh was not created: $buildsh_path" >&2
-        return 1
+        if [[ ! -f "$buildsh_path" ]]; then
+            log ERROR "build.sh was not created: $buildsh_path" >&2
+            return 1
+        fi
     fi
 
     # Generate healthcheck.sh from template
@@ -880,14 +901,17 @@ generator.generate_build_script('$config_file', '$buildsh_path')
         return 1
     fi
 
-    # Generate entrypoint.sh for v10+ (PUID/PGID volume permission handling)
+    # Generate entrypoint.sh for v10+ (PUID/PGID volume permission handling).
+    # Alpine images always stage it: the apk Dockerfile is one uniform template
+    # that COPYs entrypoint.sh regardless of the Asterisk version, and the
+    # PUID/PGID remap is container-runtime UX, not a version concern.
     local entrypoint_major
     if [[ "$version" =~ ^git ]]; then
         entrypoint_major=99
     else
         entrypoint_major=$(echo "$version" | cut -d'.' -f1)
     fi
-    if [[ "$entrypoint_major" -ge 10 ]]; then
+    if [[ "$entrypoint_major" -ge 10 ]] || [[ "$os" == "alpine" ]]; then
         local entrypoint_path="${build_dir}/entrypoint.sh"
         log DEBUG "Generating entrypoint.sh for: $version_tag (major=$entrypoint_major)" >&2
         if ! sed "s/{{ config\.version }}/${version}/g" \

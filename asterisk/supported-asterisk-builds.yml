@@ -19,6 +19,15 @@ latest_builds:
           - "arm64"
         additional_tags: "experimental-git"
 
+      - os: "alpine"
+        distribution: "edge"
+        alpine_tree: "edge"
+        alpine_role: "edge"
+        apk_version: "24.0.0_git20260716-r0"
+        apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
   - version: "1.2.40"
     additional_tags: "1.2"
     os_matrix:
@@ -50,6 +59,14 @@ latest_builds:
         architectures:
           - "amd64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "1.6.2.24-r0"
+        apk_packages: ["fax", "odbc", "tds"]
+        architectures:
+          - "amd64"
     tarball_sha256: "5f5b28f7644eeef6ecf778b4cdbbfe89ef70d482943af9b2e588823bd8ef0e54"
     addons_sha256: "0898696af8097b6cbd46d4b3d63b7838138f947c9bf08d34e4ef4411bf2211a6"
   - version: "1.8.32.3"
@@ -61,6 +78,14 @@ latest_builds:
         architectures:
           - "amd64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "1.8.32.3-r0"
+        apk_packages: ["fax", "odbc", "tds"]
+        architectures:
+          - "amd64"
     tarball_sha256: "3c12ddbb86e2b901af449bd5a3ac7bbc55a28664159d0c4fb70f89d761d8bf9e"
   - version: "10.12.4"
     additional_tags: "10"
@@ -431,6 +456,15 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "20.20.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "20"
     tarball_sha256: "32ef7db8e449629128eb5f7e42d3d704f03daacb91d76ee694a9acf7f1fd53e2"
   - version: "20.7-cert11"
@@ -461,6 +495,24 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "22.10.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
+      - os: "alpine"
+        distribution: "edge"
+        alpine_tree: "edge"
+        alpine_role: "edge"
+        apk_version: "22.10.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "latest,stable,22"
     tarball_sha256: "0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353"
   - version: "22.8-cert3"
@@ -471,6 +523,15 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "22.8.0.3-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "22-cert"
     tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
   - version: "23.4.1"
@@ -488,6 +549,24 @@ latest_builds:
           - "arm64"
         additional_tags: "experimental"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "23.4.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
+      - os: "alpine"
+        distribution: "edge"
+        alpine_tree: "edge"
+        alpine_role: "edge"
+        apk_version: "23.4.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "23"
     tarball_sha256: "9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51"
 metadata:

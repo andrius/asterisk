@@ -1,0 +1,87 @@
+# Alpine Asterisk image - installs prebuilt, signed apks from the sibling
+# project's Cloudsmith repository (andrius/asterisk-alpine). There is no build
+# stage: the .apk already contains the compiled, module-selected Asterisk.
+# Generated from YAML configuration - DO NOT EDIT MANUALLY
+{% set alpine = config.alpine -%}
+{% set docker_config = config.docker -%}
+{% set user_config = docker_config.user | default({}) -%}
+{% set user_name = user_config.name | default("asterisk") -%}
+{% set uid = user_config.uid | default(1000) -%}
+{% set user_home = "/home/" ~ user_name -%}
+FROM {{ base_image }}
+
+LABEL maintainer="{{ maintainer }}"
+LABEL org.opencontainers.image.title="Asterisk PBX"
+LABEL org.opencontainers.image.description="Asterisk PBX {{ version }} on Alpine (apk)"
+LABEL org.opencontainers.image.version="{{ version }}"
+LABEL org.opencontainers.image.source="https://github.com/andrius/asterisk"
+LABEL org.opencontainers.image.vendor="{{ maintainer }}"
+
+# Trust the Cloudsmith repository signing key (vendored; copied into the build
+# context alongside this Dockerfile).
+COPY {{ alpine.signing_key_file }} {{ alpine.signing_key_dest }}
+
+# Add the pinned apk repository and install Asterisk + the selected subpackages
+# at an exact version, plus the runtime tools the entrypoint/healthcheck need.
+# The @{{ alpine.pin_tag }} tag keeps these from clashing with Alpine's own
+# asterisk in the main repo; the exact "=version-rN" pin makes rebuilds
+# reproducible (or fail loudly if the apk was pruned).
+RUN echo "@{{ alpine.pin_tag }} {{ alpine.repo_url }}" >> /etc/apk/repositories \
+ && apk add --no-cache \
+      "asterisk@{{ alpine.pin_tag }}={{ alpine.apk_version }}" \
+      "asterisk-sample-config@{{ alpine.pin_tag }}={{ alpine.apk_version }}" \
+{% for p in alpine.apk_packages %}      "asterisk-{{ p }}@{{ alpine.pin_tag }}={{ alpine.apk_version }}" \
+{% endfor %}{% for rp in alpine.runtime_packages %}      {{ rp }} \
+{% endfor %} && asterisk -V
+
+# The asterisk apk creates the asterisk user (uid 100, home /var/lib/asterisk).
+# Normalize it to the Debian image's identity (uid/gid {{ uid }}, home
+# {{ user_home }}, bash shell) so both image families behave identically and
+# cloud/orchestration setups see a consistent uid. The entrypoint's PUID/PGID
+# remap then no-ops on the default, exactly as on Debian.
+RUN groupmod -g {{ uid }} {{ user_name }} \
+ && usermod -u {{ uid }} -g {{ uid }} -d {{ user_home }} -s /bin/bash {{ user_name }} \
+ && mkdir -p \
+      {{ user_home }} \
+      /var/run/asterisk \
+      /var/log/asterisk \
+      /var/spool/asterisk/monitor \
+      /var/spool/asterisk/outgoing \
+      /var/spool/asterisk/tmp \
+      /var/spool/asterisk/voicemail \
+      /var/spool/asterisk/fax \
+      /var/lib/asterisk/keys \
+      /var/lib/asterisk/phoneprov \
+      /var/lib/asterisk/sounds \
+      /var/lib/asterisk/docs
+
+# Healthcheck + entrypoint (the shared bash partials; bash + shadow are
+# installed above so usermod/groupmod PUID/PGID remap works unchanged).
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh /usr/local/bin/entrypoint.sh \
+ && chown -R {{ user_name }}:{{ user_name }} \
+      /etc/asterisk \
+      {{ user_home }} \
+      /var/lib/asterisk \
+      /var/log/asterisk \
+      /var/spool/asterisk \
+      /var/run/asterisk \
+ && chmod -R 750 /var/spool/asterisk
+
+# Networking (documented; publish explicitly at run time).
+{% for port in docker_config.expose_ports | default(["5060/udp", "5060/tcp", "10000-20000/udp"]) -%}
+# EXPOSE {{ port }}
+{% endfor %}
+{% if docker_config.volumes -%}
+VOLUME [{% for volume in docker_config.volumes %}"{{ volume }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh
+
+# Entrypoint runs as root, remaps the asterisk uid/gid to PUID/PGID, then execs
+# CMD. Asterisk drops privileges itself via the -U/-p flags below.
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+WORKDIR {{ user_home }}
+CMD ["/usr/sbin/asterisk", "-vvvdddf", "-T", "-W", "-U", "{{ user_name }}", "-p"]
