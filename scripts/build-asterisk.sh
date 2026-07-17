@@ -297,6 +297,9 @@ import yaml
 import sys
 import os
 
+sys.path.insert(0, '${PROJECT_DIR}/lib')
+from alpine_tags import alpine_tags  # Alpine legs publish the tag lattice, not the version-level tags
+
 def log_info(msg):
     print(f"\033[0;34m[INFO]\033[0m  {msg}", file=sys.stderr)
 
@@ -375,6 +378,11 @@ try:
     additional_tags = version_data.get('additional_tags', '')
     log_debug(f"Additional tags for version $version: {additional_tags}")
 
+    # The version-level 'latest' tag marks the LTS latest-owner; the Alpine
+    # lattice mirrors it as the 'alpine'/'stable-alpine' aliases. Computed once
+    # here (version level), never per-member (mirrors generate-build-matrix).
+    owns_latest = 'latest' in additional_tags
+
     # Handle different os_matrix formats (list or single entry)
     if isinstance(os_matrix, list):
         matrix_list = os_matrix
@@ -404,12 +412,27 @@ try:
 
         # Only add build entry if we have architectures after filtering
         if filtered_architectures:
+            # Debian members keep the version-level tags (unchanged). Alpine
+            # members REPLACE them with the computed tag lattice - an inherited
+            # bare 'latest' would race the Debian image for that tag (mirrors
+            # .github/actions/generate-build-matrix, plan 003 section 6).
+            entry_tags = additional_tags
+            if os_name == 'alpine':
+                alpine_role = matrix_entry.get('alpine_role') or (
+                    'edge' if distribution == 'edge' else 'stable')
+                entry_tags = ','.join(alpine_tags(
+                    version="$version",
+                    apk_version=matrix_entry.get('apk_version', ''),
+                    alpine_version=distribution,
+                    alpine_role=alpine_role,
+                    owns_latest=owns_latest,
+                ))
             builds.append({
                 'os': os_name,
                 'distribution': distribution,
                 'architectures': filtered_architectures,  # Changed: now array of architectures
                 'template': template,  # Include template field
-                'additional_tags': additional_tags,  # Include additional_tags
+                'additional_tags': entry_tags,  # Alpine: lattice; Debian: version-level
                 'source': 'custom_matrix'
             })
 
