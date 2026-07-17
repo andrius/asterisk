@@ -34,6 +34,20 @@ def build_slug(os_name: str, distribution: str) -> str:
     return distribution
 
 
+def alpine_tree(distribution: str) -> str:
+    """Cloudsmith distribution segment for an Alpine version.
+
+    Numeric releases live under ``v<X.Y>`` (``3.24`` -> ``v3.24``); the rolling
+    ``edge`` tree keeps its bare name.
+    """
+    return distribution if distribution == "edge" else f"v{distribution}"
+
+
+def alpine_pin_tag(base_tag: str, distribution: str) -> str:
+    """apk repository pin tag; the edge tree is served under the ``-edge`` tag."""
+    return f"{base_tag}-edge" if distribution == "edge" else base_tag
+
+
 @dataclass
 class TemplateContext:
     """Context for template resolution"""
@@ -355,6 +369,64 @@ class DRYTemplateGenerator:
                 break
         return result
 
+    def _lookup_alpine_facts(self, version: str, distribution: str) -> Dict[str, Any]:
+        """Look up the apk pin + subpackages for an Alpine build from the matrix.
+
+        Returns the ``apk_version`` / ``apk_packages`` (and ``architectures``)
+        recorded on the ``os: alpine`` os_matrix member for (version,
+        distribution). These are resolved from the published APKINDEX by the
+        alpine-sync workflow and are the only Alpine facts that are NOT
+        derivable locally (tree, pin tag, and repo URL derive from the Alpine
+        version). Absent entry -> empty dict (config generates with the
+        derivable fields only; validate-generation flags a missing apk_version).
+        """
+        builds_file = self._resolve_supported_builds_file()
+        if not builds_file:
+            return {}
+        try:
+            with open(builds_file, 'r') as f:
+                data = yaml.safe_load(f)
+        except (FileNotFoundError, OSError):
+            return {}
+
+        for build in (data or {}).get("latest_builds", []):
+            if build.get("version") != version:
+                continue
+            for member in build.get("os_matrix", []) or []:
+                if member.get("os") == "alpine" and str(member.get("distribution")) == str(distribution):
+                    facts: Dict[str, Any] = {}
+                    if member.get("apk_version"):
+                        facts["apk_version"] = member["apk_version"]
+                    if member.get("apk_packages"):
+                        facts["apk_packages"] = member["apk_packages"]
+                    if member.get("architectures"):
+                        facts["architectures"] = member["architectures"]
+                    return facts
+        return {}
+
+    def _resolve_alpine_config(self, version: str, distribution: str,
+                              distribution_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Assemble the ``alpine`` config block consumed by the apk Dockerfile.
+
+        Merges the Cloudsmith constants from alpine.yml with the tree/pin/repo
+        URL derived from the Alpine version and the exact apk pin looked up from
+        the matrix.
+        """
+        tree = alpine_tree(distribution)
+        facts = self._lookup_alpine_facts(version, distribution)
+        block = {
+            "tree": tree,
+            "repo_url": f"{distribution_config['apk_repo_base']}/{tree}/main",
+            "pin_tag": alpine_pin_tag(distribution_config["apk_pin_tag"], distribution),
+            "signing_key_file": distribution_config["signing_key_file"],
+            "signing_key_dest": distribution_config["signing_key_dest"],
+            "runtime_packages": distribution_config.get("runtime_packages", []),
+            "apk_packages": facts.get("apk_packages", []),
+        }
+        if facts.get("apk_version"):
+            block["apk_version"] = facts["apk_version"]
+        return block
+
     def _apply_version_overrides(self, config: Dict[str, Any], version: str) -> Dict[str, Any]:
         """Apply version-specific overrides to configuration"""
         import re
@@ -456,15 +528,16 @@ class DRYTemplateGenerator:
             os_name=os_name
         )
 
-        # Build final configuration. Alpine carries no build script (it installs
-        # prebuilt apks, there is no build.sh), so its build block is empty.
+        # Build final configuration. Alpine installs prebuilt apks, so it has no
+        # build script (no build.sh); it is a single-FROM image (build.type
+        # satisfies the schema and reflects the single-stage Dockerfile).
         config = {
             "version": version,
             "base": self._resolve_base_config(context),
             "packages": self._resolve_packages(context),
             "asterisk": self._resolve_asterisk_config(context),
             "docker": self._resolve_docker_config(context),
-            "build": {} if os_name == "alpine" else self.base_template.get("build", {})
+            "build": {"type": "single-stage"} if os_name == "alpine" else self.base_template.get("build", {})
         }
 
         # Add EOL setup if needed
@@ -482,6 +555,11 @@ class DRYTemplateGenerator:
 
         # Apply version-specific overrides
         config = self._apply_version_overrides(config, version)
+
+        # Alpine: attach the apk consumption block (repo URL, pin, key, exact
+        # version pin, subpackages) that the alpine-apk Dockerfile renders.
+        if os_name == "alpine":
+            config["alpine"] = self._resolve_alpine_config(version, distribution, distribution_config)
 
         return config
 

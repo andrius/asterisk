@@ -85,7 +85,9 @@ class TestAlpineConfigIsLean:
 
     def test_no_build_script_and_no_features(self):
         cfg = self._alpine_cfg()
-        assert cfg["build"] == {}
+        # Single-stage, but with no build.sh (no build script generated).
+        assert "script" not in cfg["build"]
+        assert cfg["build"].get("type") == "single-stage"
         assert "features" not in cfg
 
     def test_docker_tags_use_alpine_not_debian(self):
