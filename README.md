@@ -164,6 +164,45 @@ latest_builds:
 
 When building, both version-specific tags (`22.10.1_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
 
+## Alpine Images
+
+Alongside the Debian images, an **Alpine (musl) image family** is published. These are much smaller (~70 MB vs ~230 MB) and, unlike the Debian images, are **not compiled here** - they install prebuilt, signed Asterisk `apk` packages from the sibling project [`andrius/asterisk-alpine`](https://github.com/andrius/asterisk-alpine)'s public Cloudsmith repository. Whatever that project publishes gets an image, for whatever Asterisk versions, Alpine releases, and architectures it publishes it on (open-source Opus is available on arm64 too, unlike Debian's amd64-only Digium blob).
+
+```bash
+# Newest LTS Asterisk on the current stable Alpine
+docker run --rm andrius/asterisk:alpine asterisk -V
+
+# A line, or an exact version, on the stable Alpine tree
+docker run --rm andrius/asterisk:22-alpine asterisk -V
+docker run --rm andrius/asterisk:22-cert-alpine asterisk -V
+
+# Fully pinned (immutable) - exact Asterisk + exact Alpine, for reproducible deploys
+docker run --rm andrius/asterisk:22.10.1-alpine-3.24 asterisk -V
+```
+
+The Alpine images share the same runtime UX as Debian: the PUID/PGID entrypoint, the healthcheck, the `-U asterisk` privilege drop, and `ASTERISK_TERMINAL_OPTS` all behave identically (`bash`, `shadow`, and `procps` are installed for parity). The in-container `asterisk` user is normalized to uid/gid `1000` with home `/home/asterisk`, matching the Debian image.
+
+### Alpine tag lattice
+
+Alpine tags cross two axes: the **Asterisk identity** (the `{line}` token like `22` or `22-cert`, and the full `{version}` like `22.10.1` or `22.8-cert3`) and the **Alpine identity** (implicit, minted only for the current stable Alpine tree, or explicit `-{alpine}` like `-3.24` / `-edge`). Gating the implicit tags to the stable tree is what lets `edge` coexist without stealing the generic tags.
+
+| Tag pattern | Example | Meaning |
+| ----------- | ------- | ------- |
+| `alpine` | `alpine` | Newest LTS Asterisk on the current stable Alpine (the Alpine twin of `latest`) |
+| `stable-alpine` | `stable-alpine` | Alias for `alpine` |
+| `{line}-alpine` | `22-alpine`, `22-cert-alpine` | Newest release of that line on the **stable** Alpine tree |
+| `{version}-alpine` | `22.10.1-alpine`, `22.8-cert3-alpine` | That exact Asterisk version on the stable Alpine tree |
+| `{line}-alpine-{alpine}` | `22-alpine-3.24`, `22-alpine-edge` | That line pinned to a specific Alpine release |
+| `{version}-alpine-{alpine}` | `22.10.1-alpine-3.24` | Fully pinned: exact Asterisk + exact Alpine (immutable) |
+| `stable-alpine-{alpine}` | `stable-alpine-3.24` | The LTS latest-owner pinned to a specific Alpine release |
+| `git-alpine` / `testing-alpine` / `dev-alpine` | | Asterisk git master on Alpine `edge` (bleeding edge) |
+
+The `{version}_{os}-{distribution}` underscore twin (`22.10.1_alpine-3.24`) is published for every Alpine leg too, matching the Debian convention. Explicit `-{alpine}` tags are always minted; the unsuffixed twins (`22-alpine`, `alpine`) ride only the current stable Alpine tree, so when a new Alpine stable is released the generic tags follow it automatically and the previous one keeps its `-{alpine}`-suffixed tags.
+
+### How Alpine versions stay current
+
+A daily `alpine-sync` workflow probes the Cloudsmith index and opens a consolidated PR that mirrors the live picture into the build matrix: the exact `apk` pin per line, the subpackages that line actually ships, and the architectures it is built on. When the sibling publishes a new Asterisk `apk` or bumps the Alpine base, the change lands in a sync PR (and the sibling can push it in near-real-time via a repository dispatch). A new Asterisk release therefore ships on Debian on day 0 and on Alpine once the sibling publishes the `apk`; the lag is visible in the sync PR, never silent, and the last-good Alpine image keeps rebuilding meanwhile.
+
 ## Volume Permissions (PUID / PGID)
 
 Bind-mounted host directories often have a UID/GID different from the in-container `asterisk` user (default `1000:1000`), which prevents Asterisk from writing to them. Images for Asterisk **10.x and newer** (including `git`) ship an entrypoint that adapts the in-container `asterisk` user to whatever UID/GID you supply via `PUID` / `PGID` environment variables and chowns the runtime directories before Asterisk starts.
