@@ -6,7 +6,8 @@
 {% set docker_config = config.docker -%}
 {% set user_config = docker_config.user | default({}) -%}
 {% set user_name = user_config.name | default("asterisk") -%}
-{% set user_home = "/var/lib/" ~ user_name -%}
+{% set uid = user_config.uid | default(1000) -%}
+{% set user_home = "/home/" ~ user_name -%}
 FROM {{ base_image }}
 
 LABEL maintainer="{{ maintainer }}"
@@ -33,10 +34,15 @@ RUN echo "@{{ alpine.pin_tag }} {{ alpine.repo_url }}" >> /etc/apk/repositories 
 {% endfor %}{% for rp in alpine.runtime_packages %}      {{ rp }} \
 {% endfor %} && asterisk -V
 
-# The asterisk apk already creates the asterisk user/group (uid 100 by default);
-# just ensure the runtime directories exist (idempotent). The entrypoint remaps
-# uid/gid to PUID/PGID at container start, exactly as on the Debian image.
-RUN mkdir -p \
+# The asterisk apk creates the asterisk user (uid 100, home /var/lib/asterisk).
+# Normalize it to the Debian image's identity (uid/gid {{ uid }}, home
+# {{ user_home }}, bash shell) so both image families behave identically and
+# cloud/orchestration setups see a consistent uid. The entrypoint's PUID/PGID
+# remap then no-ops on the default, exactly as on Debian.
+RUN groupmod -g {{ uid }} {{ user_name }} \
+ && usermod -u {{ uid }} -g {{ uid }} -d {{ user_home }} -s /bin/bash {{ user_name }} \
+ && mkdir -p \
+      {{ user_home }} \
       /var/run/asterisk \
       /var/log/asterisk \
       /var/spool/asterisk/monitor \
@@ -56,6 +62,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh /usr/local/bin/entrypoint.sh \
  && chown -R {{ user_name }}:{{ user_name }} \
       /etc/asterisk \
+      {{ user_home }} \
       /var/lib/asterisk \
       /var/log/asterisk \
       /var/spool/asterisk \
