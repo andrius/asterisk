@@ -23,9 +23,14 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt
       - name: Stamp deprecated_at on pending versions
+        id: finalize
         run: |
-          python3 scripts/apply-tag-lifecycle.py --phase finalize
+          OUT=$(python3 scripts/apply-tag-lifecycle.py --phase finalize)
+          echo "$OUT"
           python3 scripts/update-readme-versions.py
+          # The script reports what it stamped as: finalized: ['21.12.2', '20.7-cert8']
+          DEPRECATED=$(echo "$OUT" | sed -n "s/^finalized: \[\(.*\)\]$/\1/p" | tr -d "'" | tr ',' ' ' | xargs)
+          echo "deprecated=$DEPRECATED" >> "$GITHUB_OUTPUT"
       - name: Commit if changed
         run: |
           if [ -n "$(git status --porcelain)" ]; then
@@ -38,3 +43,36 @@ jobs:
           else
             echo "Nothing pending to finalize."
           fi
+
+      # Mirror of the release-announce timeline hook (announce-releases.yml):
+      # deprecations stamped in this run become an entry on the
+      # andrius.mobi/asterisk timeline. Runs after the commit so an entry is
+      # only sent for finalized state; failure here is loud, recovery is the
+      # blog's manual workflow_dispatch (asterisk-updates.yml).
+      - name: Update andrius.mobi/asterisk timeline
+        if: steps.finalize.outputs.deprecated != ''
+        env:
+          BLOG_DISPATCH_TOKEN: ${{ secrets.BLOG_DISPATCH_TOKEN }}
+          DEPRECATED: ${{ steps.finalize.outputs.deprecated }}
+        run: |
+          if [ -z "$BLOG_DISPATCH_TOKEN" ]; then
+            echo "::notice::BLOG_DISPATCH_TOKEN not set - skipping timeline update"
+            exit 0
+          fi
+          VERSION_LIST=$(echo "$DEPRECATED" | sed 's/ /, /g; s/, \([^,]*\)$/ and \1/')
+          TITLE="Deprecated: Asterisk $VERSION_LIST Debian images"
+          PAYLOAD=$(jq -n --arg title "$TITLE" '{
+            event_type: "asterisk-update",
+            client_payload: {
+              title: $title,
+              url: "https://github.com/andrius/asterisk",
+              tags: "docker,deprecated"
+            }
+          }')
+          curl -sfS -X POST \
+            -H "Authorization: Bearer $BLOG_DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/andrius/blog/dispatches \
+            -d "$PAYLOAD"
+          echo "Timeline entry sent: $TITLE"
