@@ -124,7 +124,11 @@ jobs:
           fi
 
       - name: Open or refresh the alpine-sync PR
-        if: steps.changes.outputs.changed == 'true'
+        # Only ever open the PR from a main-context run (schedule / dispatch).
+        # The probe + regenerate + detect steps still run on any push touching
+        # this workflow's files (a useful smoke test), but a feature-branch push
+        # must never branch an alpine-sync PR off the feature ref.
+        if: steps.changes.outputs.changed == 'true' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
