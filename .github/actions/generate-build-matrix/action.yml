@@ -55,6 +55,9 @@ runs:
         import re
         import os
 
+        sys.path.insert(0, 'lib')
+        from alpine_tags import alpine_tags  # tag lattice for Alpine legs
+
         # Input parameters
         version_pattern = r'${{ inputs.version-pattern }}'
         batch_name = '${{ inputs.batch-name }}'
@@ -90,9 +93,11 @@ runs:
             if not version or 'os_matrix' not in build:
                 continue
 
-            # Skip deprecated versions (kept in YAML for history but not built)
-            if build.get('deprecated_at'):
-                continue
+            # Deprecated versions are normally not built, but their Alpine
+            # members survive: the Alpine image tracks the apk still published
+            # for that line until the sibling bumps it (deprecation-survival,
+            # plan 003). Debian members of a deprecated version stay skipped.
+            deprecated = bool(build.get('deprecated_at'))
 
             # Apply version filters
             if filter_version:
@@ -103,15 +108,18 @@ runs:
                 # Pattern match
                 continue
 
-            buildable_versions.append(version)
             os_matrix = build['os_matrix']
             default_tags = build.get('additional_tags', '')
+            # The version-level 'latest' tag marks the LTS latest-owner; the
+            # Alpine lattice mirrors it as the 'alpine'/'stable-alpine' aliases.
+            owns_latest = 'latest' in default_tags
 
             # Normalize os_matrix to list
             if isinstance(os_matrix, dict):
                 os_matrix = [os_matrix]
 
             # Process each matrix entry
+            emitted_any = False
             for matrix_entry in os_matrix:
                 os_name = matrix_entry.get('os', 'debian')
                 distribution = matrix_entry.get('distribution', 'trixie')
@@ -119,9 +127,27 @@ runs:
                 # Per-entry additional_tags overrides version-level default
                 entry_tags = matrix_entry.get('additional_tags', default_tags)
 
+                # Deprecated: keep only Alpine members (they track the live apk).
+                if deprecated and os_name != 'alpine':
+                    continue
+
                 # Apply distribution filter
                 if filter_distribution and distribution != filter_distribution:
                     continue
+
+                # Alpine members carry the computed tag lattice, REPLACING the
+                # inherited version-level tags - an inherited bare 'latest' would
+                # race the Debian image for that tag (plan 003 section 6).
+                if os_name == 'alpine':
+                    alpine_role = matrix_entry.get('alpine_role') or (
+                        'edge' if distribution == 'edge' else 'stable')
+                    entry_tags = ','.join(alpine_tags(
+                        version=version,
+                        apk_version=matrix_entry.get('apk_version', ''),
+                        alpine_version=distribution,
+                        alpine_role=alpine_role,
+                        owns_latest=owns_latest,
+                    ))
 
                 architectures_str = ','.join(architectures)
                 matrix_item = {
@@ -137,9 +163,13 @@ runs:
 
                 target_versions.append(matrix_item)
                 total_configs += 1
+                emitted_any = True
 
                 tags_info = f' +tags: {entry_tags}' if entry_tags else ''
                 print(f'  ✅ {version} {os_name}/{distribution} [{architectures_str}]{tags_info}', file=sys.stderr)
+
+            if emitted_any:
+                buildable_versions.append(version)
 
         if not target_versions:
             print(f'⚠️  No configurations found matching filters', file=sys.stderr)
