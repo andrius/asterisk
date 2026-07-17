@@ -59,3 +59,36 @@ class TestAlpineBaseResolution:
         cfg = self._gen().generate_config("22.10.1", "trixie")
         assert cfg["base"]["os"] == "debian"
         assert cfg["base"]["image"] == "debian:trixie"
+
+
+class TestAlpineConfigIsLean:
+    """Alpine installs prebuilt apks and compiles nothing, so its config must
+    not carry Debian package lists or any compile-time Asterisk config."""
+
+    def _alpine_cfg(self):
+        return DRYTemplateGenerator(TEMPLATES_DIR).generate_config(
+            "22.10.1", "3.24", os_name="alpine")
+
+    def test_no_compile_asterisk_block(self):
+        cfg = self._alpine_cfg()
+        assert cfg["asterisk"] == {}  # no menuselect / configure / source / addons
+
+    def test_no_menuselect_or_opus_codec(self):
+        cfg = self._alpine_cfg()
+        assert "menuselect" not in cfg["asterisk"]
+        assert "opus_codec" not in cfg["asterisk"]
+
+    def test_no_debian_packages(self):
+        cfg = self._alpine_cfg()
+        assert cfg["packages"]["build"] == []
+        assert cfg["packages"]["runtime"] == []
+
+    def test_no_build_script_and_no_features(self):
+        cfg = self._alpine_cfg()
+        assert cfg["build"] == {}
+        assert "features" not in cfg
+
+    def test_docker_tags_use_alpine_not_debian(self):
+        tags = self._alpine_cfg()["docker"]["tags"]
+        assert "22.10.1_alpine-3.24" in tags
+        assert not any("debian" in t for t in tags)

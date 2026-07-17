@@ -142,6 +142,13 @@ class DRYTemplateGenerator:
 
     def _resolve_packages(self, context: TemplateContext) -> Dict[str, List[str]]:
         """Resolve package lists using DRY architecture"""
+        # Alpine images install prebuilt apks and compile nothing, so they carry
+        # no Debian package lists. Their runtime dependencies come from
+        # alpine.yml (read by the Alpine Dockerfile template) plus the apk
+        # subpackages named in the os_matrix entry - never from common-packages.yml.
+        if context.os_name == "alpine":
+            return {"build": [], "runtime": []}
+
         packages = {
             "build": [],
             "runtime": []
@@ -186,6 +193,12 @@ class DRYTemplateGenerator:
 
     def _resolve_asterisk_config(self, context: TemplateContext) -> Dict[str, Any]:
         """Resolve Asterisk configuration with inheritance"""
+        # Alpine does not compile Asterisk: no menuselect, no configure options,
+        # no Digium Opus blob, no source tarball. The prebuilt apk already
+        # contains the selected modules, so the asterisk config block is empty.
+        if context.os_name == "alpine":
+            return {}
+
         # Start with base configuration
         asterisk_config = deepcopy(self.base_template.get("asterisk", {}))
 
@@ -277,6 +290,7 @@ class DRYTemplateGenerator:
         config_str = config_str.replace("{{VERSION}}", context.version)
         config_str = config_str.replace("{{DISTRIBUTION}}", context.distribution)
         config_str = config_str.replace("{{VARIANT}}", context.variant)
+        config_str = config_str.replace("{{OS}}", context.os_name)
 
         # Handle addons version for legacy versions
         if context.variant == "legacy-addons":
@@ -344,6 +358,11 @@ class DRYTemplateGenerator:
     def _apply_version_overrides(self, config: Dict[str, Any], version: str) -> Dict[str, Any]:
         """Apply version-specific overrides to configuration"""
         import re
+
+        # Alpine builds carry no compile config to override (no menuselect,
+        # opus blob, or chan_sip/chan_websocket toggles - the apk is prebuilt).
+        if config.get("base", {}).get("os") == "alpine":
+            return config
 
         # Parse version to determine major version
         if version == 'git' or version.startswith('git-'):
@@ -437,22 +456,25 @@ class DRYTemplateGenerator:
             os_name=os_name
         )
 
-        # Build final configuration
+        # Build final configuration. Alpine carries no build script (it installs
+        # prebuilt apks, there is no build.sh), so its build block is empty.
         config = {
             "version": version,
             "base": self._resolve_base_config(context),
             "packages": self._resolve_packages(context),
             "asterisk": self._resolve_asterisk_config(context),
             "docker": self._resolve_docker_config(context),
-            "build": self.base_template.get("build", {})
+            "build": {} if os_name == "alpine" else self.base_template.get("build", {})
         }
 
         # Add EOL setup if needed
         if distribution_config.get("eol"):
             config["packages"]["eol_setup"] = distribution_config.get("eol_setup", [])
 
-        # Add features if defined
-        if "features" in variant_config:
+        # Add features if defined. These are compile/build toggles (pjsip, hep,
+        # websockets, ...) that the Alpine apk resolves at package-build time, so
+        # they are irrelevant to an apk-installed image.
+        if "features" in variant_config and os_name != "alpine":
             config["features"] = variant_config["features"]
 
         # Substitute variables

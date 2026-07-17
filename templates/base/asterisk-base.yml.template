@@ -59,8 +59,8 @@ asterisk:
 
 docker:
   tags:
-    - "{{VERSION}}_debian-{{DISTRIBUTION}}"
-    - "{{VERSION}}_debian-{{DISTRIBUTION}}-amd64"
+    - "{{VERSION}}_{{OS}}-{{DISTRIBUTION}}"
+    - "{{VERSION}}_{{OS}}-{{DISTRIBUTION}}-amd64"
   registry: "docker.io"
   repository: "asterisk"
   expose_ports:
