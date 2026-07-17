@@ -31,6 +31,7 @@ jobs:
 
           errors = []
           SHA256 = re.compile(r"^[a-f0-9]{64}$")
+          APKVER = re.compile(r"^[0-9][0-9A-Za-z._]*-r[0-9]+$")
 
           with open('asterisk/supported-asterisk-builds.yml', 'r') as f:
               data = yaml.safe_load(f)
@@ -73,22 +74,44 @@ jobs:
                       errors.append(f"{version}: malformed addons_sha256 (expected 64 hex chars): {addons_sha!r}")
 
               for os_config in os_matrix:
+                  os_name = os_config.get('os', 'debian')
                   dist = os_config.get('distribution')
+                  # build_slug: Debian keeps the bare distribution name; Alpine
+                  # namespaces it (alpine-3.24, alpine-edge). See
+                  # lib/template_generator.build_slug.
+                  slug = f'alpine-{dist}' if os_name == 'alpine' else dist
 
                   # Check YAML config
-                  config_file = f'configs/generated/asterisk-{version}-{dist}.yml'
+                  config_file = f'configs/generated/asterisk-{version}-{slug}.yml'
                   if not os.path.exists(config_file):
                       errors.append(f"Missing config: {config_file}")
 
+                  # Alpine members install prebuilt apks - no compile, no
+                  # build.sh - and MUST carry an exact apk pin so a hand-added
+                  # member cannot ship an unpinned (git-snapshot) install.
+                  if os_name == 'alpine':
+                      required_files = ['Dockerfile', 'entrypoint.sh', 'healthcheck.sh',
+                                        'cloudsmith-asterisk-alpine.rsa.pub']
+                      apk_version = os_config.get('apk_version')
+                      if not apk_version:
+                          errors.append(f"{version} ({slug}): missing apk_version (required for Alpine members)")
+                      elif not APKVER.match(str(apk_version)):
+                          errors.append(f"{version} ({slug}): malformed apk_version (expected e.g. 22.10.1-r0): {apk_version!r}")
+                  else:
+                      required_files = ['Dockerfile', 'build.sh', 'healthcheck.sh']
+
                   # Check Dockerfile directory
-                  dockerfile_dir = f'asterisk/{version}-{dist}'
+                  dockerfile_dir = f'asterisk/{version}-{slug}'
                   if not os.path.isdir(dockerfile_dir):
                       errors.append(f"Missing directory: {dockerfile_dir}/")
                   else:
-                      for required_file in ['Dockerfile', 'build.sh', 'healthcheck.sh']:
+                      for required_file in required_files:
                           file_path = os.path.join(dockerfile_dir, required_file)
                           if not os.path.exists(file_path):
                               errors.append(f"Missing file: {file_path}")
+                      # Alpine images must not carry a build.sh (nothing compiles)
+                      if os_name == 'alpine' and os.path.exists(os.path.join(dockerfile_dir, 'build.sh')):
+                          errors.append(f"{version} ({slug}): unexpected build.sh in an Alpine image dir")
 
           if errors:
               print("❌ Validation FAILED:")
