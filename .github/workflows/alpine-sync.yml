@@ -46,7 +46,10 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          # RELEASE_BOT_APP_ID holds the numeric App ID; create-github-app-token
+          # accepts it as the client-id (GitHub still honors the App ID as the
+          # JWT issuer). Using client-id silences the deprecated app-id input.
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Checkout repository
