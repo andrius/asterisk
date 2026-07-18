@@ -6,7 +6,9 @@ Debian/semantic version-level tags (latest, stable, 22, bare 22.10.1) and, on
 --push, collided with the Debian image for those tags. The CI matrix generator
 (.github/actions/generate-build-matrix) already REPLACES an Alpine member's
 tags with lib/alpine_tags.py's lattice; this pins that the LOCAL path does the
-same, while Debian members keep their version-level tags byte-for-byte.
+same. Debian members honor per-member additional_tags overrides (forky's
+'experimental'), while members without the key (trixie) keep the version-level
+tags - matching the CI generator's line-128 behavior.
 
 Style mirrors tests/test_golden_regeneration.py: build-asterisk.sh --dry-run
 runs inside a throwaway git worktree so generated files are never written into
@@ -99,20 +101,24 @@ class TestAlpineLegEmitsLattice:
         assert "22-alpine" not in alpine_edge
 
 
-class TestDebianLegKeepsVersionTags:
-    """Debian legs are untouched by the Alpine fix (tags stay byte-identical)."""
+class TestDebianLegTags:
+    """Debian legs: members without a per-member tag keep the version-level
+    tags (trixie); members with one honor it (forky's 'experimental'), matching
+    the CI generator's line-128 behavior."""
 
     def test_trixie_keeps_version_level_tags(self, worktree):
         assert _tags_by_leg(worktree, "22.10.1")[("debian", "trixie")] == [
             "latest", "stable", "22",
         ]
 
-    def test_forky_leg_unchanged_and_alpine_still_lattice(self, worktree):
-        # Guards the design trap: the local path must NOT adopt per-member tags,
-        # so 23.4.1's forky leg stays '23' (its member-level 'experimental' tag
-        # is a pre-existing, separate concern - out of scope for this fix).
+    def test_forky_adopts_its_experimental_tag(self, worktree):
+        # The local path honors per-member additional_tags (parity with the CI
+        # generator): 23.4.1's forky leg publishes its own 'experimental' tag
+        # instead of inheriting the version-level '23', which would collide with
+        # the trixie '23' image. trixie has no per-member key, so it keeps the
+        # version-level '23'.
         legs = _tags_by_leg(worktree, "23.4.1")
         assert legs[("debian", "trixie")] == ["23"]
-        assert legs[("debian", "forky")] == ["23"]
+        assert legs[("debian", "forky")] == ["experimental"]
         # ...while the Alpine legs of the same version carry the lattice.
         assert "23.4.1-alpine-3.24" in legs[("alpine", "3.24")]

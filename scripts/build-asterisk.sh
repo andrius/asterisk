@@ -412,11 +412,13 @@ try:
 
         # Only add build entry if we have architectures after filtering
         if filtered_architectures:
-            # Debian members keep the version-level tags (unchanged). Alpine
-            # members REPLACE them with the computed tag lattice - an inherited
-            # bare 'latest' would race the Debian image for that tag (mirrors
-            # .github/actions/generate-build-matrix, plan 003 section 6).
-            entry_tags = additional_tags
+            # Per-member additional_tags override the version-level default
+            # (e.g. forky's 'experimental'); members without the key keep the
+            # version-level tags (mirrors .github/actions/generate-build-matrix
+            # line 128). Alpine members REPLACE entry_tags with the computed tag
+            # lattice below - an inherited bare 'latest' would race the Debian
+            # image for that tag (plan 003 section 6).
+            entry_tags = matrix_entry.get('additional_tags', additional_tags)
             if os_name == 'alpine':
                 alpine_role = matrix_entry.get('alpine_role') or (
                     'edge' if distribution == 'edge' else 'stable')
