@@ -93,7 +93,7 @@ These versions are no longer built but kept here for historical reference. Exist
 
 | Version | Deprecated | Superseded by |
 | ------- | ---------- | ------------- |
-| **23.3.0** | 2026-07-18 | `23.4.1` |
+| **23.3.0** | 2026-07-04 | `23.4.1` |
 | **22.9.0** | 2026-07-04 | `22.10.1` |
 | **22.8-cert2** | 2026-07-04 | `22.8-cert3` |
 | **21.12.2** | 2026-07-04 | `21.12.3` |
