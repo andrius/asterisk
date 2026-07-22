@@ -63,8 +63,8 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "1.6.2.24-r0"
-        apk_packages: ["fax", "odbc", "tds"]
+        apk_version: "1.6.2.24-r1"
+        apk_packages: ["fax", "odbc"]
         architectures:
           - "amd64"
     tarball_sha256: "5f5b28f7644eeef6ecf778b4cdbbfe89ef70d482943af9b2e588823bd8ef0e54"

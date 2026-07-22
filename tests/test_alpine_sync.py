@@ -118,6 +118,17 @@ class TestResolvePkgver:
     def test_missing_returns_none(self):
         assert A.resolve_pkgver("99.9.9", {"22.10.1-r0"}) is None
 
+    def test_picks_highest_revision_when_multiple_pkgrels(self):
+        # Sibling re-publishes rebuilds as -r1, -r2, ...; the resolver must
+        # take the newest revision deterministically, not whatever a set
+        # iteration happened to yield (PYTHONHASHSEED made it random).
+        pkgvers = {"1.6.2.24-r0", "1.6.2.24-r1"}
+        assert A.resolve_pkgver("1.6.2.24", pkgvers) == "1.6.2.24-r1"
+
+    def test_picks_highest_revision_across_three_pkgrels(self):
+        pkgvers = {"20.20.1-r2", "20.20.1-r0", "20.20.1-r1"}
+        assert A.resolve_pkgver("20.20.1", pkgvers) == "20.20.1-r2"
+
 
 class TestDeriveRoles:
     def test_single_stable_and_edge(self):
