@@ -131,6 +131,19 @@ def _pkgver_sort_key(pkgver: str) -> Tuple:
     return tuple(int(n) for n in nums)
 
 
+def _pkgver_full_sort_key(pkgver: str) -> Tuple:
+    """Sort key over numeric components INCLUDING the ``-rN`` pkgrel revision.
+
+    Unlike :func:`_pkgver_sort_key` (which strips ``-rN``), this distinguishes
+    ``1.6.2.24-r0`` from ``1.6.2.24-r1`` so a revision bump resolves to the
+    newest rebuild rather than a stale earlier pkgrel.
+    """
+    m = _RN_RE.search(pkgver)
+    rev = int(m.group(0)[2:]) if m else 0
+    base = _strip_rn(pkgver)
+    return tuple(int(n) for n in re.findall(r"\d+", base)) + (rev,)
+
+
 def resolve_pkgver(label: str, pkgvers) -> Optional[str]:
     """Map our matrix label to the exact published pkgver present in ``pkgvers``.
 
@@ -147,10 +160,16 @@ def resolve_pkgver(label: str, pkgvers) -> Optional[str]:
 
     cert = _CERT_RE.match(label)
     target = f"{cert.group(1)}.{cert.group(2)}.0.{cert.group(3)}" if cert else label
-    for v in pkgvers:
-        if _strip_rn(v) == target:
-            return v
-    return None
+    matches = [v for v in pkgvers if _strip_rn(v) == target]
+    if not matches:
+        return None
+    # Pick the highest pkgrel revision (-rN). The sibling re-publishes bug-fix
+    # rebuilds as -r1, -r2, ... and a stale -r0 can ship a subpackage set the
+    # newer revision dropped (e.g. asterisk-tds on legacy 1.6.2.24). Selecting
+    # by max() is also deterministic; the old first-match walked a set whose
+    # order varied across processes (PYTHONHASHSEED), so the same index could
+    # resolve to -r0 or -r1 depending on the run.
+    return max(matches, key=_pkgver_full_sort_key)
 
 
 def derive_roles(live_trees) -> Dict[str, str]:

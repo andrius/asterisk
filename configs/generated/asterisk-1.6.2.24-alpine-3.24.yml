@@ -43,5 +43,4 @@ alpine:
   apk_packages:
   - fax
   - odbc
-  - tds
-  apk_version: 1.6.2.24-r0
+  apk_version: 1.6.2.24-r1
