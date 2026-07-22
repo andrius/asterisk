@@ -55,25 +55,28 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | `testing,dev` | Edge | amd64, arm64 |
 | **23.4.1** | 23 | Trixie | amd64, arm64 |
 | **23.4.1** | experimental | Forky | amd64, arm64 |
-| **23.4.1** | 23 | 3.24 | amd64, arm64 |
+| **23.4.1** | 23 | 3.24 | amd64, arm64, armv7, armhf |
 | **23.4.1** | 23 | Edge | amd64, arm64 |
 | **22.10.1** | `latest,stable,22` | Trixie | amd64, arm64 |
-| **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64 |
+| **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64, armv7, armhf |
 | **22.10.1** | `latest,stable,22` | Edge | amd64, arm64 |
 | **22.8-cert3** | 22-cert | Trixie | amd64, arm64 |
-| **22.8-cert3** | 22-cert | 3.24 | amd64, arm64 |
+| **22.8-cert3** | 22-cert | 3.24 | amd64, arm64, armv7, armhf |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | 3.24 | amd64, arm64 |
 | **20.7-cert11** | 20-cert | Trixie | amd64, arm64 |
 | **19.8.1** | 19 | Bookworm | amd64 |
 | **18.26.4** | 18 | Trixie | amd64 |
+| **18.26.4** | 18 | 3.24 | amd64, arm64 |
 | **18.9-cert18** | 18-cert | Trixie | amd64, arm64 |
 | **17.9.4** | 17 | Bookworm | amd64 |
 | **16.30.1** | 16 | Bookworm | amd64 |
+| **16.30.1** | 16 | 3.24 | amd64, arm64 |
 | **16.8-cert14** | 16-cert | Buster | amd64 |
 | **15.7.4** | 15 | Buster | amd64 |
 | **14.7.8** | 14 | Buster | amd64 |
+| **14.7.8** | 14 | 3.24 | amd64 |
 | **13.38.3** | 13 | Buster | amd64 |
 | **13.21-cert6** | 13-cert | Buster | amd64 |
 | **12.8.2** | 12 | Jessie | amd64 |
