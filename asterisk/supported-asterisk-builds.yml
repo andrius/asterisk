@@ -23,7 +23,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "24.0.0_git20260716-r0"
+        apk_version: "24.0.0_git20260720-r0"
         apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds"]
         architectures:
           - "amd64"
@@ -151,6 +151,14 @@ latest_builds:
         architectures:
           - "amd64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "14.7.8-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile", "tds"]
+        architectures:
+          - "amd64"
     tarball_sha256: "3de8b119c3acacc4b54a1fe6cd7b49929394187f19288c684f9ca510826839a1"
   - version: "15.7.4"
     additional_tags: "15"
@@ -169,6 +177,15 @@ latest_builds:
         architectures:
           - "amd64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "16.30.1-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
     tarball_sha256: "8a91b0f8412d8e3dbd7172c118c52ba4ed4e016696f2778a466db094ec4b8b22"
   - version: "16.8-cert14"
     additional_tags: "16-cert"
@@ -208,6 +225,15 @@ latest_builds:
         architectures:
           - "amd64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "18.26.4-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile", "tds"]
+        architectures:
+          - "amd64"
+          - "arm64"
     tarball_sha256: "a17f511bfa092c8fa9eccd3a5ecf5f728ccdcf2b1a04d2c06e7177d96c3c9ee1"
   - version: "19.8.1"
     additional_tags: "19"
@@ -504,6 +530,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"
@@ -532,6 +560,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
     additional_tags: "22-cert"
     tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
   - version: "23.4.1"
@@ -558,6 +588,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"
