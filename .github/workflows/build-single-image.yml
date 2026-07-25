@@ -227,7 +227,8 @@ jobs:
                   runner = RUNNER.get(arch, 'ubuntu-latest')  # 32-bit ARM -> QEMU on amd64
                   matrix_include.append({
                       'platform': platform,
-                      'runner': runner
+                      'runner': runner,
+                      'arch': arch
                   })
 
           platforms_matrix = {'include': matrix_include}
@@ -607,7 +608,7 @@ jobs:
         if: steps.build-config.outputs.use_tags == 'false'
         uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ inputs.version }}-${{ inputs.distribution }}-${{ contains(matrix.platform, 'amd64') && 'amd64' || 'arm64' }}
+          name: digests-${{ inputs.version }}-${{ inputs.distribution }}-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
