@@ -36,9 +36,15 @@ except ImportError:  # imported flat (scripts insert lib/ on sys.path)
 # intersection with what each line actually ships (cert omits ldap/pgsql/...,
 # the git snapshot omits opus). sample-config is installed unconditionally by
 # the Dockerfile, so it is not listed here.
+#
+# tds (cdr_tds/cel_tds -> MSSQL via FreeTDS) is intentionally NOT requested:
+# niche, and apk-tools cannot reliably select asterisk-tds at a pinned version
+# (the "asterisk-tds-22.9.0-r0: breaks world[...]" selection bug). Postgres
+# (pgsql) and ODBC (odbc) CDR backends remain. The sibling repo stops building
+# asterisk-tds in kind.
 DESIRED_SUBPACKAGES = [
     "opus", "srtp", "curl", "speex", "fax",
-    "odbc", "ldap", "pgsql", "prometheus", "mobile", "tds",
+    "odbc", "ldap", "pgsql", "prometheus", "mobile",
 ]
 
 # Cloudsmith arch segment -> our matrix arch name -> docker platform.

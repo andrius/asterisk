@@ -48,5 +48,4 @@ alpine:
   - fax
   - odbc
   - mobile
-  - tds
   apk_version: 14.7.8-r0

@@ -51,5 +51,4 @@ alpine:
   - pgsql
   - prometheus
   - mobile
-  - tds
   apk_version: 20.20.1-r0
