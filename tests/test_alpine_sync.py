@@ -260,3 +260,64 @@ class TestArchMapping:
         assert A.ARCH_MAP == {
             "x86_64": "amd64", "aarch64": "arm64",
             "armv7": "armv7", "armhf": "armhf"}
+
+    def test_matrix_to_cloud_is_exact_inverse(self):
+        # the pre-build gate uses MATRIX_TO_CLOUD to pick the APKINDEX arch
+        assert A.MATRIX_TO_CLOUD == {
+            "amd64": "x86_64", "arm64": "aarch64",
+            "armv7": "armv7", "armhf": "armhf"}
+        for cloud, matrix in A.ARCH_MAP.items():
+            assert A.MATRIX_TO_CLOUD[matrix] == cloud
+
+
+class TestInstallNames:
+    def test_main_plus_sample_config_plus_subs(self):
+        assert A.install_names(["opus", "tds"]) == [
+            "asterisk", "asterisk-sample-config",
+            "asterisk-opus", "asterisk-tds"]
+
+    def test_empty_subpackages_still_installs_main(self):
+        assert A.install_names([]) == ["asterisk", "asterisk-sample-config"]
+
+    def test_none_subpackages(self):
+        # config may omit apk_packages; the gate must not crash on None
+        assert A.install_names(None) == ["asterisk", "asterisk-sample-config"]
+
+
+class TestMissingPinnedPackages:
+    """The pre-build availability gate's pure core: which pinned names are
+    absent from one arch's parsed APKINDEX at the exact apk_version."""
+
+    def _records(self, present_names, apk_version):
+        return [{"name": n, "version": apk_version, "arch": "x86_64"}
+                for n in present_names]
+
+    def test_all_present_returns_empty(self):
+        recs = self._records(
+            ["asterisk", "asterisk-sample-config", "asterisk-tds"], "22.10.1-r0")
+        assert A.missing_pinned_packages(
+            recs, "22.10.1-r0", A.install_names(["tds"])) == []
+
+    def test_missing_subpackage_reported(self):
+        # the armv7/armhf race: main is live, asterisk-tds is not (only an
+        # older pkgver, which must NOT count as present).
+        recs = self._records(["asterisk", "asterisk-sample-config"], "22.10.1-r0") \
+            + [{"name": "asterisk-tds", "version": "22.9.0-r0", "arch": "armv7"}]
+        assert A.missing_pinned_packages(
+            recs, "22.10.1-r0", A.install_names(["tds"])) == ["asterisk-tds"]
+
+    def test_wrong_version_does_not_count_as_present(self):
+        recs = [{"name": "asterisk", "version": "22.9.0-r0", "arch": "arm64"}]
+        assert A.missing_pinned_packages(recs, "22.10.1-r0", ["asterisk"]) \
+            == ["asterisk"]
+
+    def test_preserves_requested_order(self):
+        recs = []  # nothing published for this arch
+        names = A.install_names(["opus", "tds", "pgsql"])
+        assert A.missing_pinned_packages(recs, "22.10.1-r0", names) == names
+
+    def test_uses_real_fixture_index(self):
+        # the captured x86_64 fixture ships asterisk + asterisk-tds at 22.10.1
+        recs = _load("v3.24-x86_64")
+        assert A.missing_pinned_packages(
+            recs, "22.10.1-r0", A.install_names(["tds"])) == []

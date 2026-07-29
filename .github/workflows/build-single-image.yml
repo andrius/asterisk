@@ -548,6 +548,42 @@ jobs:
           cp templates/partials/keys/cloudsmith-asterisk-alpine.rsa.pub ./
           echo "✅ Staged Cloudsmith signing key into the build context"
 
+      - name: Verify pinned apks are published for this arch
+        id: apk-gate
+        if: needs.validate-and-prepare.outputs.os_type == 'alpine'
+        run: |
+          # Defense against the sibling's partial-publish window
+          # (andrius/asterisk-alpine#39): the exact apk_version pin is
+          # unsatisfiable on an arch if the main apk is live there but a
+          # subpackage at the same pkgver is not yet. Skip THIS arch instead of
+          # failing the whole multi-arch manifest; the daily alpine-sync
+          # re-pins once the sibling settles and the next run rebuilds it.
+          CONFIG="configs/generated/asterisk-${{ inputs.version }}-alpine-${{ inputs.distribution }}.yml"
+          set +e
+          python3 scripts/check-alpine-apk-availability.py \
+            --config "$CONFIG" --arch "${{ matrix.arch }}"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+            2)
+              if [ "${{ needs.validate-and-prepare.outputs.is_multi_platform }}" != "true" ]; then
+                # Single-platform: skipping would ship no image at all, so fail
+                # loudly instead and let the next alpine-sync re-pin.
+                echo "::error::Pinned apk not published for the only arch ${{ matrix.arch }}; see andrius/asterisk-alpine#39"
+                exit 1
+              fi
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              printf 'arch=%s platform=%s reason=pinned-apk-not-published\n' \
+                "${{ matrix.arch }}" "${{ matrix.platform }}" > /tmp/skipped.txt
+              echo "::warning::Skipping ${{ matrix.platform }}: a pinned apk is not yet published for ${{ matrix.arch }} (sibling partial-publish window); see andrius/asterisk-alpine#39"
+              ;;
+            *)
+              echo "::error::Availability gate hard-failed (rc=$rc) for ${{ matrix.arch }}"
+              exit 1
+              ;;
+          esac
+
       - name: Prepare build configuration
         id: build-config
         run: |
@@ -577,6 +613,7 @@ jobs:
 
       - name: Build and push by digest
         id: build
+        if: steps.apk-gate.outputs.skip != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -597,7 +634,7 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
 
       - name: Export digest
-        if: steps.build-config.outputs.use_tags == 'false'
+        if: steps.build-config.outputs.use_tags == 'false' && steps.apk-gate.outputs.skip != 'true'
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
@@ -605,11 +642,22 @@ jobs:
           echo "Exported digest: $digest"
 
       - name: Upload digest
-        if: steps.build-config.outputs.use_tags == 'false'
+        if: steps.build-config.outputs.use_tags == 'false' && steps.apk-gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: digests-${{ inputs.version }}-${{ inputs.distribution }}-${{ matrix.arch }}
           path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record skipped arch (no pinned apk published)
+        # When the gate skipped this arch, upload a marker so the merge job can
+        # lower its expected digest count instead of failing the manifest.
+        if: steps.build-config.outputs.use_tags == 'false' && steps.apk-gate.outputs.skip == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: skip-${{ inputs.version }}-${{ inputs.distribution }}-${{ matrix.arch }}
+          path: /tmp/skipped.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -688,6 +736,17 @@ jobs:
           pattern: digests-${{ inputs.version }}-${{ inputs.distribution }}-*
           merge-multiple: true
 
+      - name: Download skip markers
+        # Best-effort: present only when an arch leg was skipped by the apk
+        # availability gate. Empty when every arch built. continue-on-error so
+        # a transient artifact-service hiccup cannot block the manifest.
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/skipped
+          pattern: skip-${{ inputs.version }}-${{ inputs.distribution }}-*
+          merge-multiple: true
+
       - name: Prepare digest list
         id: digest-list
         run: |
@@ -725,23 +784,31 @@ jobs:
 
       - name: Validate digest count
         run: |
-          EXPECTED_COUNT="${{ needs.validate-and-prepare.outputs.platform_count }}"
+          PLATFORM_COUNT="${{ needs.validate-and-prepare.outputs.platform_count }}"
+          SKIPPED_COUNT=$(find /tmp/skipped -type f 2>/dev/null | wc -l | tr -d ' ')
           DIGEST_LIST="${{ steps.digest-list.outputs.digest_images }}"
-          ACTUAL_COUNT=$(echo "$DIGEST_LIST" | wc -w)
+          ACTUAL_COUNT=$(echo "$DIGEST_LIST" | wc -w | tr -d ' ')
 
+          EXPECTED_COUNT=$((PLATFORM_COUNT - SKIPPED_COUNT))
+
+          echo "Platform legs: $PLATFORM_COUNT"
+          echo "Skipped legs:  $SKIPPED_COUNT (apk availability gate)"
           echo "Expected digests: $EXPECTED_COUNT"
-          echo "Actual digests: $ACTUAL_COUNT"
+          echo "Actual digests:   $ACTUAL_COUNT"
 
-          if [[ "$ACTUAL_COUNT" != "$EXPECTED_COUNT" ]]; then
-            echo "❌ ERROR: Digest count mismatch!"
-            echo "Expected $EXPECTED_COUNT platform(s), but found $ACTUAL_COUNT digest(s)"
-            echo ""
-            echo "This indicates one or more platform builds failed to upload digests."
+          if [ "$EXPECTED_COUNT" -le 0 ]; then
+            echo "::error::Every platform leg was skipped - no pinned apk published for any arch. See andrius/asterisk-alpine#39."
+            exit 1
+          fi
+
+          if [ "$ACTUAL_COUNT" != "$EXPECTED_COUNT" ]; then
+            echo "::error::Digest count mismatch: expected $EXPECTED_COUNT ($PLATFORM_COUNT platforms minus $SKIPPED skipped), found $ACTUAL_COUNT."
+            echo "This means a platform build neither produced a digest nor registered as skipped."
             echo "Check the build job logs for failures."
             exit 1
           fi
 
-          echo "✅ All expected digests present"
+          echo "✅ All expected digests present ($ACTUAL_COUNT built, $SKIPPED skipped)"
 
       - name: Create multi-platform manifests
         run: |
