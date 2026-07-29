@@ -31,7 +31,6 @@ RUN echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpi
         "asterisk-fax@andrius-asterisk=16.30.1-r0" \
         "asterisk-odbc@andrius-asterisk=16.30.1-r0" \
         "asterisk-mobile@andrius-asterisk=16.30.1-r0" \
-        "asterisk-tds@andrius-asterisk=16.30.1-r0" \
         bash \
         shadow \
         gettext \

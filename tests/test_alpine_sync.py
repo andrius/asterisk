@@ -181,10 +181,12 @@ class TestResolveMembersLive:
 
     def test_subpackages_are_desired_intersect_available_ordered(self):
         m = self._member("22.10.1", "3.24")
-        # desired order preserved, only desired names, all available for 22.10.1
+        # desired order preserved, only desired names, all available for 22.10.1.
+        # tds is intentionally not desired (cdr_tds/cel_tds -> MSSQL via FreeTDS;
+        # apk-tools cannot reliably select asterisk-tds at a pinned version).
         assert m["apk_packages"] == [
             "opus", "srtp", "curl", "speex", "fax", "odbc",
-            "ldap", "pgsql", "prometheus", "mobile", "tds"]
+            "ldap", "pgsql", "prometheus", "mobile"]
 
     def test_git_only_on_edge_with_snapshot_pin(self):
         assert self._member("git", "3.24") is None
