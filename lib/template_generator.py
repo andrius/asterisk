@@ -58,6 +58,7 @@ class TemplateContext:
     distribution_config: Dict[str, Any]
     variant_config: Dict[str, Any]
     os_name: str = "debian"
+    git_sha: Optional[str] = None
 
 class DRYTemplateGenerator:
     """Enhanced template generator with DRY architecture support"""
@@ -130,8 +131,13 @@ class DRYTemplateGenerator:
             print(f"Warning: Variant template not found: {template_file}")
             return {"variant": variant}
 
-    def _determine_variant(self, version: str) -> str:
+    def _determine_variant(self, version: str, os_name: str = "debian") -> str:
         """Determine the appropriate variant based on version"""
+        # Git Debian builds use the git-dev variant (clone from repository, no
+        # release tarball). Alpine git is unchanged: it consumes prebuilt apks
+        # via a different template and keeps the modern variant's constants.
+        if os_name != "alpine" and (version == "git" or version.startswith("git-")):
+            return "git-dev"
         # Version-based variant detection
         if version.startswith(('1.2', '1.4', '1.6')):
             return "legacy-addons"
@@ -269,6 +275,22 @@ class DRYTemplateGenerator:
 
         return docker_config
 
+    def _resolve_build_config(self, context: TemplateContext) -> Dict[str, Any]:
+        """Resolve build configuration with inheritance.
+
+        Mirrors the docker merge: base build deep-merged with the variant's
+        build block (variant wins on conflict). Only the git-dev variant
+        currently carries a build block, so it can inject GIT_SHA build args.
+        """
+        build_config = deepcopy(self.base_template.get("build", {}))
+        variant_build = context.variant_config.get("build", {})
+        for key, value in variant_build.items():
+            if key in build_config and isinstance(build_config[key], dict) and isinstance(value, dict):
+                build_config[key].update(value)
+            else:
+                build_config[key] = value
+        return build_config
+
     def _resolve_base_config(self, context: TemplateContext) -> Dict[str, Any]:
         """Resolve base image configuration"""
         base_config = deepcopy(self.base_template.get("base", {}))
@@ -305,6 +327,12 @@ class DRYTemplateGenerator:
         config_str = config_str.replace("{{DISTRIBUTION}}", context.distribution)
         config_str = config_str.replace("{{VARIANT}}", context.variant)
         config_str = config_str.replace("{{OS}}", context.os_name)
+
+        # Git builds carry the short SHA via {{GIT_SHA}} (version tag, build
+        # args). Non-git variants carry no such placeholder, so this is a no-op
+        # for them. An absent/empty SHA falls back to "unknown" rather than
+        # crashing the render.
+        config_str = config_str.replace("{{GIT_SHA}}", context.git_sha or "unknown")
 
         # Handle addons version for legacy versions
         if context.variant == "legacy-addons":
@@ -368,6 +396,28 @@ class DRYTemplateGenerator:
                     result["addons_sha256"] = build["addons_sha256"]
                 break
         return result
+
+    def _lookup_git_sha(self) -> Optional[str]:
+        """Read the git short SHA recorded in the build matrix.
+
+        Lives at ``metadata.git_sha`` (refreshed daily by
+        discover-latest-versions.sh); a top-level ``git_sha`` is also accepted
+        for forward-compat. Used to materialize {{GIT_SHA}} placeholders in the
+        git-dev variant template. Absent -> None, which the substitution turns
+        into "unknown" (never crashes the render).
+        """
+        builds_file = self._resolve_supported_builds_file()
+        if not builds_file:
+            return None
+        try:
+            with open(builds_file, 'r') as f:
+                data = yaml.safe_load(f)
+        except (FileNotFoundError, OSError):
+            return None
+        data = data or {}
+        meta = data.get("metadata", {}) or {}
+        sha = data.get("git_sha") or meta.get("git_sha")
+        return sha or None
 
     def _lookup_alpine_facts(self, version: str, distribution: str) -> Dict[str, Any]:
         """Look up the apk pin + subpackages for an Alpine build from the matrix.
@@ -502,14 +552,20 @@ class DRYTemplateGenerator:
         return config
 
     def generate_config(self, version: str, distribution: str = None, variant: str = None,
-                        os_name: str = "debian") -> Dict[str, Any]:
+                        os_name: str = "debian", git_sha: str = None) -> Dict[str, Any]:
         """Generate complete configuration using DRY template system"""
 
         # Auto-detect distribution and variant if not provided
         if distribution is None:
             distribution = self._determine_distribution(version)
         if variant is None:
-            variant = self._determine_variant(version)
+            variant = self._determine_variant(version, os_name)
+
+        # Resolve the git short SHA for git builds: explicit arg wins, else read
+        # it from the build matrix metadata. Falls back to None -> "unknown" at
+        # substitution time (never crashes the render).
+        if version == "git" or version.startswith("git-"):
+            git_sha = git_sha or self._lookup_git_sha()
 
         print(f"Generating config for {version} (os: {os_name}, distribution: {distribution}, variant: {variant})")
 
@@ -525,19 +581,25 @@ class DRYTemplateGenerator:
             base_packages=self.base_packages,
             distribution_config=distribution_config,
             variant_config=variant_config,
-            os_name=os_name
+            os_name=os_name,
+            git_sha=git_sha,
         )
 
         # Build final configuration. Alpine installs prebuilt apks, so it has no
         # build script (no build.sh); it is a single-FROM image (build.type
         # satisfies the schema and reflects the single-stage Dockerfile).
+        if os_name == "alpine":
+            build_section = {"type": "single-stage"}
+        else:
+            build_section = self._resolve_build_config(context)
+
         config = {
             "version": version,
             "base": self._resolve_base_config(context),
             "packages": self._resolve_packages(context),
             "asterisk": self._resolve_asterisk_config(context),
             "docker": self._resolve_docker_config(context),
-            "build": {"type": "single-stage"} if os_name == "alpine" else self.base_template.get("build", {})
+            "build": build_section,
         }
 
         # Add EOL setup if needed
@@ -608,6 +670,8 @@ class DRYTemplateGenerator:
                         variant = "legacy"
                     elif "asterisk-11" in template_name:
                         variant = "asterisk-11"
+                    elif "git-dev" in template_name:
+                        variant = "git-dev"
 
                 try:
                     config = self.generate_config(version, distribution, variant, os_name=os_name)

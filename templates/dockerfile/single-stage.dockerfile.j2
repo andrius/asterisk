@@ -7,7 +7,7 @@
 {% set user_config = docker_config.user | default({}) -%}
 {% set base_image = config.base.image -%}
 {% set major_version = version.split('.')[0] | int -%}
-{% set minor_version = version.split('.')[1] | int -%}
+{% set minor_version = (version.split('.')[1] | int) if '.' in version else 99 -%}
 
 FROM {{ base_image }}
 
