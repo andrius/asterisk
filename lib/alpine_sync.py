@@ -48,6 +48,10 @@ ARCH_MAP = {
     "armv7": "armv7",
     "armhf": "armhf",
 }
+# Inverse of ARCH_MAP: our matrix arch name -> Cloudsmith arch segment. Used by
+# the pre-build availability gate (scripts/check-alpine-apk-availability.py) to
+# pick which per-arch APKINDEX to fetch for a matrix leg.
+MATRIX_TO_CLOUD = {v: k for k, v in ARCH_MAP.items()}
 ARCH_ORDER = ["amd64", "arm64", "armv7", "armhf"]
 
 # The arch segments we probe on every tree (32-bit indexes may be empty).
@@ -112,6 +116,34 @@ def parse_apkindex(tar_gz_bytes: bytes) -> List[Dict[str, str]]:
             "arch": cur.get("arch", ""),
         })
     return records
+
+
+def install_names(apk_packages):
+    """The exact apk install list the Alpine Dockerfile pins to ``apk_version``.
+
+    ``asterisk`` (main) and ``asterisk-sample-config`` are always installed;
+    each short subpackage name (e.g. ``"tds"``) becomes ``asterisk-tds``. This
+    mirrors templates/dockerfile/alpine-apk.dockerfile.j2 and is shared with the
+    pre-build availability gate so the two can never drift.
+    """
+    return ["asterisk", "asterisk-sample-config"] + [
+        f"asterisk-{p}" for p in (apk_packages or [])
+    ]
+
+
+def missing_pinned_packages(records, apk_version, names):
+    """Return the subset of ``names`` whose exact ``apk_version`` is absent.
+
+    A package is "present for this arch" iff some record in ``records`` (the
+    parsed APKINDEX for ONE arch) has ``version == apk_version``. Used by the
+    pre-build availability gate to decide whether a matrix arch can be built
+    now or must be skipped until the sibling finishes publishing that pkgver's
+    full arch+subpackage set (see andrius/asterisk-alpine#39).
+
+    Pure: no I/O. ``records`` comes from :func:`parse_apkindex`.
+    """
+    present = {r["name"] for r in records if r["version"] == apk_version}
+    return [n for n in names if n not in present]
 
 
 def tree_to_distribution(tree: str) -> str:
