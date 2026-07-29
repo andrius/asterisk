@@ -120,7 +120,7 @@ WORKDIR /usr/src/asterisk
 
 # Configure Asterisk build (skip for very old versions that don't have configure script)
 {% set major_version = version.split('.')[0] | int -%}
-{% set minor_version = version.split('.')[1] | int -%}
+{% set minor_version = (version.split('.')[1] | int) if '.' in version else 99 -%}
 {% set is_very_old = (major_version == 1 and minor_version < 4) -%}
 {% if not is_very_old -%}
 {% if configure_options -%}
