@@ -43,4 +43,4 @@ alpine:
   apk_packages:
   - fax
   - odbc
-  apk_version: 1.8.32.3-r0
+  apk_version: 1.8.32.3-r1

@@ -23,7 +23,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "24.0.0_git20260720-r0"
+        apk_version: "24.0.0_git20260727-r0"
         apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
@@ -82,7 +82,7 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "1.8.32.3-r0"
+        apk_version: "1.8.32.3-r1"
         apk_packages: ["fax", "odbc"]
         architectures:
           - "amd64"
@@ -486,7 +486,7 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "20.20.1-r0"
+        apk_version: "20.20.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
@@ -525,13 +525,11 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "22.10.1-r0"
+        apk_version: "22.10.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
           - "arm64"
-          - "armv7"
-          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"
@@ -555,13 +553,11 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "22.8.0.3-r0"
+        apk_version: "22.8.0.3-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile"]
         architectures:
           - "amd64"
           - "arm64"
-          - "armv7"
-          - "armhf"
     additional_tags: "22-cert"
     tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
   - version: "23.4.1"
@@ -583,13 +579,11 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "23.4.1-r0"
+        apk_version: "23.4.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
           - "arm64"
-          - "armv7"
-          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"
