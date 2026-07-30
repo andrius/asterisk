@@ -55,13 +55,13 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | `testing,dev` | Edge | amd64, arm64 |
 | **23.4.1** | 23 | Trixie | amd64, arm64 |
 | **23.4.1** | experimental | Forky | amd64, arm64 |
-| **23.4.1** | 23 | 3.24 | amd64, arm64 |
+| **23.4.1** | 23 | 3.24 | amd64, arm64, armv7, armhf |
 | **23.4.1** | 23 | Edge | amd64, arm64 |
 | **22.10.1** | `latest,stable,22` | Trixie | amd64, arm64 |
-| **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64 |
+| **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64, armv7, armhf |
 | **22.10.1** | `latest,stable,22` | Edge | amd64, arm64 |
 | **22.8-cert3** | 22-cert | Trixie | amd64, arm64 |
-| **22.8-cert3** | 22-cert | 3.24 | amd64, arm64 |
+| **22.8-cert3** | 22-cert | 3.24 | amd64, arm64, armv7, armhf |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | 3.24 | amd64, arm64 |
