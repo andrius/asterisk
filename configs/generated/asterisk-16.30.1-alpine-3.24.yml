@@ -48,4 +48,4 @@ alpine:
   - fax
   - odbc
   - mobile
-  apk_version: 16.30.1-r0
+  apk_version: 16.30.1-r1
