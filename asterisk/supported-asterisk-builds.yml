@@ -155,7 +155,7 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "14.7.8-r0"
+        apk_version: "14.7.8-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile"]
         architectures:
           - "amd64"
@@ -181,7 +181,7 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "16.30.1-r0"
+        apk_version: "16.30.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile"]
         architectures:
           - "amd64"
@@ -229,7 +229,7 @@ latest_builds:
         distribution: "3.24"
         alpine_tree: "v3.24"
         alpine_role: "stable"
-        apk_version: "18.26.4-r0"
+        apk_version: "18.26.4-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "mobile"]
         architectures:
           - "amd64"
@@ -530,6 +530,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"
@@ -558,6 +560,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
     additional_tags: "22-cert"
     tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
   - version: "23.4.1"
@@ -584,6 +588,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
+          - "armv7"
+          - "armhf"
       - os: "alpine"
         distribution: "edge"
         alpine_tree: "edge"

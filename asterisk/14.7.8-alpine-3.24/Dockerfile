@@ -22,15 +22,15 @@ COPY cloudsmith-asterisk-alpine.rsa.pub /etc/apk/keys/alpine@asterisk-25B0C9A992
 # reproducible (or fail loudly if the apk was pruned).
 RUN echo "@andrius-asterisk https://dl.cloudsmith.io/public/asterisk/alpine/alpine/v3.24/main" >>/etc/apk/repositories \
     && apk add --no-cache \
-        "asterisk@andrius-asterisk=14.7.8-r0" \
-        "asterisk-sample-config@andrius-asterisk=14.7.8-r0" \
-        "asterisk-opus@andrius-asterisk=14.7.8-r0" \
-        "asterisk-srtp@andrius-asterisk=14.7.8-r0" \
-        "asterisk-curl@andrius-asterisk=14.7.8-r0" \
-        "asterisk-speex@andrius-asterisk=14.7.8-r0" \
-        "asterisk-fax@andrius-asterisk=14.7.8-r0" \
-        "asterisk-odbc@andrius-asterisk=14.7.8-r0" \
-        "asterisk-mobile@andrius-asterisk=14.7.8-r0" \
+        "asterisk@andrius-asterisk=14.7.8-r1" \
+        "asterisk-sample-config@andrius-asterisk=14.7.8-r1" \
+        "asterisk-opus@andrius-asterisk=14.7.8-r1" \
+        "asterisk-srtp@andrius-asterisk=14.7.8-r1" \
+        "asterisk-curl@andrius-asterisk=14.7.8-r1" \
+        "asterisk-speex@andrius-asterisk=14.7.8-r1" \
+        "asterisk-fax@andrius-asterisk=14.7.8-r1" \
+        "asterisk-odbc@andrius-asterisk=14.7.8-r1" \
+        "asterisk-mobile@andrius-asterisk=14.7.8-r1" \
         bash \
         shadow \
         gettext \
