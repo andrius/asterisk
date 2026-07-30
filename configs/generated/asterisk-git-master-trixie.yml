@@ -5,6 +5,11 @@ asterisk:
   - --with-pjproject-bundled
   - --with-ssl=ssl
   - --with-crypto
+  - --enable-dev-mode
+  - --enable-debug
+  git_branch: master
+  git_depth: 1
+  git_repository: https://github.com/asterisk/asterisk.git
   menuselect:
     apps:
     - app_voicemail
@@ -41,15 +46,25 @@ asterisk:
     major_version: 23
   source:
     url_template: https://downloads.asterisk.org/pub/telephony/asterisk/releases/asterisk-{version}.tar.gz
+  source_type: git
 base:
   distribution: trixie
   image: debian:trixie
   os: debian
 build:
   args:
-    ASTERISK_VERSION: git
+    ASTERISK_VERSION: git-7c60726
     DEBIAN_FRONTEND: noninteractive
+    GIT_SHA: 7c60726
+  optimization:
+    cache_mounts: true
+    parallel_jobs: 8
   script: build-asterisk.sh
+  stages:
+    builder:
+      packages: []
+    runtime:
+      packages: []
 docker:
   expose_ports:
   - 5060/udp
@@ -58,8 +73,7 @@ docker:
   registry: docker.io
   repository: asterisk
   tags:
-  - git_debian-trixie
-  - git_debian-trixie-amd64
+  - testing
   volumes:
   - /var/lib/asterisk/sounds
   - /var/lib/asterisk/keys
@@ -68,6 +82,7 @@ docker:
   - /var/log/asterisk
   - /etc/asterisk
 features:
+  debug: true
   hep: false
   pjsip: true
   recordings: true
@@ -113,6 +128,7 @@ packages:
   - uuid-dev
   - xmlstarlet
   - libsrtp2-dev
+  - git
   runtime:
   - binutils
   - ca-certificates
@@ -144,4 +160,5 @@ packages:
   - libncurses6
   - libpqxx-7.10
   - libicu76
+  - libspandsp2t64
 version: git
