@@ -22,18 +22,18 @@ COPY cloudsmith-asterisk-alpine.rsa.pub /etc/apk/keys/alpine@asterisk-25B0C9A992
 # reproducible (or fail loudly if the apk was pruned).
 RUN echo "@andrius-asterisk-edge https://dl.cloudsmith.io/public/asterisk/alpine/alpine/edge/main" >>/etc/apk/repositories \
     && apk add --no-cache \
-        "asterisk@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-sample-config@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-opus@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-srtp@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-curl@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-speex@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-fax@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-odbc@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-ldap@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-pgsql@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-prometheus@andrius-asterisk-edge=23.4.1-r0" \
-        "asterisk-mobile@andrius-asterisk-edge=23.4.1-r0" \
+        "asterisk@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-sample-config@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-opus@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-srtp@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-curl@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-speex@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-fax@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-odbc@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-ldap@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-pgsql@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-prometheus@andrius-asterisk-edge=23.4.1-r1" \
+        "asterisk-mobile@andrius-asterisk-edge=23.4.1-r1" \
         bash \
         shadow \
         gettext \
