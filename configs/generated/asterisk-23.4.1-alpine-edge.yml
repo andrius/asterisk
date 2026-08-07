@@ -51,4 +51,4 @@ alpine:
   - pgsql
   - prometheus
   - mobile
-  apk_version: 23.4.1-r0
+  apk_version: 23.4.1-r1

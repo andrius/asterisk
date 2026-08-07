@@ -23,7 +23,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "24.0.0_git20260727-r0"
+        apk_version: "24.0.0_git20260803-r1"
         apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
@@ -536,7 +536,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "22.10.1-r0"
+        apk_version: "22.10.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
@@ -594,7 +594,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "23.4.1-r0"
+        apk_version: "23.4.1-r1"
         apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
