@@ -23,7 +23,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "24.0.0_git20260803-r1"
+        apk_version: "24.0.0_git20260810-r1"
         apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
