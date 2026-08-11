@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 25 versions from 1.2.40 to 23.4.1 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 24 versions from 1.2.40 to 23.4.1 plus git development builds.
 
 ## Quick Start
 
@@ -61,8 +61,6 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64, armv7, armhf |
 | **22.10.1** | `latest,stable,22` | Edge | amd64, arm64 |
 | **22.8-cert4** | 22-cert | Trixie | amd64, arm64 |
-| **22.8-cert3** | - | Trixie | amd64, arm64 |
-| **22.8-cert3** | - | 3.24 | amd64, arm64, armv7, armhf |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | Trixie | amd64, arm64 |
 | **20.20.1** | 20 | 3.24 | amd64, arm64 |
@@ -97,6 +95,7 @@ These versions are no longer built but kept here for historical reference. Exist
 
 | Version | Deprecated | Superseded by |
 | ------- | ---------- | ------------- |
+| **22.8-cert3** | 2026-08-11 | `22.8-cert4` |
 | **23.3.0** | 2026-07-04 | `23.4.1` |
 | **22.9.0** | 2026-07-04 | `22.10.1` |
 | **22.8-cert2** | 2026-07-04 | `22.8-cert3` |

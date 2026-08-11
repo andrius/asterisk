@@ -564,6 +564,7 @@ latest_builds:
           - "armhf"
     tarball_sha256: "061a4fd3ddd67a553d67c3cf4c2027cec640dd44f2a4e3f1a1765dc8269fcdd2"
     superseded_by: "22.8-cert4"
+    deprecated_at: "2026-08-11T11:25:13Z"
   - version: "23.4.1"
     os_matrix:
       - os: "debian"
