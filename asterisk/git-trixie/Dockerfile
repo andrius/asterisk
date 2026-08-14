@@ -9,12 +9,12 @@ FROM debian:trixie AS asterisk-builder
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX Builder (Git Development)"
-LABEL org.opencontainers.image.description="Build stage for Asterisk git-67d0900"
-LABEL org.opencontainers.image.version="git-67d0900"
+LABEL org.opencontainers.image.description="Build stage for Asterisk git-56c0922"
+LABEL org.opencontainers.image.version="git-56c0922"
 LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
 
 # Build arguments
-ARG GIT_SHA=67d0900
+ARG GIT_SHA=56c0922
 ARG JOBS=8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
@@ -76,12 +76,12 @@ FROM debian:trixie AS asterisk-runtime
 
 LABEL maintainer="Andrius Kairiukstis <k@andrius.mobi>"
 LABEL org.opencontainers.image.title="Asterisk PBX (Git Development)"
-LABEL org.opencontainers.image.description="Asterisk git-67d0900 on Debian trixie"
-LABEL org.opencontainers.image.version="git-67d0900"
+LABEL org.opencontainers.image.description="Asterisk git-56c0922 on Debian trixie"
+LABEL org.opencontainers.image.version="git-56c0922"
 LABEL org.opencontainers.image.source="https://github.com/asterisk/asterisk"
 
 # Runtime environment
-ARG GIT_SHA=67d0900
+ARG GIT_SHA=56c0922
 ARG TARGETARCH
 ENV GIT_SHA=${GIT_SHA}
 
