@@ -491,8 +491,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "20"
     tarball_sha256: "32ef7db8e449629128eb5f7e42d3d704f03daacb91d76ee694a9acf7f1fd53e2"
+    superseded_by: "20.21.0"
   - version: "20.7-cert11"
     os_matrix:
       - os: "debian"
@@ -541,8 +541,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "latest,stable,22"
     tarball_sha256: "0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353"
+    superseded_by: "22.11.0"
   - version: "22.8-cert3"
     os_matrix:
       - os: "debian"
@@ -600,8 +600,8 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "23"
     tarball_sha256: "9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51"
+    superseded_by: "23.5.0"
   - version: "22.8-cert4"
     tarball_sha256: "a41a7007d420119255017bbf15759a4204fb45915b1ce5f0dc7622ecaf498c34"
     os_matrix:
@@ -612,8 +612,45 @@ latest_builds:
           - "arm64"
 
     additional_tags: "22-cert"
+  - version: "20.21.0"
+    tarball_sha256: "13fd6e8f1fbb19a3174af82a388dd72c87eb2c92d32fca83c4d51bfab03f686a"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "20"
+  - version: "22.11.0"
+    tarball_sha256: "3bd5ee040509a3d3cd9b1ba9520c18e6ec0a7e7981ca68c457dcd36ba3c54d94"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "latest,stable,22"
+  - version: "23.5.0"
+    tarball_sha256: "8ed3a237e6d8dff94a09527a83143530b5afcc1aee73fa7b85c069bda507adac"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+      - os: "debian"
+        distribution: "forky"
+        architectures:
+          - "amd64"
+          - "arm64"
+        additional_tags: "experimental"
+
+    additional_tags: "23"
 metadata:
-  generated_at: "2026-08-10T20:41:17Z"
+  generated_at: "2026-09-04T22:08:21Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie", "forky"]
   supported_architectures: ["amd64", "arm64"]
