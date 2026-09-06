@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 24 versions from 1.2.40 to 23.4.1 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 27 versions from 1.2.40 to 23.5.0 plus git development builds.
 
 ## Quick Start
 
@@ -53,17 +53,21 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | `testing,dev` | Trixie | amd64, arm64 |
 | **git** | experimental-git | Forky | amd64, arm64 |
 | **git** | `testing,dev` | Edge | amd64, arm64 |
-| **23.4.1** | 23 | Trixie | amd64, arm64 |
+| **23.5.0** | 23 | Trixie | amd64, arm64 |
+| **23.5.0** | experimental | Forky | amd64, arm64 |
+| **23.4.1** | - | Trixie | amd64, arm64 |
 | **23.4.1** | experimental | Forky | amd64, arm64 |
-| **23.4.1** | 23 | 3.24 | amd64, arm64, armv7, armhf |
-| **23.4.1** | 23 | Edge | amd64, arm64 |
-| **22.10.1** | `latest,stable,22` | Trixie | amd64, arm64 |
-| **22.10.1** | `latest,stable,22` | 3.24 | amd64, arm64, armv7, armhf |
-| **22.10.1** | `latest,stable,22` | Edge | amd64, arm64 |
+| **23.4.1** | - | 3.24 | amd64, arm64, armv7, armhf |
+| **23.4.1** | - | Edge | amd64, arm64 |
+| **22.11.0** | `latest,stable,22` | Trixie | amd64, arm64 |
+| **22.10.1** | - | Trixie | amd64, arm64 |
+| **22.10.1** | - | 3.24 | amd64, arm64, armv7, armhf |
+| **22.10.1** | - | Edge | amd64, arm64 |
 | **22.8-cert4** | 22-cert | Trixie | amd64, arm64 |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
-| **20.20.1** | 20 | Trixie | amd64, arm64 |
-| **20.20.1** | 20 | 3.24 | amd64, arm64 |
+| **20.21.0** | 20 | Trixie | amd64, arm64 |
+| **20.20.1** | - | Trixie | amd64, arm64 |
+| **20.20.1** | - | 3.24 | amd64, arm64 |
 | **20.7-cert11** | 20-cert | Trixie | amd64, arm64 |
 | **19.8.1** | 19 | Bookworm | amd64 |
 | **18.26.4** | 18 | Trixie | amd64 |
