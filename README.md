@@ -146,7 +146,7 @@ Tag ownership follows the official [Asterisk Versions](https://docs.asterisk.org
 - **`latest`** - Newest release of the newest released Asterisk series, Standard or LTS - currently Asterisk 23.
 - **`stable`** - Newest release of the newest LTS (even-numbered) series - currently Asterisk 22. `latest` and `stable` point at the same image only while the newest released series is itself an LTS (for example once 24.0.0 ships).
 - **`22`**, **`23`**, **`21`**, **`20`**, ... - Major version tags, each pointing at the newest GA release of that series
-- **`24-rc`** - `{major}-rc`: newest release candidate of an upcoming major (currently 24.0.0-rc2). A release candidate never takes `latest`, `stable` or the plain major tag; when the GA release ships it supersedes the release candidates, which are then deprecated.
+- **`24-rc`** - `{major}-rc`: newest release candidate of an upcoming major (currently 24.0.0-rc2). A release candidate never takes `latest`, `stable` or the plain major tag; when the GA release ships it supersedes the release candidates, which are then deprecated, and `{major}-rc` stops moving (it keeps pointing at the last release candidate).
 - **`20-cert`** / **`22-cert`** - Certified release tags, newest certified build of that major
 - **`testing`** / **`dev`** - Latest git HEAD from the Asterisk repository
 - **`experimental`** - Latest stable Asterisk built on Debian Forky (Debian 14, currently testing). Refreshed weekly. Never carries the plain major tag. **Not for production** - Forky's package set is still moving.

@@ -158,18 +158,19 @@ registry: "andrius/asterisk"   # Target registry
 
 ```yaml
 latest_builds:
-  - version: "22.10.1"
-    additional_tags: "latest,stable,22"
+  - version: "22.11.0"
+    additional_tags: "stable,22"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
         architectures: ["amd64", "arm64"]
 ```
 
-**Tag Types**:
-- **`latest`**: Newest release of the current LTS (even-numbered) major - the newer Standard major never takes `latest`
-- **`stable`**: Alias for `latest`
-- **`22`**, **`23`**, ...: Major version tags, newest release of that series
+**Tag Types** (ownership follows the official [Asterisk Versions](https://docs.asterisk.org/About-the-Project/Asterisk-Versions/) table):
+- **`latest`**: Newest GA release of the newest released series, Standard or LTS (currently 23)
+- **`stable`**: Newest GA release of the newest LTS (even-numbered) series (currently 22). Same image as `latest` only while the newest released series is itself an LTS
+- **`22`**, **`23`**, ...: Major version tags, newest GA release of that series
+- **`24-rc`**: `{major}-rc`, newest release candidate of an upcoming major. Release candidates never take `latest`, `stable` or the plain major tag. Once the GA release ships it supersedes them and `{major}-rc` stops moving (it keeps pointing at the last release candidate)
 - **`20-cert`** / **`22-cert`**: Certified release tags
 - **`experimental`** / **`experimental-git`**: Forky-built images (latest stable + git tip on Debian 14 testing). Refreshed weekly; never carry the plain major tag; not for production.
 
@@ -217,7 +218,7 @@ The Friday/forky batch builds only the latest stable Asterisk minor (currently 2
 
 Semantic tags and deprecations are managed automatically from `asterisk/supported-asterisk-builds.yml`:
 
-- **PR phase** (`discover-releases.yml` → `scripts/apply-tag-lifecycle.py --phase pr`): moves each line's semantic tags (`latest`/`stable` on the newest active LTS major, bare major tags, `NN-cert`, member-level `experimental`) to the newest release and sets `superseded_by` on predecessors. Superseded versions remain buildable while the PR is under review.
+- **PR phase** (`discover-releases.yml` → `scripts/apply-tag-lifecycle.py --phase pr`): moves each line's semantic tags (`latest` on the newest GA series, `stable` on the newest LTS series, bare major tags, `NN-cert`, `{major}-rc` for a release candidate, member-level `experimental`) to the newest GA release and sets `superseded_by` on predecessors. A release candidate is superseded by its GA release and never supersedes a GA release. Superseded versions remain buildable while the PR is under review.
 - **Finalize phase** (`finalize-deprecations.yml`, triggered by pushes to `asterisk/supported-asterisk-builds.yml` on main): stamps `deprecated_at` on every entry that has `superseded_by` but no date, then regenerates the README tables and commits with `[skip ci]`. `generate-build-matrix` excludes any entry with `deprecated_at`.
 - Deprecation stops future builds only - published images and tags are never deleted.
 - The pure planning logic lives in `lib/tag_lifecycle.py`; `scripts/apply-tag-lifecycle.py` supports `--check` and `--dry-run` for local inspection.
