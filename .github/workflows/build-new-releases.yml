@@ -40,6 +40,8 @@ jobs:
 
       - name: Extract new versions
         id: extract-versions
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "🔍 Detecting new Asterisk versions in PR..."
@@ -47,7 +49,16 @@ jobs:
             COMPARE_REF="origin/${{ github.base_ref }}"
           else
             echo "🔍 Detecting new Asterisk versions in push to main..."
+            # Compare with what main pointed at before this push, not HEAD^: a
+            # rebase merge lands several commits and HEAD^ already carries the
+            # new versions (PR #235 published nothing on merge). HEAD^ stays as
+            # the fallback when the push has no usable 'before' commit.
             COMPARE_REF="HEAD^"
+            if [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+              COMPARE_REF="$PUSH_BEFORE"
+            fi
+            echo "Comparing against $COMPARE_REF"
           fi
 
           # Compare YAML structurally: a version is "new" if it is active
