@@ -38,7 +38,7 @@ VERSIONS = [
     "22.10.1",     # modern variant, arm64+amd64, semantic tags; + Alpine 3.24 & edge
     "23.4.1",      # runtime_autoderive, member-level experimental tag (trixie + forky); + Alpine 3.24 & edge
     "20.7-cert11", # certified URL template + cert version parsing
-    "22.8-cert3",  # Alpine cert leg: 4-component apk pin + subpackage-omission path
+    "22.8-cert4",  # Alpine cert leg: 4-component apk pin + subpackage-omission path
     "19.8.1",      # bookworm distribution layer
     "11.25.3",     # asterisk-11 variant
     "10.12.4",     # legacy variant
