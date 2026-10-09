@@ -44,3 +44,19 @@ def test_update_readme_intro_does_not_claim_artifacts_untracked(tmp_path):
     content = readme.read_text()
     assert "not tracked in git" not in content
     assert "| new table |" in content
+
+
+def test_metrics_ranks_release_candidate_as_newest_not_oldest():
+    # PR #235 rendered "from 24.0.0-rc2 to 23.5.0": the local parser could not
+    # read '-rc2' and sorted the release candidate as the oldest version.
+    builds = [_build("1.2.40"), _build("23.5.0"), _build("24.0.0-rc2")]
+    m = urv.calculate_version_metrics(builds)
+    assert m["oldest"] == "1.2.40"
+    assert m["latest"] == "24.0.0-rc2"
+
+
+def test_version_table_orders_rc_between_previous_ga_and_its_ga():
+    table = urv.generate_version_table(
+        [_build("23.5.0"), _build("24.0.0-rc2"), _build("24.0.0"), _build("1.2.40")])
+    rows = [line.split("|")[1].strip() for line in table.splitlines()[2:]]
+    assert rows == ["**24.0.0**", "**24.0.0-rc2**", "**23.5.0**", "**1.2.40**"]

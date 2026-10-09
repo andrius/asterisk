@@ -14,7 +14,8 @@ class TestStableLtsOwner:
     def _tags(self):
         return set(alpine_tags(
             version="22.10.1", apk_version="22.10.1-r0",
-            alpine_version="3.24", alpine_role="stable", owns_latest=True))
+            alpine_version="3.24", alpine_role="stable", owns_latest=True,
+            owns_stable=True))
 
     def test_explicit_line_and_version(self):
         t = self._tags()
@@ -90,13 +91,68 @@ class TestEdgeIsExplicitOnly:
         assert "23.4.1-alpine" not in t
 
 
+class TestLatestOnlyOwner:
+    """23.5.0: newest GA series ('latest') but a Standard release, not LTS."""
+
+    def _tags(self):
+        return set(alpine_tags(
+            version="23.5.0", apk_version="23.5.0-r0",
+            alpine_version="3.24", alpine_role="stable",
+            owns_latest=True, owns_stable=False))
+
+    def test_gets_the_latest_twin(self):
+        assert "alpine" in self._tags()
+
+    def test_never_gets_stable_aliases(self):
+        t = self._tags()
+        assert "stable-alpine" not in t
+        assert "stable-alpine-3.24" not in t
+
+
+class TestStableOnlyOwner:
+    """22.11.0: newest LTS ('stable') while 23.x holds 'latest'."""
+
+    def _tags(self):
+        return set(alpine_tags(
+            version="22.11.0", apk_version="22.11.0-r0",
+            alpine_version="3.24", alpine_role="stable",
+            owns_latest=False, owns_stable=True))
+
+    def test_gets_stable_aliases(self):
+        assert {"stable-alpine", "stable-alpine-3.24"} <= self._tags()
+
+    def test_never_gets_the_latest_twin(self):
+        assert "alpine" not in self._tags()
+
+
+class TestReleaseCandidateLeg:
+    """A release candidate publishes '<major>-rc' tokens, never the bare major."""
+
+    def _tags(self, alpine_version, alpine_role):
+        return set(alpine_tags(
+            version="24.0.0-rc2", apk_version="24.0.0_rc2-r0",
+            alpine_version=alpine_version, alpine_role=alpine_role))
+
+    def test_explicit_rc_line_tag(self):
+        t = self._tags("edge", "edge")
+        assert "24-rc-alpine-edge" in t
+        assert "24.0.0-rc2-alpine-edge" in t
+        assert "24-alpine-edge" not in t
+
+    def test_implicit_rc_line_tag_on_stable_tree(self):
+        t = self._tags("3.24", "stable")
+        assert "24-rc-alpine" in t
+        assert "24-alpine" not in t
+
+
 class TestPreviousStableIsExplicitOnly:
     """A demoted (previous) stable tree keeps only its explicit tags."""
 
     def test_previous_role_has_no_implicit_tags(self):
         t = set(alpine_tags(
             version="22.10.1", apk_version="22.10.1-r0",
-            alpine_version="3.24", alpine_role="previous", owns_latest=True))
+            alpine_version="3.24", alpine_role="previous", owns_latest=True,
+            owns_stable=True))
         assert "22-alpine-3.24" in t          # explicit still there
         assert "22-alpine" not in t           # implicit suppressed
         assert "alpine" not in t              # latest twin suppressed

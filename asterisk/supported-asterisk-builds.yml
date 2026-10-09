@@ -631,7 +631,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-    additional_tags: "22"
+    additional_tags: "stable,22"
   - version: "23.5.0"
     tarball_sha256: "8ed3a237e6d8dff94a09527a83143530b5afcc1aee73fa7b85c069bda507adac"
     os_matrix:
@@ -648,7 +648,7 @@ latest_builds:
           - "arm64"
         additional_tags: "experimental"
 
-    additional_tags: "23"
+    additional_tags: "latest,23"
   - version: "24.0.0-rc2"
     tarball_sha256: "690e85d4a747946cffa25ec16efcc72b827508ae8dbf20964db20cd1e4f7f3e0"
     os_matrix:
@@ -658,7 +658,7 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-    additional_tags: "latest,stable,24"
+    additional_tags: "24-rc"
 metadata:
   generated_at: "2026-10-09T00:08:37Z"
   supported_os:

@@ -12,42 +12,23 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from lib.tag_lifecycle import version_sort_key as _lifecycle_sort_key  # noqa: E402
+
 
 def version_sort_key(version):
     """
-    Generate sort key for version string.
-    Returns tuple for sorting: (major, minor, patch, cert_num)
+    Sort key shared with lib/tag_lifecycle.py, so README order matches tag
+    ownership: (major, minor, patch, cert, stage, pre_number), where a
+    pre-release sorts just below its GA release (24.0.0-rc2 < 24.0.0).
     'git' always sorts first (highest).
-
-    Examples:
-      git → (999, 0, 0, 0)
-      23.0.0 → (23, 0, 0, 0)
-      20.7-cert7 → (20, 7, 0, 7)
-      1.2.40 → (1, 2, 40, 0)
     """
-    if version == "git":
-        return (999, 0, 0, 0)
-
     try:
-        # Split on "-cert" first to separate version from cert number
-        if "-cert" in version:
-            version_part, cert_part = version.split("-cert")
-            cert = int(cert_part)
-        else:
-            version_part = version
-            cert = 0
-
-        # Split version on "." to get major.minor.patch
-        parts = version_part.split(".")
-        major = int(parts[0])
-        minor = int(parts[1]) if len(parts) > 1 else 0
-        patch = int(parts[2]) if len(parts) > 2 else 0
-
-        return (major, minor, patch, cert)
-    except (ValueError, IndexError):
+        return _lifecycle_sort_key(version)
+    except ValueError:
         # Fallback for malformed versions
         print(f"⚠️  Warning: Could not parse version '{version}', sorting to end", file=sys.stderr)
-        return (0, 0, 0, 0)
+        return (0, 0, 0, 0, 0, 0)
 
 
 def calculate_version_metrics(builds):

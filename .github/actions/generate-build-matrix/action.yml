@@ -110,9 +110,13 @@ runs:
 
             os_matrix = build['os_matrix']
             default_tags = build.get('additional_tags', '')
-            # The version-level 'latest' tag marks the LTS latest-owner; the
-            # Alpine lattice mirrors it as the 'alpine'/'stable-alpine' aliases.
-            owns_latest = 'latest' in default_tags
+            # Version-level 'latest' (newest GA series) and 'stable' (newest LTS
+            # series) come from tag_lifecycle; the Alpine lattice mirrors them as
+            # the 'alpine' and 'stable-alpine' aliases. Computed once per version,
+            # never per-member (local path and generate-build-matrix agree).
+            version_tags = [t.strip() for t in (default_tags or '').split(',')]
+            owns_latest = 'latest' in version_tags
+            owns_stable = 'stable' in version_tags
 
             # Normalize os_matrix to list
             if isinstance(os_matrix, dict):
@@ -147,6 +151,7 @@ runs:
                         alpine_version=distribution,
                         alpine_role=alpine_role,
                         owns_latest=owns_latest,
+                        owns_stable=owns_stable,
                     ))
 
                 architectures_str = ','.join(architectures)

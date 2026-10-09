@@ -2,7 +2,7 @@
 
 No I/O, no clock, no git. Given the facts of one Alpine build leg (the
 Asterisk version label, its exact apk pin, the Alpine version + role, and
-whether it owns the `latest`/`stable` line), returns the set of Docker tags
+whether it owns `latest` and/or `stable`), returns the set of Docker tags
 that leg publishes.
 
 The lattice spans two axes:
@@ -23,9 +23,9 @@ from __future__ import annotations
 import re
 
 try:
-    from .tag_lifecycle import line_key
+    from .tag_lifecycle import is_prerelease, line_key
 except ImportError:  # imported flat (scripts insert lib/ on sys.path)
-    from tag_lifecycle import line_key
+    from tag_lifecycle import is_prerelease, line_key
 
 # The git line is the bleeding-edge channel; it publishes these convenience
 # tags in addition to its immutable snapshot tag.
@@ -42,7 +42,8 @@ def _strip_pkgrel(apk_version: str) -> str:
 
 
 def alpine_tags(*, version: str, apk_version: str, alpine_version: str,
-                alpine_role: str, owns_latest: bool = False) -> list:
+                alpine_role: str, owns_latest: bool = False,
+                owns_stable: bool = False) -> list:
     """Return the Docker tags an Alpine build leg publishes.
 
     Args:
@@ -52,8 +53,11 @@ def alpine_tags(*, version: str, apk_version: str, alpine_version: str,
       alpine_version: ``3.24`` or ``edge`` (the explicit tag token).
       alpine_role: ``stable`` | ``previous`` | ``edge``. Implicit (unsuffixed)
         tags are minted only for ``stable``.
-      owns_latest: True when this version holds the ``latest``/``stable`` line
-        (computed cross-leg by the caller, mirroring tag_lifecycle).
+      owns_latest: True when this version holds ``latest`` (newest GA series);
+        mints the ``alpine`` twin. Computed cross-leg by the caller from the
+        version-level tags that tag_lifecycle writes.
+      owns_stable: True when this version holds ``stable`` (newest LTS
+        series); mints the ``stable-alpine`` aliases. Same source.
 
     Deterministic, de-duplicated, insertion-ordered.
     """
@@ -76,6 +80,8 @@ def alpine_tags(*, version: str, apk_version: str, alpine_version: str,
         return list(dict.fromkeys(tags))
 
     line = line_key(version)
+    if is_prerelease(version):
+        line = f"{line}-rc"                           # 24-rc: never the bare major
 
     # Explicit tags - always.
     tags.append(f"{line}-alpine-{av}")                # 22-alpine-3.24
@@ -86,11 +92,13 @@ def alpine_tags(*, version: str, apk_version: str, alpine_version: str,
         tags.append(f"{line}-alpine")                 # 22-alpine
         tags.append(f"{version}-alpine")              # 22.10.1-alpine
 
-    # LTS latest-owner aliases.
-    if owns_latest:
+    # Owner aliases: 'alpine' twins 'latest', 'stable-alpine*' twins 'stable'.
+    if owns_stable:
         tags.append(f"stable-alpine-{av}")            # stable-alpine-3.24
-        if is_stable:
+    if is_stable:
+        if owns_latest:
             tags.append("alpine")                     # alpine  (the latest twin)
+        if owns_stable:
             tags.append("stable-alpine")              # stable-alpine
 
     return list(dict.fromkeys(tags))

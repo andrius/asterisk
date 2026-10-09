@@ -14,6 +14,11 @@ Style mirrors tests/test_golden_regeneration.py: build-asterisk.sh --dry-run
 runs inside a throwaway git worktree so generated files are never written into
 the developer's working tree. The working-tree copy of the script is staged
 into the worktree first, so the test exercises uncommitted edits too.
+
+The worktree's build matrix is replaced with a frozen snapshot
+(tests/fixtures/build-matrix/): every release PR moves additional_tags and
+deprecates the previous version, so assertions against the live matrix broke
+on each release (PR #235).
 """
 
 import os
@@ -25,6 +30,10 @@ import pytest
 
 # Repo root is one level up from tests/ (this checkout is itself a worktree).
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+FROZEN_MATRIX = os.path.join(
+    os.path.dirname(__file__), "fixtures", "build-matrix",
+    "supported-asterisk-builds.yml",
+)
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 # One "Build targets" line: "  -> os/distribution (archs) [additional_tags: T] [from: src]"
@@ -38,16 +47,26 @@ _CACHE = {}
 
 @pytest.fixture(scope="module")
 def worktree(tmp_path_factory):
-    """A throwaway detached worktree of HEAD, carrying the working-tree script."""
+    """A throwaway detached worktree of HEAD, carrying the working-tree script
+    and the frozen build matrix."""
     wt = tmp_path_factory.mktemp("alpine_tags") / "wt"
     subprocess.run(
         ["git", "worktree", "add", "--detach", str(wt)],
         check=True, cwd=REPO_ROOT, capture_output=True, text=True,
     )
-    # Exercise the working-tree script (may carry uncommitted edits), not HEAD.
+    # Exercise the working-tree script and the lib/ it imports (both may carry
+    # uncommitted edits), not HEAD.
     shutil.copy2(
         os.path.join(REPO_ROOT, "scripts", "build-asterisk.sh"),
         os.path.join(str(wt), "scripts", "build-asterisk.sh"),
+    )
+    shutil.copytree(
+        os.path.join(REPO_ROOT, "lib"), os.path.join(str(wt), "lib"),
+        dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    shutil.copy2(
+        FROZEN_MATRIX,
+        os.path.join(str(wt), "asterisk", "supported-asterisk-builds.yml"),
     )
     yield str(wt)
     subprocess.run(
@@ -94,6 +113,13 @@ class TestAlpineLegEmitsLattice:
         for bare in ("latest", "stable", "22", "22.10.1"):
             assert bare not in alpine_324, f"bare {bare!r} leaked into {alpine_324}"
 
+    def test_version_level_latest_and_stable_reach_the_alpine_aliases(self, worktree):
+        # Frozen 22.10.1 carries 'latest,stable,22': the script must hand both
+        # ownerships to the lattice ('alpine' follows latest, 'stable-alpine*'
+        # follows stable).
+        alpine_324 = _tags_by_leg(worktree, "22.10.1")[("alpine", "3.24")]
+        assert {"alpine", "stable-alpine", "stable-alpine-3.24"} <= set(alpine_324)
+
     def test_edge_leg_is_explicit_only(self, worktree):
         alpine_edge = _tags_by_leg(worktree, "22.10.1")[("alpine", "edge")]
         assert "22.10.1-alpine-edge" in alpine_edge
@@ -122,3 +148,14 @@ class TestDebianLegTags:
         assert legs[("debian", "forky")] == ["experimental"]
         # ...while the Alpine legs of the same version carry the lattice.
         assert "23.4.1-alpine-3.24" in legs[("alpine", "3.24")]
+
+
+class TestDeprecatedVersionLegs:
+    """Given a deprecated version, the local path keeps its Alpine members
+    (they track the live apk) and skips its Debian members, matching the CI
+    generator's deprecation-survival (generate-build-matrix 'deprecated')."""
+
+    def test_only_alpine_legs_survive(self, worktree):
+        legs = _tags_by_leg(worktree, "22.8-cert3")
+        assert list(legs) == [("alpine", "3.24")]
+        assert "22.8-cert3-alpine-3.24" in legs[("alpine", "3.24")]

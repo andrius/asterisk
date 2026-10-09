@@ -1,27 +1,43 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
-from lib.tag_lifecycle import version_sort_key, is_cert, line_key
+from lib.tag_lifecycle import version_sort_key, is_cert, is_prerelease, line_key
 
 
 def test_version_sort_key_stable():
-    assert version_sort_key("22.10.1") == (22, 10, 1, 0)
-    assert version_sort_key("20.19.0") == (20, 19, 0, 0)
-    assert version_sort_key("1.8.32.3") == (1, 8, 32, 0)
+    assert version_sort_key("22.10.1") == (22, 10, 1, 0, 3, 0)
+    assert version_sort_key("20.19.0") == (20, 19, 0, 0, 3, 0)
+    assert version_sort_key("1.8.32.3") == (1, 8, 32, 0, 3, 0)
 
 
 def test_version_sort_key_cert():
-    assert version_sort_key("20.7-cert11") == (20, 7, 0, 11)
-    assert version_sort_key("22.8-cert3") == (22, 8, 0, 3)
+    assert version_sort_key("20.7-cert11") == (20, 7, 0, 11, 3, 0)
+    assert version_sort_key("22.8-cert3") == (22, 8, 0, 3, 3, 0)
 
 
 def test_version_sort_key_git_highest():
-    assert version_sort_key("git") == (999, 0, 0, 0)
-    assert version_sort_key("git-forky") == (999, 0, 0, 0)
+    assert version_sort_key("git") == (999, 0, 0, 0, 3, 0)
+    assert version_sort_key("git-forky") == (999, 0, 0, 0, 3, 0)
 
 
 def test_version_sort_key_orders_cert_numerically():
     assert version_sort_key("20.7-cert11") > version_sort_key("20.7-cert10")
+
+
+def test_version_sort_key_orders_prerelease_before_its_ga():
+    # alpha < beta < rc < GA, matching discover-latest-versions.sh priorities;
+    # a pre-release still sorts above the previous GA line.
+    assert version_sort_key("24.0.0-rc1") < version_sort_key("24.0.0-rc2")
+    assert version_sort_key("24.0.0-beta1") < version_sort_key("24.0.0-rc1")
+    assert version_sort_key("24.0.0-rc2") < version_sort_key("24.0.0")
+    assert version_sort_key("24.0.0-rc2") > version_sort_key("23.5.0")
+
+
+def test_is_prerelease():
+    assert is_prerelease("24.0.0-rc2") is True
+    assert is_prerelease("24.0.0-beta1") is True
+    assert is_prerelease("22.11.0") is False
+    assert is_prerelease("22.8-cert4") is False
 
 
 def test_version_sort_key_raises_on_garbage():
@@ -42,6 +58,7 @@ def test_line_key():
     assert line_key("1.8.32.3") == "1.8"          # legacy: major.minor
     assert line_key("1.2.40") == "1.2"
     assert line_key("10.12.4") == "10"
+    assert line_key("24.0.0-rc2") == "24"         # pre-release shares its major's line
 
 
 from lib.tag_lifecycle import plan, Plan
@@ -59,14 +76,60 @@ def _b(version, tags=None, os_matrix=True, deprecated_at=None):
     return entry
 
 
-def test_set_tags_latest_stable_on_newest_even_lts():
+def test_set_tags_stable_on_newest_lts_latest_on_newest_major():
+    # docs.asterisk.org Asterisk-Versions: 'stable' is the newest LTS (even)
+    # series, 'latest' the newest released series - not the same thing.
     builds = [_b("22.9.0", "latest,stable,22"), _b("22.10.1"),
               _b("23.3.0", "23"), _b("23.4.1")]
     p = plan(builds)
-    assert p.set_tags["22.10.1"] == "latest,stable,22"   # 22 = newest even LTS
-    assert p.set_tags["23.4.1"] == "23"                  # 23 odd -> bare major only
+    assert p.set_tags["22.10.1"] == "stable,22"          # 22 = newest even LTS
+    assert p.set_tags["23.4.1"] == "latest,23"           # 23 = newest GA series
     assert "22.9.0" not in p.set_tags
     assert "23.3.0" not in p.set_tags
+
+
+def test_latest_and_stable_coincide_when_newest_major_is_lts():
+    builds = [_b("22.11.0", "stable,22"), _b("23.5.0", "latest,23"), _b("24.0.0")]
+    p = plan(builds)
+    assert p.set_tags["24.0.0"] == "latest,stable,24"
+    assert p.set_tags["23.5.0"] == "23"
+    assert p.set_tags["22.11.0"] == "22"
+
+
+def test_rc_gets_only_its_rc_line_tag():
+    # PR #235 shape: discovery added 24.0.0-rc2 and the old plan tagged it
+    # latest,stable,24. A release candidate owns neither latest, stable nor
+    # the bare major - only '<major>-rc'.
+    builds = [_b("20.21.0"), _b("22.11.0"), _b("23.5.0"),
+              _b("24.0.0-rc2", "latest,stable,24")]
+    p = plan(builds)
+    assert p.set_tags["24.0.0-rc2"] == "24-rc"
+    assert p.set_tags["23.5.0"] == "latest,23"
+    assert p.set_tags["22.11.0"] == "stable,22"
+    assert p.set_tags["20.21.0"] == "20"
+    assert p.deprecate == {}
+
+
+def test_ga_supersedes_its_rcs_regardless_of_order():
+    builds = [_b("23.5.0", "latest,23"), _b("24.0.0"),
+              _b("24.0.0-rc2", "24-rc"), _b("24.0.0-rc1")]
+    p = plan(builds)
+    assert p.deprecate == {"24.0.0-rc2": "24.0.0", "24.0.0-rc1": "24.0.0"}
+    assert "24.0.0-rc2" in p.clear_tags
+    assert p.set_tags["24.0.0"] == "latest,stable,24"
+
+
+def test_newer_rc_supersedes_older_rc():
+    p = plan([_b("23.5.0"), _b("24.0.0-rc1", "24-rc"), _b("24.0.0-rc2")])
+    assert p.deprecate == {"24.0.0-rc1": "24.0.0-rc2"}
+    assert p.set_tags["24.0.0-rc2"] == "24-rc"
+
+
+def test_rc_never_supersedes_a_ga_release():
+    p = plan([_b("22.11.0", "latest,stable,22"), _b("22.12.0-rc1")])
+    assert p.deprecate == {}
+    assert p.set_tags["22.11.0"] == "latest,stable,22"
+    assert p.set_tags["22.12.0-rc1"] == "22-rc"
 
 
 def test_set_tags_bare_major_for_non_top_lts():
@@ -170,7 +233,7 @@ def test_plan_idempotent_after_apply():
          "os_matrix": [{"distribution": "trixie", "architectures": ["amd64"]},
                        {"distribution": "forky", "architectures": ["amd64"],
                         "additional_tags": "experimental"}]},
-        {"version": "23.4.1", "additional_tags": "23",
+        {"version": "23.4.1", "additional_tags": "latest,23",
          "os_matrix": [{"distribution": "trixie", "architectures": ["amd64"]},
                        {"distribution": "forky", "architectures": ["amd64"],
                         "additional_tags": "experimental"}]},
@@ -178,7 +241,7 @@ def test_plan_idempotent_after_apply():
     p = plan(applied)
     assert p.deprecate == {}                 # 23.3.0 already deprecated -> excluded
     assert p.migrate_experimental == {}
-    assert p.set_tags == {"23.4.1": "23"}    # unchanged
+    assert p.set_tags == {"23.4.1": "latest,23"}  # unchanged
 
 
 def test_experimental_deduped_across_multiple_superseded():
