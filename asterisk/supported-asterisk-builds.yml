@@ -669,5 +669,5 @@ metadata:
   supported_architectures: ["amd64", "arm64"]
   mode: "manual"
   git_support: true
-  git_sha: "47949ef"
-  last_git_update: "2026-10-08T22:48:58Z"
+  git_sha: "ebbc0a6"
+  last_git_update: "2026-10-09T22:08:50Z"
