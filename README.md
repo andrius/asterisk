@@ -58,6 +58,7 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **23.5.0** | experimental | Forky | amd64, arm64 |
 | **22.11.0** | `stable,22` | Trixie | amd64, arm64 |
 | **22.8-cert4** | 22-cert | Trixie | amd64, arm64 |
+| **22.8-cert4** | 22-cert | 3.24 | amd64, arm64, armv7, armhf |
 | **21.12.3** | 21 | Trixie | amd64, arm64 |
 | **20.21.0** | 20 | Trixie | amd64, arm64 |
 | **20.7-cert11** | 20-cert | Trixie | amd64, arm64 |
