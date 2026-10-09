@@ -111,12 +111,16 @@ def test_rc_gets_only_its_rc_line_tag():
 
 
 def test_ga_supersedes_its_rcs_regardless_of_order():
-    builds = [_b("23.5.0", "latest,23"), _b("24.0.0"),
-              _b("24.0.0-rc2", "24-rc"), _b("24.0.0-rc1")]
-    p = plan(builds)
-    assert p.deprecate == {"24.0.0-rc2": "24.0.0", "24.0.0-rc1": "24.0.0"}
-    assert "24.0.0-rc2" in p.clear_tags
-    assert p.set_tags["24.0.0"] == "latest,stable,24"
+    # Every list order, including discovery's real one (GA appended last):
+    # an RC tied with its GA on (major, minor, patch) must never win.
+    import itertools
+    builds = [_b("23.5.0", "latest,23"), _b("24.0.0-rc2", "24-rc"),
+              _b("24.0.0-rc1"), _b("24.0.0")]
+    for order in itertools.permutations(builds):
+        p = plan(list(order))
+        assert p.deprecate == {"24.0.0-rc2": "24.0.0", "24.0.0-rc1": "24.0.0"}, order
+        assert "24.0.0-rc2" in p.clear_tags
+        assert p.set_tags["24.0.0"] == "latest,stable,24"
 
 
 def test_newer_rc_supersedes_older_rc():

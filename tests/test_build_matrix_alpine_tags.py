@@ -21,10 +21,12 @@ deprecates the previous version, so assertions against the live matrix broke
 on each release (PR #235).
 """
 
+import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -113,12 +115,17 @@ class TestAlpineLegEmitsLattice:
         for bare in ("latest", "stable", "22", "22.10.1"):
             assert bare not in alpine_324, f"bare {bare!r} leaked into {alpine_324}"
 
-    def test_version_level_latest_and_stable_reach_the_alpine_aliases(self, worktree):
-        # Frozen 22.10.1 carries 'latest,stable,22': the script must hand both
-        # ownerships to the lattice ('alpine' follows latest, 'stable-alpine*'
-        # follows stable).
-        alpine_324 = _tags_by_leg(worktree, "22.10.1")[("alpine", "3.24")]
-        assert {"alpine", "stable-alpine", "stable-alpine-3.24"} <= set(alpine_324)
+    def test_stable_owner_gets_only_the_stable_aliases(self, worktree):
+        # Frozen 22.10.1 carries 'stable,22': 'stable-alpine*' follow stable.
+        alpine_324 = set(_tags_by_leg(worktree, "22.10.1")[("alpine", "3.24")])
+        assert {"stable-alpine", "stable-alpine-3.24"} <= alpine_324
+        assert "alpine" not in alpine_324
+
+    def test_latest_owner_gets_only_the_latest_twin(self, worktree):
+        # Frozen 23.4.1 carries 'latest,23': 'alpine' follows latest.
+        alpine_324 = set(_tags_by_leg(worktree, "23.4.1")[("alpine", "3.24")])
+        assert "alpine" in alpine_324
+        assert not {"stable-alpine", "stable-alpine-3.24"} & alpine_324
 
     def test_edge_leg_is_explicit_only(self, worktree):
         alpine_edge = _tags_by_leg(worktree, "22.10.1")[("alpine", "edge")]
@@ -134,17 +141,17 @@ class TestDebianLegTags:
 
     def test_trixie_keeps_version_level_tags(self, worktree):
         assert _tags_by_leg(worktree, "22.10.1")[("debian", "trixie")] == [
-            "latest", "stable", "22",
+            "stable", "22",
         ]
 
     def test_forky_adopts_its_experimental_tag(self, worktree):
         # The local path honors per-member additional_tags (parity with the CI
         # generator): 23.4.1's forky leg publishes its own 'experimental' tag
-        # instead of inheriting the version-level '23', which would collide with
-        # the trixie '23' image. trixie has no per-member key, so it keeps the
-        # version-level '23'.
+        # instead of inheriting the version-level 'latest,23', which would
+        # collide with the trixie image. trixie has no per-member key, so it
+        # keeps the version-level tags.
         legs = _tags_by_leg(worktree, "23.4.1")
-        assert legs[("debian", "trixie")] == ["23"]
+        assert legs[("debian", "trixie")] == ["latest", "23"]
         assert legs[("debian", "forky")] == ["experimental"]
         # ...while the Alpine legs of the same version carry the lattice.
         assert "23.4.1-alpine-3.24" in legs[("alpine", "3.24")]
@@ -159,3 +166,45 @@ class TestDeprecatedVersionLegs:
         legs = _tags_by_leg(worktree, "22.8-cert3")
         assert list(legs) == [("alpine", "3.24")]
         assert "22.8-cert3-alpine-3.24" in legs[("alpine", "3.24")]
+
+
+def _ci_tags_by_leg(worktree):
+    """Map (version, distribution) -> tags from the CI matrix generator.
+
+    Runs the Python embedded in .github/actions/generate-build-matrix/action.yml
+    (working-tree copy) against the throwaway worktree, which carries the
+    frozen matrix and the working-tree lib/.
+    """
+    src = open(os.path.join(
+        REPO_ROOT, ".github", "actions", "generate-build-matrix", "action.yml")).read()
+    script = src.split("python3 << 'PYTHON_EOF'\n", 1)[1].split("        PYTHON_EOF", 1)[0]
+    script = "\n".join(l[8:] if l.startswith("        ") else l for l in script.splitlines())
+    for expr, value in {"${{ inputs.version-pattern }}": ".*",
+                        "${{ inputs.batch-name }}": "pytest",
+                        "${{ inputs.filter-version }}": "",
+                        "${{ inputs.filter-distribution }}": ""}.items():
+        script = script.replace(expr, value)
+    assert "${{" not in script, "action.yml grew an input this test does not substitute"
+    out = os.path.join(worktree, ".github-output")
+    run = subprocess.run(
+        [sys.executable, "-c", script], cwd=worktree, capture_output=True, text=True,
+        env=dict(os.environ, GITHUB_OUTPUT=out),
+    )
+    assert run.returncode == 0, run.stderr[-2000:]
+    matrix = json.loads(re.search(r"^matrix=(.*)$", open(out).read(), re.M).group(1))
+    legs = matrix.get("include", matrix) if isinstance(matrix, dict) else matrix
+    return {(leg["version"], leg["distribution"]):
+            [t for t in (leg.get("additional_tags") or "").split(",") if t]
+            for leg in legs}
+
+
+class TestCiGeneratorParity:
+    """The CI matrix generator and the local build path emit the same tags for
+    every leg of the frozen matrix (owner flags, Alpine lattice, deprecation)."""
+
+    def test_every_leg_matches_the_local_path(self, worktree):
+        ci = _ci_tags_by_leg(worktree)
+        local = {(version, dist): tags
+                 for version in ("22.10.1", "22.8-cert3", "23.4.1")
+                 for (_os, dist), tags in _tags_by_leg(worktree, version).items()}
+        assert ci == local

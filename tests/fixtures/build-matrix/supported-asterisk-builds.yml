@@ -4,10 +4,12 @@
 # apply-tag-lifecycle.py moves additional_tags to the newest version of each
 # line and finalize-deprecations.yml stamps deprecated_at on the old one. Tests
 # that assert tag-emission logic must not follow that churn, so they run
-# against this snapshot (entries copied verbatim from main @ 7a21042):
-#   - 22.10.1     active, owns latest/stable; Debian trixie + Alpine 3.24 & edge
+# against this snapshot (entries copied from main @ 7a21042; version-level
+# tags set to the split latest/stable shape so a swapped owner flag fails):
+#   - 22.10.1     active, owns stable; Debian trixie + Alpine 3.24 & edge
 #   - 22.8-cert3  deprecated; Debian trixie + Alpine 3.24 (deprecation-survival)
-#   - 23.4.1      active; Debian trixie + forky (member 'experimental') + Alpine
+#   - 23.4.1      active, owns latest; Debian trixie + forky (member
+#                 'experimental') + Alpine 3.24 & edge
 
 latest_builds:
   - version: "22.10.1"
@@ -38,7 +40,7 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "latest,stable,22"
+    additional_tags: "stable,22"
     tarball_sha256: "0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353"
   - version: "22.8-cert3"
     os_matrix:
@@ -97,7 +99,7 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "23"
+    additional_tags: "latest,23"
     tarball_sha256: "9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51"
 metadata:
   supported_os:
