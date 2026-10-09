@@ -363,7 +363,15 @@ try:
         print("This version is intentionally disabled/skipped in the configuration.", file=sys.stderr)
         sys.exit(0)  # Exit successfully but with no builds
 
-    if version_data.get('deprecated_at'):
+    # Deprecated versions are normally not built, but their Alpine members
+    # survive: the Alpine image tracks the apk still published for that line
+    # until the sibling bumps it (deprecation-survival, plan 003; mirrors
+    # .github/actions/generate-build-matrix). Debian members stay skipped.
+    deprecated = bool(version_data.get('deprecated_at'))
+    os_matrix = version_data['os_matrix']
+    has_alpine = any(m.get('os') == 'alpine'
+                     for m in (os_matrix if isinstance(os_matrix, list) else [os_matrix]))
+    if deprecated and not has_alpine:
         # Version is deprecated - kept in YAML for history but not built
         print(f"INFO: Version $version is deprecated since {version_data['deprecated_at']} - skipping build", file=sys.stderr)
         if version_data.get('superseded_by'):
@@ -372,16 +380,18 @@ try:
 
     # Version has os_matrix - proceed with builds
     log_debug(f"Using custom OS matrix for version $version")
-    os_matrix = version_data['os_matrix']
 
     # Extract additional_tags from version data
     additional_tags = version_data.get('additional_tags', '')
     log_debug(f"Additional tags for version $version: {additional_tags}")
 
-    # The version-level 'latest' tag marks the LTS latest-owner; the Alpine
-    # lattice mirrors it as the 'alpine'/'stable-alpine' aliases. Computed once
-    # here (version level), never per-member (mirrors generate-build-matrix).
-    owns_latest = 'latest' in additional_tags
+    # Version-level 'latest' (newest GA series) and 'stable' (newest LTS
+    # series) come from tag_lifecycle; the Alpine lattice mirrors them as
+    # the 'alpine' and 'stable-alpine' aliases. Computed once per version,
+    # never per-member (local path and generate-build-matrix agree).
+    version_tags = [t.strip() for t in (additional_tags or '').split(',')]
+    owns_latest = 'latest' in version_tags
+    owns_stable = 'stable' in version_tags
 
     # Handle different os_matrix formats (list or single entry)
     if isinstance(os_matrix, list):
@@ -396,6 +406,11 @@ try:
         template = matrix_entry.get('template', '')  # empty string if no template specified
 
         log_debug(f"Processing matrix entry: {os_name}/{distribution} with {architectures}")
+
+        # Deprecated: keep only Alpine members (they track the live apk).
+        if deprecated and os_name != 'alpine':
+            log_debug(f"Skipping {os_name}/{distribution}: version $version is deprecated")
+            continue
 
         # Apply filters
         if "$os_filter" and os_name != "$os_filter":
@@ -428,6 +443,7 @@ try:
                     alpine_version=distribution,
                     alpine_role=alpine_role,
                     owns_latest=owns_latest,
+                    owns_stable=owns_stable,
                 ))
             builds.append({
                 'os': os_name,

@@ -41,8 +41,9 @@ def test_apply_pr_moves_tag_sets_superseded_migrates_forky(tmp_path):
     y, data = _load(YAML_IN)
     atl.apply_pr(data)
     builds = {b["version"]: b for b in data["latest_builds"]}
-    # tag moved to newest, cleared from old
-    assert builds["23.4.1"]["additional_tags"] == "23"
+    # tag moved to newest, cleared from old (23 is the only GA series here,
+    # so it is also 'latest')
+    assert builds["23.4.1"]["additional_tags"] == "latest,23"
     assert "additional_tags" not in builds["23.3.0"]
     # pending deprecation: superseded_by set, NO deprecated_at yet
     assert builds["23.3.0"]["superseded_by"] == "23.4.1"
@@ -152,7 +153,7 @@ def test_apply_pr_double_quotes_fresh_keys():
     y, data = _load(YAML_IN)
     atl.apply_pr(data)
     buf = io.StringIO(); y.dump(data, buf); out = buf.getvalue()
-    assert 'additional_tags: "23"' in out       # fresh entry-level tag on 23.4.1
+    assert 'additional_tags: "latest,23"' in out  # fresh entry-level tag on 23.4.1
     assert 'superseded_by: "23.4.1"' in out      # fresh key on 23.3.0
 
 

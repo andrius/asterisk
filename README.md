@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 28 versions from 24.0.0-rc2 to 23.5.0 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 28 versions from 1.2.40 to 24.0.0-rc2 plus git development builds.
 
 ## Quick Start
 
@@ -53,13 +53,14 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | `testing,dev` | Trixie | amd64, arm64 |
 | **git** | experimental-git | Forky | amd64, arm64 |
 | **git** | `testing,dev` | Edge | amd64, arm64 |
-| **23.5.0** | 23 | Trixie | amd64, arm64 |
+| **24.0.0-rc2** | 24-rc | Trixie | amd64, arm64 |
+| **23.5.0** | `latest,23` | Trixie | amd64, arm64 |
 | **23.5.0** | experimental | Forky | amd64, arm64 |
 | **23.4.1** | - | Trixie | amd64, arm64 |
 | **23.4.1** | experimental | Forky | amd64, arm64 |
 | **23.4.1** | - | 3.24 | amd64, arm64, armv7, armhf |
 | **23.4.1** | - | Edge | amd64, arm64 |
-| **22.11.0** | 22 | Trixie | amd64, arm64 |
+| **22.11.0** | `stable,22` | Trixie | amd64, arm64 |
 | **22.10.1** | - | Trixie | amd64, arm64 |
 | **22.10.1** | - | 3.24 | amd64, arm64, armv7, armhf |
 | **22.10.1** | - | Edge | amd64, arm64 |
@@ -92,7 +93,6 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **1.6.2.24** | 1.6 | 3.24 | amd64 |
 | **1.4.44** | 1.4 | Jessie | amd64 |
 | **1.2.40** | 1.2 | Stretch | amd64 |
-| **24.0.0-rc2** | `latest,stable,24` | Trixie | amd64, arm64 |
 
 ## Deprecated Versions
 
@@ -141,9 +141,12 @@ For development, use semantic tags like `andrius/asterisk:latest` or `andrius/as
 
 ### Current Tag Meanings
 
-- **`latest`** - Newest release of the current LTS (even-numbered) major - currently Asterisk 22. The newer Standard major (23) never takes `latest`; it moves only when a newer LTS line becomes active.
-- **`stable`** - Alias for `latest`
-- **`22`**, **`23`**, **`21`**, **`20`**, ... - Major version tags, each pointing at the newest release of that series
+Tag ownership follows the official [Asterisk Versions](https://docs.asterisk.org/About-the-Project/Asterisk-Versions/) table:
+
+- **`latest`** - Newest release of the newest released Asterisk series, Standard or LTS - currently Asterisk 23.
+- **`stable`** - Newest release of the newest LTS (even-numbered) series - currently Asterisk 22. `latest` and `stable` point at the same image only while the newest released series is itself an LTS (for example once 24.0.0 ships).
+- **`22`**, **`23`**, **`21`**, **`20`**, ... - Major version tags, each pointing at the newest GA release of that series
+- **`24-rc`** - `{major}-rc`: newest release candidate of an upcoming major (currently 24.0.0-rc2). A release candidate never takes `latest`, `stable` or the plain major tag; when the GA release ships it supersedes the release candidates, which are then deprecated.
 - **`20-cert`** / **`22-cert`** - Certified release tags, newest certified build of that major
 - **`testing`** / **`dev`** - Latest git HEAD from the Asterisk repository
 - **`experimental`** - Latest stable Asterisk built on Debian Forky (Debian 14, currently testing). Refreshed weekly. Never carries the plain major tag. **Not for production** - Forky's package set is still moving.
@@ -171,22 +174,22 @@ Additional tags are configured per version in the build matrix:
 ```yaml
 # In asterisk/supported-asterisk-builds.yml
 latest_builds:
-  - version: "22.10.1"
-    additional_tags: "latest,stable,22"
+  - version: "22.11.0"
+    additional_tags: "stable,22"
     os_matrix:
       - os: "debian"
         distribution: "trixie"
         architectures: ["amd64", "arm64"]
 ```
 
-When building, both version-specific tags (`22.10.1_debian-trixie`) and semantic tags (`latest`, `stable`, `22`) are created for the same image.
+When building, both version-specific tags (`22.11.0_debian-trixie`) and semantic tags (`stable`, `22`) are created for the same image. `scripts/apply-tag-lifecycle.py` maintains `additional_tags` automatically in every release PR.
 
 ## Alpine Images
 
 Alongside the Debian images, an **Alpine (musl) image family** is published. These are much smaller (~70 MB vs ~230 MB) and, unlike the Debian images, are **not compiled here** - they install prebuilt, signed Asterisk `apk` packages from the sibling project [`andrius/asterisk-alpine`](https://github.com/andrius/asterisk-alpine)'s public Cloudsmith repository. Whatever that project publishes gets an image, for whatever Asterisk versions, Alpine releases, and architectures it publishes it on (open-source Opus is available on arm64 too, unlike Debian's amd64-only Digium blob).
 
 ```bash
-# Newest LTS Asterisk on the current stable Alpine
+# Newest Asterisk release (the `latest` series) on the current stable Alpine
 docker run --rm andrius/asterisk:alpine asterisk -V
 
 # A line, or an exact version, on the stable Alpine tree
@@ -201,17 +204,17 @@ The Alpine images share the same runtime UX as Debian: the PUID/PGID entrypoint,
 
 ### Alpine tag lattice
 
-Alpine tags cross two axes: the **Asterisk identity** (the `{line}` token like `22` or `22-cert`, and the full `{version}` like `22.10.1` or `22.8-cert3`) and the **Alpine identity** (implicit, minted only for the current stable Alpine tree, or explicit `-{alpine}` like `-3.24` / `-edge`). Gating the implicit tags to the stable tree is what lets `edge` coexist without stealing the generic tags.
+Alpine tags cross two axes: the **Asterisk identity** (the `{line}` token like `22` or `22-cert`, or `24-rc` for a release candidate, and the full `{version}` like `22.10.1` or `22.8-cert3`) and the **Alpine identity** (implicit, minted only for the current stable Alpine tree, or explicit `-{alpine}` like `-3.24` / `-edge`). Gating the implicit tags to the stable tree is what lets `edge` coexist without stealing the generic tags.
 
 | Tag pattern | Example | Meaning |
 | ----------- | ------- | ------- |
-| `alpine` | `alpine` | Newest LTS Asterisk on the current stable Alpine (the Alpine twin of `latest`) |
-| `stable-alpine` | `stable-alpine` | Alias for `alpine` |
+| `alpine` | `alpine` | Newest Asterisk release on the current stable Alpine (the Alpine twin of `latest`) |
+| `stable-alpine` | `stable-alpine` | Newest LTS Asterisk on the current stable Alpine (the Alpine twin of `stable`) |
 | `{line}-alpine` | `22-alpine`, `22-cert-alpine` | Newest release of that line on the **stable** Alpine tree |
 | `{version}-alpine` | `22.10.1-alpine`, `22.8-cert3-alpine` | That exact Asterisk version on the stable Alpine tree |
 | `{line}-alpine-{alpine}` | `22-alpine-3.24`, `22-alpine-edge` | That line pinned to a specific Alpine release |
 | `{version}-alpine-{alpine}` | `22.10.1-alpine-3.24` | Fully pinned: exact Asterisk + exact Alpine (immutable) |
-| `stable-alpine-{alpine}` | `stable-alpine-3.24` | The LTS latest-owner pinned to a specific Alpine release |
+| `stable-alpine-{alpine}` | `stable-alpine-3.24` | The newest LTS Asterisk pinned to a specific Alpine release |
 | `git-alpine` / `testing-alpine` / `dev-alpine` | | Asterisk git master on Alpine `edge` (bleeding edge) |
 
 The `{version}_{os}-{distribution}` underscore twin (`22.10.1_alpine-3.24`) is published for every Alpine leg too, matching the Debian convention. Explicit `-{alpine}` tags are always minted; the unsuffixed twins (`22-alpine`, `alpine`) ride only the current stable Alpine tree, so when a new Alpine stable is released the generic tags follow it automatically and the previous one keeps its `-{alpine}`-suffixed tags.

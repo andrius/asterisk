@@ -10,15 +10,27 @@ import re
 
 _BASE_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
 _CERT_RE = re.compile(r"-cert(\d+)")
+_PRE_RE = re.compile(r"-(alpha|beta|rc)(\d*)")
+# Pre-release stages sort below their GA release (same priorities as
+# scripts/discover-latest-versions.sh: alpha < beta < rc < stable).
+_STAGES = {"alpha": 0, "beta": 1, "rc": 2}
+_GA_STAGE = 3
 EXPERIMENTAL_TOKEN = "experimental"
 
 
 def version_sort_key(version):
-    """Return (major, minor, patch, cert_number); 'git'/'git-*' -> (999,0,0,0)."""
+    """Return (major, minor, patch, cert_number, stage, pre_number).
+
+    stage is alpha=0 < beta=1 < rc=2 < GA=3, so 24.0.0-rc2 sorts above 23.5.0
+    and below 24.0.0. 'git'/'git-*' -> (999, 0, 0, 0, 3, 0).
+    """
     if version == "git" or version.startswith("git-"):
-        return (999, 0, 0, 0)
+        return (999, 0, 0, 0, _GA_STAGE, 0)
     cert = _CERT_RE.search(version)
     cert_number = int(cert.group(1)) if cert else 0
+    pre = _PRE_RE.search(version)
+    stage = _STAGES[pre.group(1)] if pre else _GA_STAGE
+    pre_number = int(pre.group(2) or 0) if pre else 0
     base = version.split("-cert")[0]
     m = _BASE_RE.match(base)
     if not m:
@@ -26,16 +38,21 @@ def version_sort_key(version):
     major = int(m.group(1))
     minor = int(m.group(2))
     patch = int(m.group(3)) if m.group(3) else 0
-    return (major, minor, patch, cert_number)
+    return (major, minor, patch, cert_number, stage, pre_number)
 
 
 def is_cert(version):
     return "-cert" in version
 
 
+def is_prerelease(version):
+    """True for alpha/beta/rc releases (24.0.0-rc2), False for GA releases."""
+    return bool(_PRE_RE.search(version))
+
+
 def line_key(version):
     """Grouping key for tag ownership. Raises ValueError if unparseable."""
-    major, minor, _patch, _cert = version_sort_key(version)
+    major, minor = version_sort_key(version)[:2]
     if is_cert(version):
         return f"{major}-cert"
     if major == 1:
@@ -76,25 +93,45 @@ def _active_parseable(builds):
     return out
 
 
-def _newest_per_line(active):
+def _key(build):
+    return version_sort_key(build["version"])
+
+
+def _newest(entries):
+    return max(entries, key=_key) if entries else None
+
+
+def _owners_per_line(active):
+    """Per line: (newest GA entry, newest pre-release newer than that GA).
+
+    A pre-release only owns its '<line>-rc' tag while no GA release of the
+    same or a newer version exists; it never takes the line from a GA release.
+    """
     lines = {}
     for b in active:
         lines.setdefault(line_key(b["version"]), []).append(b)
-    newest = {lk: max(entries, key=lambda b: version_sort_key(b["version"]))
-              for lk, entries in lines.items()}
-    return lines, newest
+    owners = {}
+    for lk, entries in lines.items():
+        ga = _newest([b for b in entries if not is_prerelease(b["version"])])
+        rc = _newest([b for b in entries if is_prerelease(b["version"])])
+        if rc is not None and ga is not None and _key(rc) < _key(ga):
+            rc = None
+        owners[lk] = (ga, rc)
+    return lines, owners
 
 
-def _lts_major(newest):
-    """Highest active even (LTS) *stable* major, or None."""
-    best = None
-    for lk, b in newest.items():
-        if lk.endswith("-cert"):
-            continue
-        major = version_sort_key(b["version"])[0]
-        if major % 2 == 0 and (best is None or major > best):
-            best = major
-    return best
+def _latest_stable_majors(owners):
+    """(latest, stable) majors: newest GA series and newest LTS (even) GA series.
+
+    docs.asterisk.org/About-the-Project/Asterisk-Versions: 'latest' is the
+    newest released series (Standard or LTS), 'stable' the newest LTS series.
+    They coincide while the newest released series is an LTS. Cert lines and
+    pre-release-only lines never count.
+    """
+    majors = [_key(ga)[0] for lk, (ga, _rc) in owners.items()
+              if ga is not None and not lk.endswith("-cert")]
+    lts = [m for m in majors if m % 2 == 0]
+    return (max(majors) if majors else None), (max(lts) if lts else None)
 
 
 def _experimental_members(build):
@@ -105,36 +142,45 @@ def _experimental_members(build):
 
 def plan(builds):
     active = _active_parseable(builds)
-    lines, newest = _newest_per_line(active)
-    lts = _lts_major(newest)
+    lines, owners = _owners_per_line(active)
+    latest, stable = _latest_stable_majors(owners)
 
     p = Plan()
-    for lk, b in newest.items():
-        ver = b["version"]
-        if lk.endswith("-cert"):
+    for lk, (ga, rc) in owners.items():
+        if ga is not None:
             tags = [lk]
-        else:
-            major, _minor, _patch, _cert = version_sort_key(ver)
-            bare = lk if major == 1 else str(major)
-            tags = [bare]
-            if lts is not None and major == lts:
-                tags = ["latest", "stable"] + tags
-        p.set_tags[ver] = ",".join(tags)
+            if not lk.endswith("-cert"):
+                major = _key(ga)[0]
+                if major == stable:
+                    tags.insert(0, "stable")
+                if major == latest:
+                    tags.insert(0, "latest")
+            p.set_tags[ga["version"]] = ",".join(tags)
+        if rc is not None:
+            p.set_tags[rc["version"]] = f"{lk}-rc"
 
     for lk, entries in lines.items():
-        keep = newest[lk]["version"]
-        keep_dists = {m.get("distribution")
-                      for m in (newest[lk].get("os_matrix") or [])}
+        ga, rc = owners[lk]
+        keepers = {o["version"]: o for o in (ga, rc) if o is not None}
+        keep_dists = {v: {m.get("distribution") for m in (o.get("os_matrix") or [])}
+                      for v, o in keepers.items()}
         for b in entries:
             ver = b["version"]
-            if ver == keep:
+            if ver in keepers:
                 continue
+            # A pre-release newer than the GA owner is superseded by the newest
+            # pre-release; everything else (older GA, or an RC that its GA has
+            # shipped past) by the GA owner.
+            if rc is not None and is_prerelease(ver) and (ga is None or _key(b) > _key(ga)):
+                keep = rc["version"]
+            else:
+                keep = ga["version"]
             p.deprecate[ver] = keep
             if b.get("additional_tags"):
                 p.clear_tags.add(ver)
             to_move = [m for m in _experimental_members(b)
-                       if m.get("distribution") not in keep_dists]
+                       if m.get("distribution") not in keep_dists[keep]]
             if to_move:
                 p.migrate_experimental.setdefault(keep, []).extend(to_move)
-                keep_dists.update(m.get("distribution") for m in to_move)
+                keep_dists[keep].update(m.get("distribution") for m in to_move)
     return p
