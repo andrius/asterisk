@@ -65,6 +65,12 @@ CANDIDATE_ARCHES = ["x86_64", "aarch64", "armv7", "armhf"]
 
 _CERT_RE = re.compile(r"^(\d+)\.(\d+)-cert(\d+)$")
 _RN_RE = re.compile(r"-r\d+$")
+# Matrix labels spell pre-releases '24.0.0-rc2'; apk versions cannot carry '-',
+# so the sibling publishes them as '24.0.0_rc2' (apk orders _rc below GA).
+_LABEL_PRE_RE = re.compile(r"-(alpha|beta|rc)(\d*)$")
+_APK_PRE_RE = re.compile(r"_(alpha|beta|pre|rc)(\d*)$")
+_APK_PRE_RANK = {"alpha": 0, "beta": 1, "pre": 2, "rc": 3}
+_APK_GA_RANK = 4
 
 
 def _is_git(label: str) -> bool:
@@ -182,12 +188,31 @@ def _pkgver_full_sort_key(pkgver: str) -> Tuple:
     return tuple(int(n) for n in re.findall(r"\d+", base)) + (rev,)
 
 
+def _release_sort_key(pkgver: str) -> Tuple:
+    """Like :func:`_pkgver_sort_key`, but a pre-release sorts below its GA.
+
+    ``24.0.0_rc2`` -> (24, 0, 0, rc, 2) and ``24.0.0`` -> (24, 0, 0, GA, 0), so
+    GA wins although the plain numeric key would rank the rc higher (its
+    ``2`` reads as a fourth component). Used where an RC and its GA compete
+    for the same line; ``_git`` snapshots never do (they are their own line).
+    """
+    base = _strip_rn(pkgver)
+    pre = _APK_PRE_RE.search(base)
+    if pre:
+        base = base[:pre.start()]
+        stage = (_APK_PRE_RANK[pre.group(1)], int(pre.group(2) or 0))
+    else:
+        stage = (_APK_GA_RANK, 0)
+    return tuple(int(n) for n in re.findall(r"\d+", base)) + stage
+
+
 def resolve_pkgver(label: str, pkgvers) -> Optional[str]:
     """Map our matrix label to the exact published pkgver present in ``pkgvers``.
 
     Rules:
       - git   -> the newest ``*_git*`` snapshot.
       - cert  -> ``NN.M-certK`` maps to the 4-component ``NN.M.0.K``.
+      - pre   -> ``24.0.0-rc2`` maps to the apk spelling ``24.0.0_rc2``.
       - else  -> identity on the version part (``-rN`` stripped).
     Returns the full pkgver (with ``-rN``) or None if not published.
     """
@@ -197,7 +222,10 @@ def resolve_pkgver(label: str, pkgvers) -> Optional[str]:
         return max(snaps, key=_pkgver_sort_key) if snaps else None
 
     cert = _CERT_RE.match(label)
-    target = f"{cert.group(1)}.{cert.group(2)}.0.{cert.group(3)}" if cert else label
+    if cert:
+        target = f"{cert.group(1)}.{cert.group(2)}.0.{cert.group(3)}"
+    else:
+        target = _LABEL_PRE_RE.sub(r"_\1\2", label)
     matches = [v for v in pkgvers if _strip_rn(v) == target]
     if not matches:
         return None
@@ -316,12 +344,13 @@ def resolve_alpine_members(*, versions, indexes,
 
     # Invariant: at most one member per (line, tree) - the newest pkgver wins,
     # else two builds race the <line>-alpine[-av] tag (plan 003 section 6).
+    # A GA release outranks its own release candidates.
     best: Dict[Tuple[str, str], Tuple[str, Dict]] = {}
     for label, member in candidates:
         key = (_line_token(label), member["alpine_tree"])
         incumbent = best.get(key)
-        if incumbent is None or _pkgver_sort_key(member["apk_version"]) > \
-                _pkgver_sort_key(incumbent[1]["apk_version"]):
+        if incumbent is None or _release_sort_key(member["apk_version"]) > \
+                _release_sort_key(incumbent[1]["apk_version"]):
             best[key] = (label, member)
 
     members_by_version: Dict[str, List[Dict]] = {}

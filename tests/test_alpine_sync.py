@@ -129,6 +129,12 @@ class TestResolvePkgver:
         pkgvers = {"20.20.1-r2", "20.20.1-r0", "20.20.1-r1"}
         assert A.resolve_pkgver("20.20.1", pkgvers) == "20.20.1-r2"
 
+    def test_rc_label_maps_to_apk_rc_spelling(self):
+        # apk versions cannot carry '-rc2': the sibling publishes 24.0.0-rc2 as
+        # pkgver 24.0.0_rc2, so the matrix label must be translated to match.
+        pkgvers = {"24.0.0_rc2-r1", "24.0.0_git20261005-r1", "23.5.0-r1"}
+        assert A.resolve_pkgver("24.0.0-rc2", pkgvers) == "24.0.0_rc2-r1"
+
 
 class TestDeriveRoles:
     def test_single_stable_and_edge(self):
@@ -255,6 +261,26 @@ class TestPerLineDedup:
         assert members.get("22.11.0")
         assert members["22.11.0"][0]["apk_version"] == "22.11.0-r0"
         assert not members.get("22.10.1")
+
+    def test_rc_alone_gets_its_member(self):
+        indexes = {"v3.24": {"x86_64": self._synthetic_index(["24.0.0_rc2-r1"])}}
+        versions = [{"version": "24.0.0-rc2", "active": True}]
+        members, _ = A.resolve_alpine_members(versions=versions, indexes=indexes)
+        assert members["24.0.0-rc2"][0]["apk_version"] == "24.0.0_rc2-r1"
+
+    def test_ga_owns_the_line_over_its_rc(self):
+        # Superseded RC apks stay published (only _git snapshots are pruned),
+        # so after 24.0.0 ships both are in the index. GA must win: plain
+        # numeric order would rank 24.0.0_rc2 (24,0,0,2) above 24.0.0.
+        indexes = {"v3.24": {"x86_64": self._synthetic_index(
+            ["24.0.0_rc2-r1", "24.0.0-r0"])}}
+        versions = [
+            {"version": "24.0.0-rc2", "active": False},  # deprecated, apk live
+            {"version": "24.0.0", "active": True},
+        ]
+        members, _ = A.resolve_alpine_members(versions=versions, indexes=indexes)
+        assert members["24.0.0"][0]["apk_version"] == "24.0.0-r0"
+        assert not members.get("24.0.0-rc2")
 
 
 class TestArchMapping:
