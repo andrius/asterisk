@@ -54,6 +54,7 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | experimental-git | Forky | amd64, arm64 |
 | **git** | `testing,dev` | Edge | amd64, arm64 |
 | **24.0.0-rc2** | 24-rc | Trixie | amd64, arm64 |
+| **24.0.0-rc2** | 24-rc | 3.24 | amd64, arm64, armv7, armhf |
 | **23.5.0** | `latest,23` | Trixie | amd64, arm64 |
 | **23.5.0** | experimental | Forky | amd64, arm64 |
 | **23.5.0** | `latest,23` | 3.24 | amd64, arm64, armv7, armhf |
