@@ -661,6 +661,17 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+      - os: "alpine"
+        distribution: "3.24"
+        alpine_tree: "v3.24"
+        alpine_role: "stable"
+        apk_version: "24.0.0_rc2-r0"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
+        architectures:
+          - "amd64"
+          - "arm64"
+          - "armv7"
+          - "armhf"
     additional_tags: "24-rc"
 metadata:
   generated_at: "2026-10-09T00:08:37Z"
