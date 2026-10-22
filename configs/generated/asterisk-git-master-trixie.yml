@@ -53,9 +53,9 @@ base:
   os: debian
 build:
   args:
-    ASTERISK_VERSION: git-5aee26c
+    ASTERISK_VERSION: git-9a7fd6d
     DEBIAN_FRONTEND: noninteractive
-    GIT_SHA: 5aee26c
+    GIT_SHA: 9a7fd6d
   optimization:
     cache_mounts: true
     parallel_jobs: 8
