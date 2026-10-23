@@ -493,8 +493,8 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-    additional_tags: "20-cert"
     tarball_sha256: "56b7e654a171f2a47dcea05a5df657af7b1b060439d2d7744cf8da2e1d104db6"
+    superseded_by: "20.7-cert12"
   - version: "21.12.3"
     os_matrix:
       - os: "debian"
@@ -583,7 +583,7 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
-    additional_tags: "22-cert"
+    superseded_by: "22.8-cert5"
   - version: "20.21.0"
     tarball_sha256: "13fd6e8f1fbb19a3174af82a388dd72c87eb2c92d32fca83c4d51bfab03f686a"
     os_matrix:
@@ -672,9 +672,39 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
+    superseded_by: "24.0.0-rc3"
+  - version: "20.7-cert12"
+    tarball_sha256: "14a7722e0a67c8bed999836935c91510966e7c549163d69bf48cf655d08ad8ef"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "20-cert"
+  - version: "22.8-cert5"
+    tarball_sha256: "f4aaae8028b3c20220022f4ae515ae813f62f295b790ccc038a25d81e9f96404"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "22-cert"
+  - version: "24.0.0-rc3"
+    tarball_sha256: "728d81d90c3cc209a42af551d325d2d78591097ca08e1909accd0925082ec41d"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
     additional_tags: "24-rc"
 metadata:
-  generated_at: "2026-10-09T00:08:37Z"
+  generated_at: "2026-10-23T22:54:43Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie", "forky"]
   supported_architectures: ["amd64", "arm64"]
