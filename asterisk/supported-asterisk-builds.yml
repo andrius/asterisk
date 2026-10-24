@@ -23,7 +23,7 @@ latest_builds:
         distribution: "edge"
         alpine_tree: "edge"
         alpine_role: "edge"
-        apk_version: "24.0.0_git20261005-r1"
+        apk_version: "24.0.0_git20261019-r1"
         apk_packages: ["srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
         architectures:
           - "amd64"
@@ -513,15 +513,6 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-      - os: "alpine"
-        distribution: "edge"
-        alpine_tree: "edge"
-        alpine_role: "edge"
-        apk_version: "22.10.1-r1"
-        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
-        architectures:
-          - "amd64"
-          - "arm64"
     tarball_sha256: "0953564c44fa49827f3c9d70ca6e80db83828c9848440852c6be44c961855353"
     superseded_by: "22.11.0"
     deprecated_at: "2026-10-09T14:45:57Z"
@@ -551,15 +542,6 @@ latest_builds:
           - "arm64"
         additional_tags: "experimental"
 
-      - os: "alpine"
-        distribution: "edge"
-        alpine_tree: "edge"
-        alpine_role: "edge"
-        apk_version: "23.4.1-r1"
-        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
-        architectures:
-          - "amd64"
-          - "arm64"
     tarball_sha256: "9d90269af187c8437087ba96f569e656a6a4a9a0a2347489c9e81ff1c37d2c51"
     superseded_by: "23.5.0"
     deprecated_at: "2026-10-09T14:45:57Z"
@@ -623,6 +605,15 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
+      - os: "alpine"
+        distribution: "edge"
+        alpine_tree: "edge"
+        alpine_role: "edge"
+        apk_version: "22.11.0-r1"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "stable,22"
   - version: "23.5.0"
     tarball_sha256: "8ed3a237e6d8dff94a09527a83143530b5afcc1aee73fa7b85c069bda507adac"
@@ -651,6 +642,15 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
+      - os: "alpine"
+        distribution: "edge"
+        alpine_tree: "edge"
+        alpine_role: "edge"
+        apk_version: "23.5.0-r1"
+        apk_packages: ["opus", "srtp", "curl", "speex", "fax", "odbc", "ldap", "pgsql", "prometheus", "mobile"]
+        architectures:
+          - "amd64"
+          - "arm64"
     additional_tags: "latest,23"
   - version: "24.0.0-rc2"
     tarball_sha256: "690e85d4a747946cffa25ec16efcc72b827508ae8dbf20964db20cd1e4f7f3e0"
