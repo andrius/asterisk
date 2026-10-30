@@ -1,6 +1,6 @@
 # Asterisk Docker Images
 
-Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 25 versions from 1.2.40 to 24.0.0-rc3 plus git development builds.
+Production-ready Docker images for Asterisk PBX with advanced DRY template system, supporting 26 versions from 1.2.40 to 24.0.0-rc4 plus git development builds.
 
 ## Quick Start
 
@@ -53,7 +53,8 @@ All supported Asterisk versions with automatic variant detection. Generated buil
 | **git** | `testing,dev` | Trixie | amd64, arm64 |
 | **git** | experimental-git | Forky | amd64, arm64 |
 | **git** | `testing,dev` | Edge | amd64, arm64 |
-| **24.0.0-rc3** | 24-rc | Trixie | amd64, arm64 |
+| **24.0.0-rc4** | 24-rc | Trixie | amd64, arm64 |
+| **24.0.0-rc3** | - | Trixie | amd64, arm64 |
 | **23.5.0** | `latest,23` | Trixie | amd64, arm64 |
 | **23.5.0** | experimental | Forky | amd64, arm64 |
 | **23.5.0** | `latest,23` | 3.24 | amd64, arm64, armv7, armhf |

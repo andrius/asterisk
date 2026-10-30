@@ -705,9 +705,19 @@ latest_builds:
           - "amd64"
           - "arm64"
 
+    superseded_by: "24.0.0-rc4"
+  - version: "24.0.0-rc4"
+    tarball_sha256: "39ea482de8ec34c08c6999b5fd6f9d8e50febbeb54c1bda069509d3934a30317"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
     additional_tags: "24-rc"
 metadata:
-  generated_at: "2026-10-25T22:18:38Z"
+  generated_at: "2026-10-30T23:28:16Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie", "forky"]
   supported_architectures: ["amd64", "arm64"]
