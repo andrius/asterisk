@@ -604,7 +604,7 @@ latest_builds:
         architectures:
           - "amd64"
           - "arm64"
-    additional_tags: "20"
+    superseded_by: "20.22.0"
   - version: "22.11.0"
     tarball_sha256: "3bd5ee040509a3d3cd9b1ba9520c18e6ec0a7e7981ca68c457dcd36ba3c54d94"
     os_matrix:
@@ -625,7 +625,7 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
-    additional_tags: "stable,22"
+    superseded_by: "22.12.0"
   - version: "23.5.0"
     tarball_sha256: "8ed3a237e6d8dff94a09527a83143530b5afcc1aee73fa7b85c069bda507adac"
     os_matrix:
@@ -653,7 +653,7 @@ latest_builds:
           - "arm64"
           - "armv7"
           - "armhf"
-    additional_tags: "latest,23"
+    superseded_by: "23.6.0"
   - version: "24.0.0-rc2"
     tarball_sha256: "690e85d4a747946cffa25ec16efcc72b827508ae8dbf20964db20cd1e4f7f3e0"
     os_matrix:
@@ -705,9 +705,56 @@ latest_builds:
           - "amd64"
           - "arm64"
 
-    additional_tags: "24-rc"
+    superseded_by: "24.0.0"
+  - version: "20.22.0"
+    tarball_sha256: "ca4a5cbfa0e8b4fa683ae6aa8302769244b6208f1cc466e6025f89457df418e5"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "20"
+  - version: "22.12.0"
+    tarball_sha256: "f8b2ba98aac6c4ff3376bc0a2868bea6ed577ca684efb7ec739ae6e8ce6e35e2"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "22"
+  - version: "23.6.0"
+    tarball_sha256: "f9194d92dae1a2c3cc71ef0953dff93ec83aff972cb07273d7df9d0345034346"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+      - os: "debian"
+        distribution: "forky"
+        architectures:
+          - "amd64"
+          - "arm64"
+        additional_tags: "experimental"
+
+    additional_tags: "23"
+  - version: "24.0.0"
+    tarball_sha256: "ece42a75bc965180007c56b03f2fd1dc8484eb84fc4cddc090db0ee5d5da1af9"
+    os_matrix:
+      - os: "debian"
+        distribution: "trixie"
+        architectures:
+          - "amd64"
+          - "arm64"
+
+    additional_tags: "latest,stable,24"
 metadata:
-  generated_at: "2026-10-25T22:18:38Z"
+  generated_at: "2026-11-12T01:47:49Z"
   supported_os:
     debian: ["stretch", "jessie", "buster", "bullseye", "bookworm", "trixie", "forky"]
   supported_architectures: ["amd64", "arm64"]
