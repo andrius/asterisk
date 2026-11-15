@@ -1,1 +1,1 @@
-../.workflow/CLAUDE.md
+AGENTS.md
