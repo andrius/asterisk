@@ -39,10 +39,11 @@ FROZEN_MATRIX = os.path.join(
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 # One "Build targets" line: "  -> os/distribution (archs) [additional_tags: T] [from: src]"
-_TARGET = re.compile(
-    r"→\s+(?P<os>\S+?)/(?P<dist>\S+?)\s+\([^)]*\).*?"
-    r"\[additional_tags:\s*(?P<tags>[^\]]*)\]"
-)
+# additional_tags is optional: members without tags (e.g. a deprecated
+# version's Debian legs in regeneration mode) still count as emitted legs,
+# with an empty tag list.
+_TARGET = re.compile(r"→\s+(?P<os>\S+?)/(?P<dist>\S+?)\s+\([^)]*\)")
+_TAGINFO = re.compile(r"\[additional_tags:\s*(?P<tags>[^\]]*)\]")
 
 _CACHE = {}
 
@@ -77,14 +78,20 @@ def worktree(tmp_path_factory):
     )
 
 
-def _tags_by_leg(worktree, version):
-    """Map (os, distribution) -> emitted additional_tags list for a --dry-run."""
-    if version in _CACHE:
-        return _CACHE[version]
-    run = subprocess.run(
-        ["./scripts/build-asterisk.sh", version, "--dry-run", "--skip-format-dockerfile"],
-        cwd=worktree, capture_output=True, text=True,
-    )
+def _tags_by_leg(worktree, version, force_config=False):
+    """Map (os, distribution) -> emitted additional_tags list for a --dry-run.
+
+    force_config=True reproduces the regeneration invocation
+    (--force-config --dry-run) used by the golden tests, alpine-sync and
+    regenerate-all-configs.
+    """
+    key = (version, force_config)
+    if key in _CACHE:
+        return _CACHE[key]
+    cmd = ["./scripts/build-asterisk.sh", version, "--dry-run", "--skip-format-dockerfile"]
+    if force_config:
+        cmd.append("--force-config")
+    run = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True)
     assert run.returncode == 0, (
         f"{version}: dry-run failed (rc={run.returncode})\n"
         f"stderr:\n{run.stderr[-2000:]}"
@@ -93,10 +100,11 @@ def _tags_by_leg(worktree, version):
     for line in _ANSI.sub("", run.stdout).splitlines():
         m = _TARGET.search(line)
         if m:
+            tags = _TAGINFO.search(line)
             legs[(m.group("os"), m.group("dist"))] = [
-                t for t in m.group("tags").split(",") if t
+                t for t in (tags.group("tags").split(",") if tags else []) if t
             ]
-    _CACHE[version] = legs
+    _CACHE[key] = legs
     return legs
 
 
@@ -165,6 +173,26 @@ class TestDeprecatedVersionLegs:
     def test_only_alpine_legs_survive(self, worktree):
         legs = _tags_by_leg(worktree, "22.8-cert3")
         assert list(legs) == [("alpine", "3.24")]
+        assert "22.8-cert3-alpine-3.24" in legs[("alpine", "3.24")]
+
+
+class TestDeprecatedRegenerationMode:
+    """Regeneration mode (--force-config --dry-run - the invocation the golden
+    tests, alpine-sync and regenerate-all-configs use) processes EVERY
+    os_matrix member of a deprecated version: old versions stay supported
+    (their source is still published), so their tracked configs/Dockerfiles
+    keep regenerating and stay guarded. Only actual builds apply
+    deprecation-survival (TestDeprecatedVersionLegs above)."""
+
+    def test_deprecated_regenerates_all_members(self, worktree):
+        legs = _tags_by_leg(worktree, "22.8-cert3", force_config=True)
+        assert set(legs) == {("debian", "trixie"), ("alpine", "3.24")}
+
+    def test_debian_leg_is_tagless_alpine_keeps_lattice(self, worktree):
+        # 22.8-cert3 carries no version-level additional_tags: its Debian leg
+        # regenerates tagless while the Alpine leg keeps the tag lattice.
+        legs = _tags_by_leg(worktree, "22.8-cert3", force_config=True)
+        assert legs[("debian", "trixie")] == []
         assert "22.8-cert3-alpine-3.24" in legs[("alpine", "3.24")]
 
 

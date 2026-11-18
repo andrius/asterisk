@@ -367,13 +367,20 @@ try:
     # survive: the Alpine image tracks the apk still published for that line
     # until the sibling bumps it (deprecation-survival, plan 003; mirrors
     # .github/actions/generate-build-matrix). Debian members stay skipped.
+    # Exception - regeneration mode (REGEN_ALL_MEMBERS, set for
+    # --force-config --dry-run): every member is processed, deprecated
+    # included. Old versions stay supported (their source is still
+    # published), so their tracked configs/Dockerfiles must keep
+    # regenerating - the golden tests and alpine-sync regeneration
+    # depend on it.
+    regen_all = os.getenv('REGEN_ALL_MEMBERS') == 'true'
     deprecated = bool(version_data.get('deprecated_at'))
     os_matrix = version_data['os_matrix']
     has_alpine = any(m.get('os') == 'alpine'
                      for m in (os_matrix if isinstance(os_matrix, list) else [os_matrix]))
-    if deprecated and not has_alpine:
+    if deprecated and not has_alpine and not regen_all:
         # Version is deprecated - kept in YAML for history but not built
-        print(f"INFO: Version $version is deprecated since {version_data['deprecated_at']} - skipping build", file=sys.stderr)
+        print(f"INFO: Version $version is deprecated since {version_data.get('deprecated_at')} - skipping build", file=sys.stderr)
         if version_data.get('superseded_by'):
             print(f"This version was superseded by {version_data['superseded_by']}.", file=sys.stderr)
         sys.exit(0)
@@ -407,8 +414,9 @@ try:
 
         log_debug(f"Processing matrix entry: {os_name}/{distribution} with {architectures}")
 
-        # Deprecated: keep only Alpine members (they track the live apk).
-        if deprecated and os_name != 'alpine':
+        # Deprecated: keep only Alpine members (they track the live apk);
+        # regeneration mode processes every member (see REGEN_ALL_MEMBERS).
+        if deprecated and not regen_all and os_name != 'alpine':
             log_debug(f"Skipping {os_name}/{distribution}: version $version is deprecated")
             continue
 
@@ -500,6 +508,17 @@ log INFO "Parsing build matrix from $LATEST_BUILDS_FILE..."
 # Export verbose flag for Python scripts
 export VERBOSE="$VERBOSE"
 
+# Regeneration mode (--force-config --dry-run): configs are regenerated and
+# nothing is built, so every os_matrix member is processed, deprecated
+# included - old versions stay supported (source is still published) and
+# their tracked files keep regenerating. Real builds keep the
+# deprecation-survival policy (plan 003).
+if [[ "$FORCE_CONFIG" == true && "$DRY_RUN" == true ]]; then
+    export REGEN_ALL_MEMBERS=true
+else
+    export REGEN_ALL_MEMBERS=false
+fi
+
 # Handle git builds with special matrix
 if [[ "$GIT_BUILD" == true ]]; then
     log INFO "Creating git build matrix..."
@@ -507,9 +526,12 @@ if [[ "$GIT_BUILD" == true ]]; then
     BUILD_TARGETS=("debian:$DISTRIBUTION:$ARCH_FILTER:git-dev:git:")
     log INFO "Git build target: debian:$DISTRIBUTION:$ARCH_FILTER:git-dev:git:"
 else
-    # Get build matrix and capture it properly
+    # Get build matrix and capture it properly. The resolver's stderr stays
+    # separate from the target stream so its INFO/ERROR lines (version not
+    # found, deprecated skip, YAML errors) reach the caller's stderr instead
+    # of being swallowed by the target-line filter below.
     {
-        exec 3< <(get_build_matrix "$VERSION" "$OS_FILTER" "$ARCH_FILTER" 2>&1)
+        exec 3< <(get_build_matrix "$VERSION" "$OS_FILTER" "$ARCH_FILTER")
         BUILD_TARGETS=()
         while IFS= read -r line <&3; do
             # Only capture lines that look like build targets (contain colons)
@@ -519,7 +541,7 @@ else
             fi
         done
         exec 3<&-
-    } 2>&1
+    }
 fi
 
 if [[ ${#BUILD_TARGETS[@]} -eq 0 ]]; then
