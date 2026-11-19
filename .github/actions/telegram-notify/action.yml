@@ -1,7 +1,7 @@
 name: 'telegram-notify'
 description: >-
   Send a failure notification to Telegram. The caller passes
-  secrets.TELEGRAM_BOT_TOKEN and secrets.TELEGRAM_CHAT_ID as inputs
+  TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as inputs (token from secrets, chat id from repository variables)
   (composite actions cannot read the secrets context directly). Skips with
   a warning when either is unset and never fails the calling job - the run
   is already red when this fires, and a broken notifier must not mask it.
@@ -12,7 +12,7 @@ inputs:
     required: false
     default: ''
   chat-id:
-    description: 'Telegram chat id (pass secrets.TELEGRAM_CHAT_ID)'
+    description: 'Telegram chat id (pass vars.TELEGRAM_CHAT_ID)'
     required: false
     default: ''
 
@@ -33,7 +33,7 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
         if [[ -z "$TG_TOKEN" || -z "$TG_CHAT" ]]; then
-          echo "::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set - skipping Telegram notification"
+          echo "::warning::TELEGRAM_BOT_TOKEN secret or TELEGRAM_CHAT_ID variable is not set - skipping Telegram notification"
           exit 0
         fi
         # First line only, HTML-escaped: parse_mode=HTML rejects raw < > &.

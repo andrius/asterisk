@@ -308,7 +308,7 @@ jobs:
     secrets: inherit
 
   # Telegram ping to the owner when an unattended run fails. Requires repo
-  # secrets TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID; skips with a warning when unset.
+  # secret TELEGRAM_BOT_TOKEN + variable TELEGRAM_CHAT_ID; skips with a warning when unset.
   notify-failure:
     needs: [detect-new-releases, prepare-matrix, build-matrix, report-results, announce-releases]
     if: failure()
@@ -318,4 +318,4 @@ jobs:
       - uses: ./.github/actions/telegram-notify
         with:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          chat-id: ${{ vars.TELEGRAM_CHAT_ID }}

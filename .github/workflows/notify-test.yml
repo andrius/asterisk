@@ -2,8 +2,8 @@ name: Telegram Notify Test
 
 # Manual-only smoke test for the Telegram failure notifications: the job
 # fails on purpose, which fires the same notify-failure wiring every
-# unattended workflow uses. Run it after setting the repo secrets
-# TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID and confirm the message arrives.
+# unattended workflow uses. Run it once the secret
+# TELEGRAM_BOT_TOKEN and the variable TELEGRAM_CHAT_ID are in place and confirm the message arrives.
 # The run being red is the expected outcome here.
 
 on:
@@ -30,4 +30,4 @@ jobs:
       - uses: ./.github/actions/telegram-notify
         with:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
