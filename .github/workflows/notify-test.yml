@@ -1,0 +1,33 @@
+name: Telegram Notify Test
+
+# Manual-only smoke test for the Telegram failure notifications: the job
+# fails on purpose, which fires the same notify-failure wiring every
+# unattended workflow uses. Run it after setting the repo secrets
+# TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID and confirm the message arrives.
+# The run being red is the expected outcome here.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fail-on-purpose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deliberate failure
+        run: |
+          echo "This job fails on purpose to exercise the Telegram failure notification."
+          exit 1
+
+  notify-failure:
+    needs: [fail-on-purpose]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/telegram-notify
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

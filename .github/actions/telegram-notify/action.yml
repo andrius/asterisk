@@ -1,0 +1,49 @@
+name: 'telegram-notify'
+description: >-
+  Send a failure notification to Telegram. The caller passes
+  secrets.TELEGRAM_BOT_TOKEN and secrets.TELEGRAM_CHAT_ID as inputs
+  (composite actions cannot read the secrets context directly). Skips with
+  a warning when either is unset and never fails the calling job - the run
+  is already red when this fires, and a broken notifier must not mask it.
+
+inputs:
+  token:
+    description: 'Telegram bot token (pass secrets.TELEGRAM_BOT_TOKEN)'
+    required: false
+    default: ''
+  chat-id:
+    description: 'Telegram chat id (pass secrets.TELEGRAM_CHAT_ID)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Send Telegram failure notification
+      shell: bash
+      env:
+        TG_TOKEN: ${{ inputs.token }}
+        TG_CHAT: ${{ inputs.chat-id }}
+        WF: ${{ github.workflow }}
+        REPO: ${{ github.repository }}
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+        SUBJECT: ${{ github.event.pull_request.title || github.event.head_commit.message || github.event.dispatch.type || github.sha }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        if [[ -z "$TG_TOKEN" || -z "$TG_CHAT" ]]; then
+          echo "::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set - skipping Telegram notification"
+          exit 0
+        fi
+        # First line only, HTML-escaped: parse_mode=HTML rejects raw < > &.
+        SUBJ="$(printf '%s' "$SUBJECT" | head -n 1 | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')"
+        TEXT="$(printf '❌ <b>%s</b> failed\n<b>%s</b> · %s · %s · <code>%s</code>\n%s\n\n%s' \
+          "$WF" "$REPO" "$EVENT" "$REF" "$SHA" "$SUBJ" "$RUN_URL")"
+        if ! curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true"; then
+          echo "::warning::Telegram notification failed (curl rc=$?)"
+        fi

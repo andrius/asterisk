@@ -21,3 +21,16 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest tests/ -q
+
+  # Telegram ping to the owner when an unattended run fails. Requires repo
+  # secrets TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID; skips with a warning when unset.
+  notify-failure:
+    needs: [pytest]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/telegram-notify
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
