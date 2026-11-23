@@ -98,6 +98,7 @@
   - 20.7-cert10
   - 20.7-cert11
   - 20.7-cert12
+  - 20.7-cert13
   - 20.7-cert2
   - 20.7-cert3
   - 20.7-cert4
@@ -113,5 +114,6 @@
   - 22.8-cert3
   - 22.8-cert4
   - 22.8-cert5
+  - 22.8-cert6
 current:
   - current
